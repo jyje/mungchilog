@@ -13,6 +13,10 @@ const ComputeLegSchema = z.object({
   // ISO 8601. Defaults to "now": only matters for picking the cache
   // bucket and (for TRANSIT) which timetable Google quotes.
   when: z.string().datetime().optional(),
+  // IANA timezone name the cache bucket's weekday/hour are computed in -
+  // should be the trip's own timezone (destination), not the server's
+  // or the caller's. Not locked to any one region.
+  timezone: z.string().default("Asia/Tokyo"),
 });
 
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days, per PLAN.md's caching policy
@@ -27,12 +31,12 @@ type LegRow = {
   fetched_at: string;
 };
 
-// (day-of-week, 4-hour-of-day block) in Asia/Tokyo: coarse enough that a
-// handful of trip days share cache entries, fine enough that morning vs.
-// evening transit schedules don't collide.
-function bucketFor(when: Date): string {
+// (day-of-week, 4-hour-of-day block) in the trip's own timezone: coarse
+// enough that a handful of trip days share cache entries, fine enough
+// that morning vs. evening transit schedules don't collide.
+function bucketFor(when: Date, timezone: string): string {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Tokyo",
+    timeZone: timezone,
     weekday: "short",
     hour: "numeric",
     hour12: false,
@@ -53,9 +57,9 @@ legs.post("/compute", async (c) => {
   const parsed = ComputeLegSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: "validation failed", issues: parsed.error.issues }, 400);
 
-  const { fromPlaceId, toPlaceId, mode } = parsed.data;
+  const { fromPlaceId, toPlaceId, mode, timezone } = parsed.data;
   const when = parsed.data.when ? new Date(parsed.data.when) : new Date();
-  const bucket = bucketFor(when);
+  const bucket = bucketFor(when, timezone);
   const id = cacheKey(fromPlaceId, toPlaceId, mode, bucket);
 
   const cached = db.prepare("SELECT * FROM legs WHERE id = ?").get(id) as LegRow | undefined;
@@ -150,8 +154,10 @@ async function callRoutesApi(
       destination: { placeId: toPlaceId },
       travelMode: mode,
       ...(mode === "TRANSIT" ? { departureTime: when.toISOString() } : {}),
+      // languageCode is the user's language preference, not tied to the
+      // destination. No regionCode - every call here uses placeId, which
+      // is already unambiguous, so region biasing has nothing to do.
       languageCode: "ko",
-      regionCode: "JP",
       units: "METRIC",
     }),
   });

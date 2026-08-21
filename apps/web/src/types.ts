@@ -36,7 +36,8 @@ export const DaySchema = z.object({
 
 export const TripDataSchema = z.object({
   title: z.string().min(1),
-  timezone: z.literal("Asia/Tokyo").default("Asia/Tokyo"),
+  // Any IANA timezone name - not locked to one destination.
+  timezone: z.string().default("Asia/Tokyo"),
   currency: z.string().default("JPY"),
   startDate: z.string(),
   endDate: z.string(),

@@ -4,7 +4,7 @@
 
 <img width="120" src="https://raw.githubusercontent.com/jyje/mungchilog/main/apps/web/public/pwa-512.png" alt="mungchilog" title="mungchilog"/>
 
-**뭉치 + log** — a personal travel itinerary app with live Google Maps routing
+**뭉치 + log**: a personal travel itinerary app with live Google Maps routing, for any destination
 
 [![Build](https://github.com/jyje/mungchilog/actions/workflows/build.yml/badge.svg)](https://github.com/jyje/mungchilog/actions/workflows/build.yml)
 
@@ -12,7 +12,7 @@
 
 ## Overview
 
-mungchilog plans a trip's day-by-day route and shows it live on Google Maps while traveling: distance, transit time, and what to buy or eat at each stop. Built for a specific trip to Japan, kept small enough to actually finish before departure.
+mungchilog plans a trip's day-by-day route and shows it live on Google Maps while traveling: distance, transit time, and what to buy or eat at each stop. Not locked to one destination or timezone; the first trip it was built for happens to be Japan, but any IANA timezone works.
 
 Live at `https://mungchilog.app.jyje.online` (personal itinerary data, gated behind Basic Auth).
 
@@ -21,7 +21,7 @@ Live at `https://mungchilog.app.jyje.online` (personal itinerary data, gated beh
 - **Two ways in**: paste a trip as JSON, or build it through the web UI (add days, spots, checklist items)
 - **Drag-to-reorder** spots within a day
 - **Buy / eat / to-do checklist** per spot, with local-language place names for showing staff on the ground
-- **Live routing**: distance, transit time, and fare between spots (Google Routes API), with opening-hours lookup (Places API) — both degrade to a plain placeholder until a key is configured, no broken UI in the meantime
+- **Live routing**: distance, transit time, and fare between spots (Google Routes API), with opening-hours lookup (Places API); both degrade to a plain placeholder until a key is configured, no broken UI in the meantime
 - **PWA**: installable, offline-capable (IndexedDB-persisted cache) for dead zones underground
 
 ## Stack
@@ -37,6 +37,6 @@ cd apps/server && npm install && npm run dev   # http://localhost:3000
 cd apps/web && npm install && npm run dev       # http://localhost:5173
 ```
 
-Copy `.env.sample` to `.env` at the repo root for local Google Maps keys (optional — the app runs fine without them, map and routing UI just show a placeholder).
+Copy `.env.sample` to `.env` at the repo root for local Google Maps keys (optional: the app runs fine without them, map and routing UI just show a placeholder).
 
 See [`PLAN.md`](PLAN.md) for architecture decisions and [`TASK.md`](TASK.md) for the milestone checklist.

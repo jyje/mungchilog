@@ -2,6 +2,44 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { saveTrip } from "../api";
 
+// Full IANA list where the browser supports it (Chrome/Safari 15.4+);
+// a short curated fallback everywhere else. Not locked to any one
+// destination - see PLAN.md.
+const COMMON_TIMEZONES = [
+  "Asia/Tokyo",
+  "Asia/Seoul",
+  "Asia/Taipei",
+  "Asia/Shanghai",
+  "Asia/Hong_Kong",
+  "Asia/Singapore",
+  "Asia/Bangkok",
+  "Asia/Ho_Chi_Minh",
+  "Asia/Manila",
+  "Asia/Kolkata",
+  "Asia/Dubai",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Rome",
+  "America/New_York",
+  "America/Los_Angeles",
+  "America/Chicago",
+  "Australia/Sydney",
+  "Pacific/Auckland",
+  "UTC",
+];
+
+function timezoneOptions(): string[] {
+  if (typeof Intl.supportedValuesOf === "function") {
+    try {
+      return Intl.supportedValuesOf("timeZone");
+    } catch {
+      // fall through
+    }
+  }
+  return COMMON_TIMEZONES;
+}
+
 // The other way to get a trip in: a plain form instead of pasting JSON.
 // Creates an empty trip (no days yet) and hands off to the day view,
 // where "+ 날짜 추가" / "+ 스팟 추가" build it out from there.
@@ -10,6 +48,8 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [timezone, setTimezone] = useState("Asia/Tokyo");
+  const [currency, setCurrency] = useState("JPY");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -24,8 +64,8 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
     try {
       const { id } = await saveTrip({
         title: title.trim(),
-        timezone: "Asia/Tokyo",
-        currency: "JPY",
+        timezone,
+        currency: currency.trim() || "JPY",
         startDate,
         endDate,
         days: [],
@@ -66,6 +106,26 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
         <label className="field">
           <span className="field-label">종료일</span>
           <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+        </label>
+        <label className="field">
+          <span className="field-label">목적지 시간대</span>
+          <select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+            {timezoneOptions().map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span className="field-label">통화</span>
+          <input
+            type="text"
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value.toUpperCase())}
+            placeholder="JPY"
+            maxLength={3}
+          />
         </label>
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={submitting}>

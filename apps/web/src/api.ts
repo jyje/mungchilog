@@ -53,12 +53,13 @@ export async function computeLeg(
   fromPlaceId: string,
   toPlaceId: string,
   mode: LegMode,
-  when?: string,
+  when: string | undefined,
+  timezone: string,
 ): Promise<Leg | null> {
   const res = await fetch("/api/legs/compute", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fromPlaceId, toPlaceId, mode, when }),
+    body: JSON.stringify({ fromPlaceId, toPlaceId, mode, when, timezone }),
   });
   if (res.status === 501) {
     const body = await res.json().catch(() => ({}));

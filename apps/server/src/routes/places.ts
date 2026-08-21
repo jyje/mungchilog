@@ -33,7 +33,10 @@ places.get("/:placeId/hours", async (c) => {
 
   let openingHours: unknown;
   try {
-    const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=ko&regionCode=JP`;
+    // No regionCode - this is always called by placeId, already
+    // unambiguous, so region biasing has nothing to do. languageCode is
+    // the user's language preference, not tied to the destination.
+    const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?languageCode=ko`;
     const res = await fetch(url, {
       headers: {
         "X-Goog-Api-Key": apiKey,

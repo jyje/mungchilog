@@ -27,7 +27,9 @@
 
 `mungchilog.app.jyje.online` → CNAME → `r5iny.iptime.org.` 레코드를 Porkbun에 이미 생성했다 (기존 `n8n.app`, `grafana.app` 등과 동일 패턴, record id `577214606`). 이제 클러스터 쪽 Ingress만 뜨면 바로 접속 가능.
 
-## 2. 범위 재조정 (일본 여행, D-14 미만 — 이전 세션 확정 사항 유지)
+## 2. 범위 재조정 (D-14 미만, 이전 세션 확정 사항 유지)
+
+앱 자체는 특정 국가·도시에 종속되지 않는다. 목적지/시간대/통화는 여행마다 사용자가 지정하는 값이고, 최초로 실제 쓰는 여행이 일본일 뿐이다 (아래 데이터 모델·좌표계 설계도 이 전제로 되어 있음).
 
 - Electron 데스크톱: v1 제외, 여행 후로.
 - 모노레포(pnpm+Turborepo): 생략. 단일 `apps/web`(Vite React) + `apps/server`(Hono) 2개 프로젝트로 충분.
@@ -69,11 +71,11 @@ SQLite는 WAL 모드에서 POSIX 파일 락에 의존하는데, 클러스터 기
 ## 4. 데이터 모델 (유지)
 
 ```
-trips: id, title, timezone(Asia/Tokyo 고정), currency, startDate, endDate, data(JSON: days/spots/items)
+trips: id, title, timezone(IANA 타임존, 여행마다 지정, 기본값 Asia/Tokyo), currency, startDate, endDate, data(JSON: days/spots/items)
 legs:  id, fromSpotId, toSpotId, mode, distanceM, durationS, fareAmount, polyline, fetchedAt   ← TTL 30일 캐시
 ```
 
-`Spot`에는 `nameLocal`(일본어 원문), `bufferMinutes`(기본 10, 신주쿠/도쿄/오사카/우메다 15) 반드시 포함.
+`Spot`에는 `nameLocal`(현지어 원문), `bufferMinutes`(기본 10, 대형 환승역/공항은 15 권장 — 어느 도시든) 반드시 포함.
 
 ## 5. Google Maps API (유지)
 

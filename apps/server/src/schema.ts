@@ -17,7 +17,8 @@ export const SpotSchema = z.object({
   id: z.string(),
   order: z.number().int().nonnegative(),
   name: z.string().min(1),
-  // Original Japanese name. Shown on-screen to staff/station clerks on the ground.
+  // Name in the local script/language of the destination. Shown
+  // on-screen to staff, drivers, station clerks on the ground.
   nameLocal: z.string().optional(),
   placeId: z.string().optional(),
   lat: z.number().optional(),
@@ -25,8 +26,9 @@ export const SpotSchema = z.object({
   category: z.string().optional(),
   plannedArrival: z.string().optional(), // "HH:mm"
   dwellMinutes: z.number().int().nonnegative().optional(),
-  // Transfer/walking buffer (minutes). Recommend 15 for major hub
-  // stations (Shinjuku, Tokyo, Osaka, Umeda).
+  // Transfer/walking buffer (minutes). Bump this for major transit
+  // hubs, wherever the trip is - Google routinely underestimates
+  // in-station walking time at big stations/airports.
   bufferMinutes: z.number().int().nonnegative().default(10),
   note: z.string().optional(),
   items: z.array(ItemSchema).default([]),
@@ -39,7 +41,10 @@ export const DaySchema = z.object({
 
 export const TripDataSchema = z.object({
   title: z.string().min(1),
-  timezone: z.literal("Asia/Tokyo").default("Asia/Tokyo"),
+  // Any IANA timezone name (e.g. "Asia/Tokyo", "Europe/Paris",
+  // "America/New_York"). Not locked to one destination - see
+  // routes/legs.ts for how this drives route-time calculations.
+  timezone: z.string().default("Asia/Tokyo"),
   currency: z.string().default("JPY"),
   startDate: z.string(),
   endDate: z.string(),
