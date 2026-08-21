@@ -63,12 +63,12 @@ legs.post("/compute", async (c) => {
     return c.json(toLegResponse(cached), 200, { "X-Cache": "hit" });
   }
 
-  const apiKey = process.env.GOOGLE_MAPS_SERVER_KEY;
+  const apiKey = process.env.GOOGLE_MAPS_SERVER_API_KEY;
   if (!apiKey) {
     // Not a real 500: this is an expected, temporary state until the
     // Maps API keys are provisioned (see TASK.md blockers).
     return c.json(
-      { error: "GOOGLE_MAPS_SERVER_KEY not configured", cached: cached ? toLegResponse(cached) : null },
+      { error: "GOOGLE_MAPS_SERVER_API_KEY not configured", cached: cached ? toLegResponse(cached) : null },
       501,
     );
   }

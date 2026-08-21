@@ -23,10 +23,10 @@ places.get("/:placeId/hours", async (c) => {
     return c.json(toResponse(cached), 200, { "X-Cache": "hit" });
   }
 
-  const apiKey = process.env.GOOGLE_MAPS_SERVER_KEY;
+  const apiKey = process.env.GOOGLE_MAPS_SERVER_API_KEY;
   if (!apiKey) {
     return c.json(
-      { error: "GOOGLE_MAPS_SERVER_KEY not configured", cached: cached ? toResponse(cached) : null },
+      { error: "GOOGLE_MAPS_SERVER_API_KEY not configured", cached: cached ? toResponse(cached) : null },
       501,
     );
   }

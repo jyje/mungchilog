@@ -4,6 +4,9 @@ import { VitePWA } from "vite-plugin-pwa";
 
 // https://vite.dev/config/
 export default defineConfig({
+  // .env lives at the repo root (jyje/mungchilog/.env), not apps/web/.env -
+  // Vite only looks in its own root by default.
+  envDir: "../..",
   plugins: [
     react(),
     VitePWA({
