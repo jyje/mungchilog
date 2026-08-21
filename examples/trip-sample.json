@@ -1,0 +1,51 @@
+{
+  "title": "도쿄·오사카 5박6일",
+  "timezone": "Asia/Tokyo",
+  "currency": "JPY",
+  "startDate": "2026-09-07",
+  "endDate": "2026-09-12",
+  "days": [
+    {
+      "date": "2026-09-07",
+      "spots": [
+        {
+          "id": "narita-airport",
+          "order": 0,
+          "name": "Narita International Airport",
+          "nameLocal": "成田国際空港",
+          "plannedArrival": "16:30",
+          "bufferMinutes": 15,
+          "items": [
+            { "id": "sim-card", "kind": "buy", "title": "eSIM/포켓와이파이 수령", "done": false }
+          ]
+        },
+        {
+          "id": "shinjuku-hotel",
+          "order": 1,
+          "name": "Shinjuku Hotel",
+          "nameLocal": "新宿ホテル",
+          "plannedArrival": "19:00",
+          "bufferMinutes": 15,
+          "note": "신주쿠역은 환승 버퍼 15분",
+          "items": []
+        }
+      ]
+    },
+    {
+      "date": "2026-09-08",
+      "spots": [
+        {
+          "id": "senso-ji",
+          "order": 0,
+          "name": "Sensoji Temple",
+          "nameLocal": "浅草寺",
+          "plannedArrival": "10:00",
+          "dwellMinutes": 90,
+          "items": [
+            { "id": "nakamise-snack", "kind": "eat", "title": "나카미세도리 군것질", "done": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

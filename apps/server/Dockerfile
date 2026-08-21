@@ -14,5 +14,8 @@ COPY package.json package-lock.json* ./
 RUN npm install --omit=dev
 COPY --from=build /app/dist ./dist
 COPY public ./public
+# node:sqlite is experimental on Node 22 (unflagged from Node 24+); pin this
+# flag as long as the runtime stage stays on node:22-alpine.
+ENV NODE_OPTIONS=--experimental-sqlite
 EXPOSE 3000
 CMD ["node", "dist/index.js"]
