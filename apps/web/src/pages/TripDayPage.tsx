@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { getTrip, saveTrip } from "../api";
@@ -7,32 +8,29 @@ import { TripMap } from "../components/TripMap";
 import { SpotCard } from "../components/SpotCard";
 
 export function TripDayPage({ id, navigate }: { id: string; navigate: (path: string) => void }) {
-  const [trip, setTrip] = useState<Trip | null>(null);
+  const qc = useQueryClient();
+  const queryKey = ["trip", id];
+  const { data: trip, error } = useQuery({ queryKey, queryFn: () => getTrip(id) });
   const [dayIndex, setDayIndex] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    getTrip(id)
-      .then(setTrip)
-      .catch((e) => setError(String(e.message ?? e)));
-  }, [id]);
-
-  // Debounced persist: avoid firing a save on every intermediate drag frame.
-  function scheduleSave(next: Trip) {
-    setTrip(next);
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      setSaving(true);
+  const mutation = useMutation({
+    mutationFn: (next: Trip) => {
       const { id: tripId, ...data } = next;
-      saveTrip({ id: tripId, ...data })
-        .catch((e) => setError(String(e.message ?? e)))
-        .finally(() => setSaving(false));
-    }, 800);
+      return saveTrip({ id: tripId, ...data });
+    },
+  });
+
+  // Debounced persist: update the local cache immediately (so the UI
+  // never waits on the network) but only hit the server 800ms after the
+  // last change, so a drag doesn't fire a save per frame.
+  function scheduleSave(next: Trip) {
+    qc.setQueryData(queryKey, next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => mutation.mutate(next), 800);
   }
 
-  if (error) return <p className="error">{error}</p>;
+  if (error) return <p className="error">{String((error as Error).message ?? error)}</p>;
   if (!trip) return <p className="meta">불러오는 중...</p>;
 
   const day = trip.days[dayIndex];
@@ -79,7 +77,7 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
       </p>
       <h1>{trip.title}</h1>
       <p className="meta">
-        {trip.startDate} ~ {trip.endDate} · {trip.timezone} {saving && "· 저장 중..."}
+        {trip.startDate} ~ {trip.endDate} · {trip.timezone} {mutation.isPending && "· 저장 중..."}
       </p>
 
       <div className="day-tabs">

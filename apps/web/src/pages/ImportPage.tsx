@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { TripImportSchema } from "../types";
 import { saveTrip } from "../api";
 
@@ -16,6 +17,7 @@ const PLACEHOLDER = `{
 // Basic Auth. See examples/trip-sample.json in the repo for the shape
 // (that fixture is fictional, not real travel data).
 export function ImportPage({ navigate }: { navigate: (path: string) => void }) {
+  const qc = useQueryClient();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -41,6 +43,7 @@ export function ImportPage({ navigate }: { navigate: (path: string) => void }) {
     setSubmitting(true);
     try {
       const { id } = await saveTrip(validated.data);
+      await qc.invalidateQueries({ queryKey: ["trips"] });
       navigate(`/trips/${id}`);
     } catch (e) {
       setError(String((e as Error).message ?? e));

@@ -1,16 +1,11 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { listTrips } from "../api";
-import type { TripSummary } from "../types";
 
 export function TripListPage({ navigate }: { navigate: (path: string) => void }) {
-  const [trips, setTrips] = useState<TripSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    listTrips()
-      .then(setTrips)
-      .catch((e) => setError(String(e.message ?? e)));
-  }, []);
+  const { data: trips, error } = useQuery({
+    queryKey: ["trips"],
+    queryFn: listTrips,
+  });
 
   return (
     <div className="page">
@@ -26,7 +21,7 @@ export function TripListPage({ navigate }: { navigate: (path: string) => void })
           + 새 일정 가져오기
         </a>
       </p>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error">{String((error as Error).message ?? error)}</p>}
       {!trips && !error && <p className="meta">불러오는 중...</p>}
       {trips && trips.length === 0 && (
         <p className="empty">아직 일정이 없습니다. 위 링크로 JSON을 가져오세요.</p>
