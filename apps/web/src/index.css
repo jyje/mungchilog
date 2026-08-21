@@ -227,6 +227,20 @@ ul {
   text-decoration: line-through;
 }
 
+.opening-hours {
+  margin-top: 0.3rem;
+}
+
+.leg-row {
+  padding-left: 2.75rem; /* align under the spot name, past the drag handle column */
+}
+.leg-row .leg-info {
+  font-size: 0.78rem;
+}
+.leg-row:empty {
+  display: none;
+}
+
 /* import form */
 form {
   display: flex;

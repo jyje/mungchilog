@@ -49,4 +49,12 @@ db.exec(`
     polyline TEXT,
     fetched_at TEXT NOT NULL
   );
+
+  -- Places details cache (opening hours, for M4's "is it open today").
+  -- Same 30-day TTL policy as legs, enforced at the application level.
+  CREATE TABLE IF NOT EXISTS places (
+    place_id TEXT PRIMARY KEY,
+    opening_hours TEXT,
+    fetched_at TEXT NOT NULL
+  );
 `);

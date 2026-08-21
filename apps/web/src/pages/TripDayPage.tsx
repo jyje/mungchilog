@@ -6,6 +6,7 @@ import { getTrip, saveTrip } from "../api";
 import type { Trip } from "../types";
 import { TripMap } from "../components/TripMap";
 import { SpotCard } from "../components/SpotCard";
+import { LegInfo } from "../components/LegInfo";
 
 export function TripDayPage({ id, navigate }: { id: string; navigate: (path: string) => void }) {
   const qc = useQueryClient();
@@ -96,9 +97,21 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
               <ul className="spot-list">
                 {[...day.spots]
                   .sort((a, b) => a.order - b.order)
-                  .map((spot) => (
-                    <SpotCard key={spot.id} spot={spot} onToggleItem={(itemId) => toggleItem(spot.id, itemId)} />
-                  ))}
+                  .flatMap((spot, i, sorted) => {
+                    const card = (
+                      <SpotCard key={spot.id} spot={spot} onToggleItem={(itemId) => toggleItem(spot.id, itemId)} />
+                    );
+                    if (i === sorted.length - 1) return [card];
+                    // Plain <li>, not a sortable item - dnd-kit's SortableContext
+                    // only tracks elements that call useSortable (see SpotCard),
+                    // so an inert row interleaved between them is safe.
+                    return [
+                      card,
+                      <li key={`${spot.id}-leg`} className="leg-row">
+                        <LegInfo from={spot} to={sorted[i + 1]} />
+                      </li>,
+                    ];
+                  })}
               </ul>
             </SortableContext>
           </DndContext>

@@ -3,6 +3,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { trips } from "./routes/trips.js";
 import { legs } from "./routes/legs.js";
+import { places } from "./routes/places.js";
 
 const app = new Hono();
 
@@ -10,6 +11,7 @@ app.get("/healthz", (c) => c.json({ status: "ok", service: "mungchilog-server" }
 
 app.route("/api/trips", trips);
 app.route("/api/legs", legs);
+app.route("/api/places", places);
 
 // apps/web's build lands in ./public (see Dockerfile). Everything not
 // matched above, including /trips and /trips/:id, falls through to

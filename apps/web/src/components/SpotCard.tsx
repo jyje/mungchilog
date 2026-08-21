@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Spot } from "../types";
+import { OpeningHours } from "./OpeningHours";
 
 export function SpotCard({ spot, onToggleItem }: { spot: Spot; onToggleItem: (itemId: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: spot.id });
@@ -23,6 +24,7 @@ export function SpotCard({ spot, onToggleItem }: { spot: Spot; onToggleItem: (it
           {spot.nameLocal && <span className="spot-local">{spot.nameLocal}</span>}
         </div>
         {spot.note && <p className="meta">{spot.note}</p>}
+        <OpeningHours placeId={spot.placeId} />
         {spot.items.length > 0 && (
           <ul className="item-list">
             {spot.items.map((item) => (

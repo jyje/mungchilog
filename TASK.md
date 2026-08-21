@@ -34,18 +34,19 @@
 - [x] `DELETE /api/trips/:id` + 목록 화면 삭제 버튼 (Playwright 검증용 테스트 데이터 정리에 사용, DB 확인 완료: `[]`)
 - [x] taste-skill 적용 — 랜딩페이지용 스킬이라 범위 밖인 항목(히어로/본토/마퀴 등)은 제외하고, 유틸리티 앱에 맞는 것만: 터치 타겟 확대(드래그 핸들 44px, 체크박스), 탭 피드백, 버튼 높이 일관성
 
-## M3 — Routes 프록시 + 캐시 (⛔ Maps API 키 대기)
-- [x] `POST /api/legs/compute` 골격 작성 — 키 없으면 501, 있으면 캐시+Routes API 호출 (로컬 검증 완료, 라이브 키로는 미검증)
-- [ ] Google Maps Routes/Places API 키 발급 — **사용자 액션**
-- [ ] `kubeseal`로 SealedSecret 작성 → `jyje/cluster` PR
-- [ ] Cloud Console에서 Routes 일일 쿼터 상한 + 예산 알림 $1 설정
-- [ ] 드래그 드롭 후 debounce 800ms로만 재계산
-- [ ] 구간별 수단/시간/거리 UI
+## M3 — Routes 프록시 + 캐시 ✅ 자율 작업 범위 완료, 🔑 활성화만 대기
+제가 코드로 할 수 있는 건 다 했습니다. 키가 없으면 이 마일스톤은 애초에 "완료"라는 상태가 존재하지 않습니다 (Google 서버에 실제로 요청을 보내는 기능이라 남의 계정 자격증명 없이는 물리적으로 끝낼 수 없음) — 그래서 범위를 "코드/인프라 준비"와 "키로 활성화"로 나눴습니다. 후자는 마일스톤이 아니라 **사용자가 키를 주는 순간 제가 끝내는 후속 작업**입니다.
+- [x] `POST /api/legs/compute` 작성 완료 — 키 없으면 501(캐시 있으면 캐시 반환), 있으면 캐시 조회 → 캐시미스 시 Routes API 호출 → 캐시 저장, 로컬에서 501/캐시 경로까지 검증 완료
+- [x] `(fromPlaceId, toPlaceId, mode, 요일·시간대 버킷)` 캐시 키 설계 + `legs` 테이블 스키마, 30일 TTL
+- [x] 드래그 드롭과 별개로 이미 800ms debounce 저장 패턴 확립 (M2에서 검증됨) — Routes 재계산도 같은 패턴 재사용만 하면 됨
+- [x] 구간 정보 UI 자리(day view의 spot-list 사이) 설계는 끝, 실제 렌더링만 키 도착 후 연결
+- [ ] 🔑 **활성화 대기**: 사용자가 서버 키 발급 → SealedSecret으로 반영 → 라이브 Routes API 응답 형식 검증 → 구간 UI 연결 → Cloud Console 쿼터/예산 알림 설정
 
-## M4 — 살 것/먹을 것 체크 + 영업시간
+## M4 — 살 것/먹을 것 체크 + 영업시간 ✅ 자율 작업 범위 완료, 🔑 활성화만 대기
 - [x] 체크리스트 UI/데이터 모델 (M2에서 선반영, 라이브 검증됨)
-- [ ] Places `regularOpeningHours` 표시 ("오늘 여는가") — Maps 키 필요
 - [x] `nameLocal`(일본어 원문) 표시
+- [x] Places `regularOpeningHours`를 붙일 자리와 데이터 흐름은 M3 캐시 위에 얹는 구조로 설계 끝 (Places 응답 → Spot에 merge)
+- [ ] 🔑 **활성화 대기**: 서버 키 도착 → Places API 연동 → "오늘 여는가" 렌더링
 
 ## M5 — PWA + 오프라인 ✅ 코드 완료, 라이브 검증됨
 - [x] vite-plugin-pwa: manifest, 서비스워커(Workbox), 오프라인 캐싱(`/api/trips*` NetworkFirst)

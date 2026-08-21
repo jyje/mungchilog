@@ -29,3 +29,30 @@ export function saveTrip(data: TripData & { id?: string }): Promise<{ id: string
 export function deleteTrip(id: string): Promise<{ deleted: boolean }> {
   return fetch(`/api/trips/${id}`, { method: "DELETE" }).then((r) => json(r));
 }
+
+export type LegMode = "DRIVE" | "WALK" | "BICYCLE" | "TRANSIT" | "TWO_WHEELER";
+
+export type Leg = {
+  distanceM: number | null;
+  durationS: number | null;
+  fareAmount: number | null;
+  fareCurrency: string | null;
+  polyline: string | null;
+  fetchedAt: string;
+};
+
+// 501 means the server key isn't configured yet (see docs/google-maps-setup.md) -
+// that is an expected, temporary state, not a real error. Callers should
+// treat it as "no data yet", not surface it as a failure.
+export async function computeLeg(fromPlaceId: string, toPlaceId: string, mode: LegMode): Promise<Leg | null> {
+  const res = await fetch("/api/legs/compute", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fromPlaceId, toPlaceId, mode }),
+  });
+  if (res.status === 501) {
+    const body = await res.json().catch(() => ({}));
+    return body.cached ?? null;
+  }
+  return json<Leg>(res);
+}
