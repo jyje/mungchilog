@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Trip itinerary JSON schema. Stored as-is in the Trip.data column.
-// This schema is the source of truth — once apps/web exists in M2, the
+// This schema is the source of truth: once apps/web exists in M2, the
 // client reuses the same shape (server-only for now).
 
 export const ItemSchema = z.object({

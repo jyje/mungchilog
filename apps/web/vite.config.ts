@@ -22,7 +22,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Underground transit sections drop connectivity entirely — the
+        // Underground transit sections drop connectivity entirely: the
         // point of offline caching here is surviving that, not saving
         // API calls (see PLAN.md). Cache the app shell aggressively and
         // let GET /api/trips/* fall back to the last successful response.

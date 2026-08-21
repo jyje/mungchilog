@@ -7,7 +7,7 @@ WORKDIR /web
 COPY apps/web/package.json apps/web/package-lock.json* ./
 RUN npm install
 COPY apps/web/ ./
-# Vite inlines VITE_* env vars at build time, not runtime — so the Maps
+# Vite inlines VITE_* env vars at build time, not runtime: so the Maps
 # key (once it exists) has to be a build-arg, not a container env var.
 # Left empty, TripMap.tsx renders a placeholder instead of a live map.
 ARG VITE_GOOGLE_MAPS_API_KEY=""

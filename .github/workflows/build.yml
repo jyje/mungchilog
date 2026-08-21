@@ -9,7 +9,7 @@ on:
   workflow_dispatch: {}
 
 # A later commit's :latest push racing ahead of an earlier commit's is a
-# real footgun under arm64/QEMU build times (10+ min) — cancel superseded
+# real footgun under arm64/QEMU build times (10+ min): cancel superseded
 # runs so :latest always ends up as the newest main commit.
 concurrency:
   group: build-main

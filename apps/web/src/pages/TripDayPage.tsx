@@ -19,7 +19,7 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
       .catch((e) => setError(String(e.message ?? e)));
   }, [id]);
 
-  // Debounced persist — avoid firing a save on every intermediate drag frame.
+  // Debounced persist: avoid firing a save on every intermediate drag frame.
   function scheduleSave(next: Trip) {
     setTrip(next);
     if (saveTimer.current) clearTimeout(saveTimer.current);

@@ -10,7 +10,7 @@ const ComputeLegSchema = z.object({
   fromPlaceId: z.string(),
   toPlaceId: z.string(),
   mode: z.enum(TRAVEL_MODES),
-  // ISO 8601. Defaults to "now" — only matters for picking the cache
+  // ISO 8601. Defaults to "now": only matters for picking the cache
   // bucket and (for TRANSIT) which timetable Google quotes.
   when: z.string().datetime().optional(),
 });
@@ -27,7 +27,7 @@ type LegRow = {
   fetched_at: string;
 };
 
-// (day-of-week, 4-hour-of-day block) in Asia/Tokyo — coarse enough that a
+// (day-of-week, 4-hour-of-day block) in Asia/Tokyo: coarse enough that a
 // handful of trip days share cache entries, fine enough that morning vs.
 // evening transit schedules don't collide.
 function bucketFor(when: Date): string {
@@ -65,7 +65,7 @@ legs.post("/compute", async (c) => {
 
   const apiKey = process.env.GOOGLE_MAPS_SERVER_KEY;
   if (!apiKey) {
-    // Not a real 500 — this is an expected, temporary state until the
+    // Not a real 500: this is an expected, temporary state until the
     // Maps API keys are provisioned (see TASK.md blockers).
     return c.json(
       { error: "GOOGLE_MAPS_SERVER_KEY not configured", cached: cached ? toLegResponse(cached) : null },
@@ -126,7 +126,7 @@ function toLegResponse(row: LegRow) {
 }
 
 // NOTE: written against the documented Routes API v2 `computeRoutes`
-// contract but not yet exercised against a live key (see TASK.md — the
+// contract but not yet exercised against a live key (see TASK.md: the
 // key is a user-provided blocker). Verify field names against a real
 // response once the key exists; Google does occasionally rename fields
 // across API versions.

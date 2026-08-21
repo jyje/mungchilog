@@ -11,11 +11,11 @@ mkdirSync(dirname(DB_PATH), { recursive: true });
 export const db = new DatabaseSync(DB_PATH);
 
 // The cluster's only StorageClass is NFS-backed (no block storage
-// available — see helm/mungchilog's values.yaml in jyje/cluster). WAL
+// available: see helm/mungchilog's values.yaml in jyje/cluster). WAL
 // mode depends on shared-memory mmap and real POSIX locks, which NFS
 // does not reliably provide, so force the classic rollback-journal mode
 // instead. This app also runs a single replica with a ReadWriteOnce PVC,
-// so there is only ever one writer — the well-known SQLite-over-NFS
+// so there is only ever one writer: the well-known SQLite-over-NFS
 // corruption risk is a multi-writer problem this app doesn't have.
 db.exec("PRAGMA journal_mode = DELETE;");
 db.exec("PRAGMA busy_timeout = 5000;");
@@ -34,7 +34,7 @@ db.exec(`
   -- Routes API cache, populated in M3. The 30-day TTL is enforced at the
   -- application level based on fetched_at (no SQLite-side TTL trigger).
   -- id is a deterministic cache key: fromPlaceId:toPlaceId:mode:bucket,
-  -- where bucket is (day-of-week, hour-of-day/4) in Asia/Tokyo — see
+  -- where bucket is (day-of-week, hour-of-day/4) in Asia/Tokyo: see
   -- routes/legs.ts. Same key in, same row updated, no duplicates.
   CREATE TABLE IF NOT EXISTS legs (
     id TEXT PRIMARY KEY,

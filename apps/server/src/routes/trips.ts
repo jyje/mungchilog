@@ -16,7 +16,7 @@ type TripRow = {
 };
 
 // Takes the whole trip itinerary as one JSON blob. This endpoint comes
-// before any input UI — that screen only gets used once before departure,
+// before any input UI: that screen only gets used once before departure,
 // so it isn't worth the dev time (see PLAN.md).
 trips.post("/import", async (c) => {
   const body = await c.req.json().catch(() => null);

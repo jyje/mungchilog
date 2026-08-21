@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Mirrors apps/server/src/schema.ts. Duplicated for now since the project
-// intentionally skipped a pnpm workspace (see PLAN.md) — if this drifts,
+// intentionally skipped a pnpm workspace (see PLAN.md): if this drifts,
 // reconcile against the server copy, which is the source of truth.
 
 export const ItemSchema = z.object({

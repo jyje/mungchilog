@@ -12,7 +12,7 @@ app.route("/api/trips", trips);
 app.route("/api/legs", legs);
 
 // apps/web's build lands in ./public (see Dockerfile). Everything not
-// matched above — including /trips and /trips/:id — falls through to
+// matched above, including /trips and /trips/:id, falls through to
 // index.html, and the client-side router in apps/web/src/App.tsx takes it
 // from there.
 app.use("/*", serveStatic({ root: "./public" }));
