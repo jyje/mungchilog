@@ -16,7 +16,16 @@ export function TripListPage({ navigate }: { navigate: (path: string) => void })
   return (
     <div className="page">
       <h1>🐾 뭉치로그</h1>
-      <p>
+      <p className="page-actions">
+        <a
+          href="/new"
+          onClick={(e) => {
+            e.preventDefault();
+            navigate("/new");
+          }}
+        >
+          + 새 여행 만들기
+        </a>
         <a
           href="/import"
           onClick={(e) => {
@@ -24,7 +33,7 @@ export function TripListPage({ navigate }: { navigate: (path: string) => void })
             navigate("/import");
           }}
         >
-          + 새 일정 가져오기
+          + JSON으로 가져오기
         </a>
       </p>
       {error && <p className="error">{String((error as Error).message ?? error)}</p>}

@@ -3,16 +3,24 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { getTrip, saveTrip } from "../api";
-import type { Trip } from "../types";
+import type { Item, Spot, Trip } from "../types";
 import { TripMap } from "../components/TripMap";
 import { SpotCard } from "../components/SpotCard";
 import { LegInfo } from "../components/LegInfo";
+import { AddSpotForm } from "../components/AddSpotForm";
+
+function nextDate(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 export function TripDayPage({ id, navigate }: { id: string; navigate: (path: string) => void }) {
   const qc = useQueryClient();
   const queryKey = ["trip", id];
   const { data: trip, error } = useQuery({ queryKey, queryFn: () => getTrip(id) });
   const [dayIndex, setDayIndex] = useState(0);
+  const [addingSpot, setAddingSpot] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const mutation = useMutation({
@@ -31,10 +39,66 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
     saveTimer.current = setTimeout(() => mutation.mutate(next), 800);
   }
 
+  // Structural edits (add/delete day/spot/item) save immediately - only
+  // reorder/checklist-toggle debounce, since those can fire in rapid
+  // succession (drag frames, quick double-taps).
+  function saveNow(next: Trip) {
+    qc.setQueryData(queryKey, next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    mutation.mutate(next);
+  }
+
   if (error) return <p className="error">{String((error as Error).message ?? error)}</p>;
   if (!trip) return <p className="meta">불러오는 중...</p>;
 
   const day = trip.days[dayIndex];
+
+  function addDay() {
+    if (!trip) return;
+    const date = trip.days.length > 0 ? nextDate(trip.days[trip.days.length - 1].date) : trip.startDate;
+    saveNow({ ...trip, days: [...trip.days, { date, spots: [] }] });
+    setDayIndex(trip.days.length);
+  }
+
+  function addSpot(spotData: Omit<Spot, "id" | "order" | "items" | "bufferMinutes">) {
+    if (!trip || !day) return;
+    const spot: Spot = { ...spotData, id: crypto.randomUUID(), order: day.spots.length, bufferMinutes: 10, items: [] };
+    const days = trip.days.map((d, i) => (i === dayIndex ? { ...d, spots: [...d.spots, spot] } : d));
+    saveNow({ ...trip, days });
+    setAddingSpot(false);
+  }
+
+  function deleteSpot(spotId: string) {
+    if (!trip) return;
+    const days = trip.days.map((d, i) => (i !== dayIndex ? d : { ...d, spots: d.spots.filter((s) => s.id !== spotId) }));
+    saveNow({ ...trip, days });
+  }
+
+  function addItem(spotId: string, item: Omit<Item, "id" | "done">) {
+    if (!trip) return;
+    const days = trip.days.map((d, i) => {
+      if (i !== dayIndex) return d;
+      return {
+        ...d,
+        spots: d.spots.map((s) =>
+          s.id !== spotId ? s : { ...s, items: [...s.items, { ...item, id: crypto.randomUUID(), done: false }] },
+        ),
+      };
+    });
+    saveNow({ ...trip, days });
+  }
+
+  function deleteItem(spotId: string, itemId: string) {
+    if (!trip) return;
+    const days = trip.days.map((d, i) => {
+      if (i !== dayIndex) return d;
+      return {
+        ...d,
+        spots: d.spots.map((s) => (s.id !== spotId ? s : { ...s, items: s.items.filter((it) => it.id !== itemId) })),
+      };
+    });
+    saveNow({ ...trip, days });
+  }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -87,6 +151,9 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
             {d.date}
           </button>
         ))}
+        <button type="button" className="day-add" onClick={addDay}>
+          + 날짜
+        </button>
       </div>
 
       {day ? (
@@ -99,7 +166,14 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
                   .sort((a, b) => a.order - b.order)
                   .flatMap((spot, i, sorted) => {
                     const card = (
-                      <SpotCard key={spot.id} spot={spot} onToggleItem={(itemId) => toggleItem(spot.id, itemId)} />
+                      <SpotCard
+                        key={spot.id}
+                        spot={spot}
+                        onToggleItem={(itemId) => toggleItem(spot.id, itemId)}
+                        onDeleteItem={(itemId) => deleteItem(spot.id, itemId)}
+                        onAddItem={(item) => addItem(spot.id, item)}
+                        onDeleteSpot={() => deleteSpot(spot.id)}
+                      />
                     );
                     if (i === sorted.length - 1) return [card];
                     // Plain <li>, not a sortable item - dnd-kit's SortableContext
@@ -112,12 +186,20 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
                       </li>,
                     ];
                   })}
+                {addingSpot && <AddSpotForm onAdd={addSpot} onCancel={() => setAddingSpot(false)} />}
               </ul>
             </SortableContext>
           </DndContext>
+          {!addingSpot && (
+            <button type="button" className="add-spot-button" onClick={() => setAddingSpot(true)}>
+              + 스팟 추가
+            </button>
+          )}
         </>
       ) : (
-        <p className="empty">일자 없음</p>
+        <p className="empty">
+          일자가 없습니다. 위 <strong>+ 날짜</strong> 버튼으로 추가하세요.
+        </p>
       )}
     </div>
   );
