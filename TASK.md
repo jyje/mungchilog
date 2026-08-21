@@ -24,37 +24,38 @@
 - [x] `POST /api/trips/import` (upsert), `GET /api/trips`, `GET /api/trips/:id`
 - [x] 여행 일정 JSON 스키마(zod) 확정, `examples/trip-sample.json` (가상 데이터)
 
-## M2 — 지도 + 마커 + 드래그 + 입력 UI ✅ 코드 완료, 배포 확인 중 (08-21~22)
+## M2 — 지도 + 마커 + 드래그 + 입력 UI ✅ 완료, 라이브 검증됨 (08-21~22)
 - [x] `apps/web` (Vite + React 19 + TS) 스캐폴드
 - [x] `@vis.gl/react-google-maps` 지도+마커 — **API 키 없으면 placeholder로 우아하게 대체** (블로커 참고)
 - [x] dnd-kit으로 스팟 순서 드래그, 체크리스트 토글 (둘 다 800ms debounce로 저장)
 - [x] `/import` 페이지 — JSON 붙여넣기로 일정 입력 (요청하신 "데이터 입력 플랫폼")
 - [x] 서버가 `apps/web` 빌드 산출물을 `/public`로 정적 서빙 (멀티스테이지 Dockerfile)
+- [x] Playwright로 실제 배포본 검증: `/import` → 저장 → `/trips/:id` 이동 → 체크리스트 토글 → 새로고침해도 유지됨 확인
 - [ ] taste-skill로 시각 다듬기 — 기본 스타일은 적용, 본격 폴리싱은 M5 이후 여유 있으면
-- [ ] 실제 배포본에서 Playwright로 최종 검증 (CI 빌드 진행 중)
 
 ## M3 — Routes 프록시 + 캐시 (⛔ Maps API 키 대기)
+- [x] `POST /api/legs/compute` 골격 작성 — 키 없으면 501, 있으면 캐시+Routes API 호출 (로컬 검증 완료, 라이브 키로는 미검증)
 - [ ] Google Maps Routes/Places API 키 발급 — **사용자 액션**
 - [ ] `kubeseal`로 SealedSecret 작성 → `jyje/cluster` PR
 - [ ] Cloud Console에서 Routes 일일 쿼터 상한 + 예산 알림 $1 설정
-- [ ] `POST /api/legs/compute` — `(fromPlaceId, toPlaceId, mode, 요일·시간대 버킷)` 캐시 키, 30일 TTL
 - [ ] 드래그 드롭 후 debounce 800ms로만 재계산
 - [ ] 구간별 수단/시간/거리 UI
 
 ## M4 — 살 것/먹을 것 체크 + 영업시간
-- [x] 체크리스트 UI/데이터 모델 (M2에서 선반영)
+- [x] 체크리스트 UI/데이터 모델 (M2에서 선반영, 라이브 검증됨)
 - [ ] Places `regularOpeningHours` 표시 ("오늘 여는가") — Maps 키 필요
 - [x] `nameLocal`(일본어 원문) 표시
 
 ## M5 — PWA + 오프라인 → 기능 동결 (목표 09-01)
-- [ ] Workbox 서비스워커, manifest.json
-- [ ] IndexedDB persister
-- [ ] 홈화면 설치 테스트
+- [x] vite-plugin-pwa: manifest, 서비스워커(Workbox), 오프라인 캐싱(`/api/trips*` NetworkFirst)
+- [x] **버그 발견·수정**: Basic Auth가 `/sw.js`·`/manifest.webmanifest`까지 막아서 PWA 설치가 깨질 뻔함 (Playwright로 401 확인) → 정적 자산만 별도 무인증 Ingress로 분리, PR [#52](https://github.com/jyje/cluster/pull/52) 병합, curl로 200 재확인
+- [ ] IndexedDB persister (TanStack Query 캐시 영속화 — 현재는 Workbox의 NetworkFirst 캐시만 있음, 더 견고하게 하려면 추가)
+- [ ] **실기기에서 홈화면 설치 테스트 필요** — 헤드리스 브라우저 자동화로는 서비스워커 등록이 불안정하게 나와서(서버 쪽은 curl로 정상 확인됨) 진짜 신뢰할 수 있는 확인은 D-3 실기기 리허설에서
 - [ ] 비행기모드에서 일정 조회 확인
 - [ ] **이 날짜 이후 코드 변경 금지**
 
 ## 리허설 & 출발 준비 (09-02 ~ 09-07)
-- [ ] 09-02~03: 실기기 리허설 (폰 설치, 기내모드, 로밍 시뮬레이션)
+- [ ] 09-02~03: 실기기 리허설 (폰 설치, 기내모드, 로밍 시뮬레이션) — **PWA 설치가 Basic Auth와 실제로 잘 맞물리는지 여기서 최종 확인**
 - [ ] 09-04~05: 실제 여행 데이터 입력 + 하루 통째 예행연습
 - [ ] 09-06: 예비일 — 아무 작업 안 함
 - [ ] 폴백 확인: `trips.data` JSON → Google My Maps export 버튼 동작
