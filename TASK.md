@@ -5,10 +5,9 @@
 
 ## ⛔ 사용자만 할 수 있는 것 (막힌 항목)
 
-- **Google Cloud 프로젝트 + Maps Platform API 키 3종** (Maps JS / Places / Routes) — GCP 계정·결제가 필요해서 제가 대신 만들 수 없습니다. M2의 지도는 키가 없어도 자리(placeholder)만 잡아뒀고, M3(구간 정보)는 이 키 없이는 아예 시작할 수 없습니다. 발급되면 GitHub Actions repo secret `VITE_GOOGLE_MAPS_API_KEY`(Maps JS)와 서버용 키(Places/Routes, SealedSecret으로 넣을 예정)만 알려주시면 나머지는 제가 연결합니다.
+- **Google Cloud 프로젝트 + Maps Platform API 키 3종** (Maps JS / Places / Routes) — 사용자가 직접 발급 진행 중 (`docs/google-maps-setup.md` 가이드 참고). 도착하는 대로 M3/M4를 마저 연결합니다. Maps JS 키는 채팅에 그대로 붙여넣어도 되고(HTTP 리퍼러 제한), 서버 키(Places/Routes)는 평문으로 주지 말고 "발급했어요"라고만 알려주시면 SealedSecret 절차로 안전하게 넣습니다.
 - Basic Auth 비밀번호 확인 — 파일로 보내드렸습니다. 비밀번호 관리자로 옮겨두세요.
 - (선택) 실제 여행 일정 JSON — 09-04~05 리허설 전까지만 있으면 됩니다. `/import` 화면에 붙여넣으시면 됩니다 (레포·채팅에는 절대 안 올립니다).
-- (사소함) Playwright 검증 중 `/import`로 넣은 테스트 데이터("테스트 여행", "최종 검증 여행")가 DB에 남아있습니다. 삭제 API가 아직 없어서 (v1 범위 밖) `/trips` 목록에서 눈으로 무시하시거나, 말씀해주시면 SSH로 지워드릴게요.
 
 ## M0 — 관통 배포 ✅ 완료 (08-21)
 - [x] Porkbun DNS: `mungchilog.app.jyje.online` → CNAME → `r5iny.iptime.org.`
@@ -32,7 +31,8 @@
 - [x] `/import` 페이지 — JSON 붙여넣기로 일정 입력 (요청하신 "데이터 입력 플랫폼")
 - [x] 서버가 `apps/web` 빌드 산출물을 `/public`로 정적 서빙 (멀티스테이지 Dockerfile)
 - [x] Playwright로 실제 배포본 검증: `/import` → 저장 → `/trips/:id` 이동 → 체크리스트 토글 → 새로고침해도 유지됨 확인
-- [ ] taste-skill로 시각 다듬기 — 기본 스타일은 적용, 본격 폴리싱은 M5 이후 여유 있으면
+- [x] `DELETE /api/trips/:id` + 목록 화면 삭제 버튼 (Playwright 검증용 테스트 데이터 정리에 사용, DB 확인 완료: `[]`)
+- [x] taste-skill 적용 — 랜딩페이지용 스킬이라 범위 밖인 항목(히어로/본토/마퀴 등)은 제외하고, 유틸리티 앱에 맞는 것만: 터치 타겟 확대(드래그 핸들 44px, 체크박스), 탭 피드백, 버튼 높이 일관성
 
 ## M3 — Routes 프록시 + 캐시 (⛔ Maps API 키 대기)
 - [x] `POST /api/legs/compute` 골격 작성 — 키 없으면 501, 있으면 캐시+Routes API 호출 (로컬 검증 완료, 라이브 키로는 미검증)
