@@ -8,3 +8,6 @@ dist/
 
 # secret
 .env
+
+# local dev SQLite db
+apps/server/data/

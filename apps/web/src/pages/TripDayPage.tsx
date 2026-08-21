@@ -158,7 +158,7 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
 
       {day ? (
         <>
-          <TripMap spots={day.spots} />
+          <TripMap spots={day.spots} date={day.date} timezone={trip.timezone} />
           <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={day.spots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               <ul className="spot-list">

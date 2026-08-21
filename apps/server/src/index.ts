@@ -1,3 +1,4 @@
+import "./dns-fix.js"; // must run before anything calls fetch() - see the file for why
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";

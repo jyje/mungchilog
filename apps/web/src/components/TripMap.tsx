@@ -1,9 +1,10 @@
 import { APIProvider, Map, AdvancedMarker, Pin } from "@vis.gl/react-google-maps";
 import type { Spot } from "../types";
+import { RouteOverlay } from "./RouteOverlay";
 
 const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 }; // Tokyo Station, fallback only
 
-export function TripMap({ spots }: { spots: Spot[] }) {
+export function TripMap({ spots, date, timezone }: { spots: Spot[]; date: string; timezone: string }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
   const located = spots.filter((s): s is Spot & { lat: number; lng: number } => s.lat != null && s.lng != null);
 
@@ -30,6 +31,7 @@ export function TripMap({ spots }: { spots: Spot[] }) {
               <Pin />
             </AdvancedMarker>
           ))}
+          <RouteOverlay spots={spots} date={date} timezone={timezone} />
         </Map>
       </div>
     </APIProvider>
