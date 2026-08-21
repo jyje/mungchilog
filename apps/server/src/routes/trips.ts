@@ -71,6 +71,12 @@ trips.get("/:id", (c) => {
   return c.json({ id: row.id, ...data });
 });
 
+trips.delete("/:id", (c) => {
+  const result = db.prepare("DELETE FROM trips WHERE id = ?").run(c.req.param("id"));
+  if (result.changes === 0) return c.json({ error: "not found" }, 404);
+  return c.json({ deleted: true });
+});
+
 export function getTripRow(id: string) {
   return db.prepare("SELECT * FROM trips WHERE id = ?").get(id) as TripRow | undefined;
 }

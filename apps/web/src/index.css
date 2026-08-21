@@ -68,6 +68,33 @@ ul {
   border-bottom: 1px solid var(--border);
 }
 
+.trip-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.trip-row > a {
+  flex: 1;
+  min-width: 0;
+}
+.trip-row .meta {
+  flex: none;
+}
+.trip-delete {
+  flex: none;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.trip-delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 /* day tabs */
 .day-tabs {
   display: flex;

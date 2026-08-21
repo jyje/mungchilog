@@ -25,3 +25,7 @@ export function saveTrip(data: TripData & { id?: string }): Promise<{ id: string
     body: JSON.stringify(data),
   }).then((r) => json(r));
 }
+
+export function deleteTrip(id: string): Promise<{ deleted: boolean }> {
+  return fetch(`/api/trips/${id}`, { method: "DELETE" }).then((r) => json(r));
+}

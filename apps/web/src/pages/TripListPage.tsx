@@ -1,10 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
-import { listTrips } from "../api";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { listTrips, deleteTrip } from "../api";
 
 export function TripListPage({ navigate }: { navigate: (path: string) => void }) {
+  const qc = useQueryClient();
   const { data: trips, error } = useQuery({
     queryKey: ["trips"],
     queryFn: listTrips,
+  });
+
+  const remove = useMutation({
+    mutationFn: deleteTrip,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["trips"] }),
   });
 
   return (
@@ -28,7 +34,7 @@ export function TripListPage({ navigate }: { navigate: (path: string) => void })
       )}
       <ul>
         {trips?.map((t) => (
-          <li key={t.id}>
+          <li key={t.id} className="trip-row">
             <a
               href={`/trips/${t.id}`}
               onClick={(e) => {
@@ -41,6 +47,16 @@ export function TripListPage({ navigate }: { navigate: (path: string) => void })
             <div className="meta">
               {t.startDate} ~ {t.endDate}
             </div>
+            <button
+              type="button"
+              className="trip-delete"
+              aria-label={`${t.title} 삭제`}
+              onClick={() => {
+                if (confirm(`"${t.title}"을(를) 삭제할까요?`)) remove.mutate(t.id);
+              }}
+            >
+              삭제
+            </button>
           </li>
         ))}
       </ul>
