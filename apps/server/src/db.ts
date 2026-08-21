@@ -33,14 +33,19 @@ db.exec(`
 
   -- Routes API cache, populated in M3. The 30-day TTL is enforced at the
   -- application level based on fetched_at (no SQLite-side TTL trigger).
+  -- id is a deterministic cache key: fromPlaceId:toPlaceId:mode:bucket,
+  -- where bucket is (day-of-week, hour-of-day/4) in Asia/Tokyo — see
+  -- routes/legs.ts. Same key in, same row updated, no duplicates.
   CREATE TABLE IF NOT EXISTS legs (
     id TEXT PRIMARY KEY,
     from_place_id TEXT NOT NULL,
     to_place_id TEXT NOT NULL,
     mode TEXT NOT NULL,
+    bucket TEXT NOT NULL,
     distance_m INTEGER,
     duration_s INTEGER,
     fare_amount INTEGER,
+    fare_currency TEXT,
     polyline TEXT,
     fetched_at TEXT NOT NULL
   );
