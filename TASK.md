@@ -8,6 +8,7 @@
 - **Google Cloud 프로젝트 + Maps Platform API 키 3종** (Maps JS / Places / Routes) — GCP 계정·결제가 필요해서 제가 대신 만들 수 없습니다. M2의 지도는 키가 없어도 자리(placeholder)만 잡아뒀고, M3(구간 정보)는 이 키 없이는 아예 시작할 수 없습니다. 발급되면 GitHub Actions repo secret `VITE_GOOGLE_MAPS_API_KEY`(Maps JS)와 서버용 키(Places/Routes, SealedSecret으로 넣을 예정)만 알려주시면 나머지는 제가 연결합니다.
 - Basic Auth 비밀번호 확인 — 파일로 보내드렸습니다. 비밀번호 관리자로 옮겨두세요.
 - (선택) 실제 여행 일정 JSON — 09-04~05 리허설 전까지만 있으면 됩니다. `/import` 화면에 붙여넣으시면 됩니다 (레포·채팅에는 절대 안 올립니다).
+- (사소함) Playwright 검증 중 `/import`로 넣은 테스트 데이터("테스트 여행", "최종 검증 여행")가 DB에 남아있습니다. 삭제 API가 아직 없어서 (v1 범위 밖) `/trips` 목록에서 눈으로 무시하시거나, 말씀해주시면 SSH로 지워드릴게요.
 
 ## M0 — 관통 배포 ✅ 완료 (08-21)
 - [x] Porkbun DNS: `mungchilog.app.jyje.online` → CNAME → `r5iny.iptime.org.`
@@ -46,11 +47,12 @@
 - [ ] Places `regularOpeningHours` 표시 ("오늘 여는가") — Maps 키 필요
 - [x] `nameLocal`(일본어 원문) 표시
 
-## M5 — PWA + 오프라인 → 기능 동결 (목표 09-01)
+## M5 — PWA + 오프라인 ✅ 코드 완료, 라이브 검증됨
 - [x] vite-plugin-pwa: manifest, 서비스워커(Workbox), 오프라인 캐싱(`/api/trips*` NetworkFirst)
 - [x] **버그 발견·수정**: Basic Auth가 `/sw.js`·`/manifest.webmanifest`까지 막아서 PWA 설치가 깨질 뻔함 (Playwright로 401 확인) → 정적 자산만 별도 무인증 Ingress로 분리, PR [#52](https://github.com/jyje/cluster/pull/52) 병합, curl로 200 재확인
-- [ ] IndexedDB persister (TanStack Query 캐시 영속화 — 현재는 Workbox의 NetworkFirst 캐시만 있음, 더 견고하게 하려면 추가)
-- [ ] **실기기에서 홈화면 설치 테스트 필요** — 헤드리스 브라우저 자동화로는 서비스워커 등록이 불안정하게 나와서(서버 쪽은 curl로 정상 확인됨) 진짜 신뢰할 수 있는 확인은 D-3 실기기 리허설에서
+- [x] IndexedDB persister (TanStack Query 캐시를 idb-keyval로 영속화) — 목록/상세 페이지를 useQuery로 리팩터링, 드래그·체크리스트 편집도 낙관적 업데이트 + 800ms debounce 저장으로 연결
+- [x] Playwright로 라이브 검증: 가져오기 → 드래그 순서변경 → 체크리스트 토글 → **새로고침 후에도 순서·체크 상태 전부 유지** 확인
+- [ ] **실기기에서 홈화면 설치 테스트 필요** — 헤드리스 브라우저로는 서비스워커 등록이 불안정하게 나와서(서버 쪽은 curl로 정상 확인됨) 진짜 신뢰할 수 있는 확인은 D-3 실기기 리허설에서
 - [ ] 비행기모드에서 일정 조회 확인
 - [ ] **이 날짜 이후 코드 변경 금지**
 
