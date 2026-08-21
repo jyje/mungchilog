@@ -44,11 +44,21 @@ export type Leg = {
 // 501 means the server key isn't configured yet (see docs/google-maps-setup.md) -
 // that is an expected, temporary state, not a real error. Callers should
 // treat it as "no data yet", not surface it as a failure.
-export async function computeLeg(fromPlaceId: string, toPlaceId: string, mode: LegMode): Promise<Leg | null> {
+//
+// `when` (ISO 8601) matters even before the key exists: the server picks
+// its cache bucket from it, and TRANSIT schedules genuinely differ by
+// weekday/time. Omitting it defaults to "now", which is wrong for any
+// itinerary day that isn't literally today (see PR jyje/cluster#55).
+export async function computeLeg(
+  fromPlaceId: string,
+  toPlaceId: string,
+  mode: LegMode,
+  when?: string,
+): Promise<Leg | null> {
   const res = await fetch("/api/legs/compute", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fromPlaceId, toPlaceId, mode }),
+    body: JSON.stringify({ fromPlaceId, toPlaceId, mode, when }),
   });
   if (res.status === 501) {
     const body = await res.json().catch(() => ({}));

@@ -108,7 +108,7 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
                     return [
                       card,
                       <li key={`${spot.id}-leg`} className="leg-row">
-                        <LegInfo from={spot} to={sorted[i + 1]} />
+                        <LegInfo from={spot} to={sorted[i + 1]} date={day.date} />
                       </li>,
                     ];
                   })}
