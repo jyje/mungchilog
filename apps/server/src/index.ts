@@ -1,9 +1,7 @@
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
-import { trips, getTripRow, listTripRows } from "./routes/trips.js";
-import { renderTripListPage, renderTripDayPage } from "./render.js";
-import type { TripData } from "./schema.js";
+import { trips } from "./routes/trips.js";
 
 const app = new Hono();
 
@@ -11,15 +9,10 @@ app.get("/healthz", (c) => c.json({ status: "ok", service: "mungchilog-server" }
 
 app.route("/api/trips", trips);
 
-// M1 placeholder screens (no React yet). Replaced once apps/web lands in M2.
-app.get("/trips", (c) => c.html(renderTripListPage(listTripRows())));
-app.get("/trips/:id", (c) => {
-  const row = getTripRow(c.req.param("id"));
-  if (!row) return c.text("not found", 404);
-  const data = JSON.parse(row.data) as TripData;
-  return c.html(renderTripDayPage(row.id, data));
-});
-
+// apps/web's build lands in ./public (see Dockerfile). Everything not
+// matched above — including /trips and /trips/:id — falls through to
+// index.html, and the client-side router in apps/web/src/App.tsx takes it
+// from there.
 app.use("/*", serveStatic({ root: "./public" }));
 app.get("*", serveStatic({ path: "./public/index.html" }));
 

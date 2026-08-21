@@ -1,10 +1,10 @@
-name: Build and push server image
+name: Build and push app image
 
 on:
   push:
     branches: [main]
     paths:
-      - "apps/server/**"
+      - "apps/**"
       - ".github/workflows/build.yml"
   workflow_dispatch: {}
 
@@ -38,9 +38,12 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: apps/server
+          context: .
+          file: apps/server/Dockerfile
           platforms: linux/arm64
           push: true
+          build-args: |
+            VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
           tags: |
             ${{ env.IMAGE }}:${{ github.sha }}
             ${{ env.IMAGE }}:latest

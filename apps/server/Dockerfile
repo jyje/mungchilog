@@ -1,19 +1,34 @@
 # syntax=docker/dockerfile:1
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY package.json package-lock.json* ./
+# Build context is the repo root (see .github/workflows/build.yml) so this
+# stage can reach apps/web as well as apps/server.
+
+FROM node:22-alpine AS web-build
+WORKDIR /web
+COPY apps/web/package.json apps/web/package-lock.json* ./
 RUN npm install
-COPY tsconfig.json ./
-COPY src ./src
+COPY apps/web/ ./
+# Vite inlines VITE_* env vars at build time, not runtime — so the Maps
+# key (once it exists) has to be a build-arg, not a container env var.
+# Left empty, TripMap.tsx renders a placeholder instead of a live map.
+ARG VITE_GOOGLE_MAPS_API_KEY=""
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
+RUN npm run build
+
+FROM node:22-alpine AS server-build
+WORKDIR /app
+COPY apps/server/package.json apps/server/package-lock.json* ./
+RUN npm install
+COPY apps/server/tsconfig.json ./
+COPY apps/server/src ./src
 RUN npm run build
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package.json package-lock.json* ./
+COPY apps/server/package.json apps/server/package-lock.json* ./
 RUN npm install --omit=dev
-COPY --from=build /app/dist ./dist
-COPY public ./public
+COPY --from=server-build /app/dist ./dist
+COPY --from=web-build /web/dist ./public
 # node:sqlite is experimental on Node 22 (unflagged from Node 24+); pin this
 # flag as long as the runtime stage stays on node:22-alpine.
 ENV NODE_OPTIONS=--experimental-sqlite
