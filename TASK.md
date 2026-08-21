@@ -8,10 +8,10 @@
 - [x] `apps/server` 최소 Hono 스캐폴드 (`GET /healthz`, 정적 파일 서빙)
 - [x] `apps/server/Dockerfile` (multi-stage, arm64)
 - [x] `.github/workflows/build.yml` — GHCR 푸시 (`linux/arm64`)
-- [ ] `jyje/mungchilog` main에 첫 커밋 push
-- [ ] GH Actions 빌드 성공 확인 (`gh run list --repo jyje/mungchilog`)
-- [ ] `jyje/cluster`에 Helm chart(`helm/mungchilog/mungchilog-0.1.0/`) + ArgoCD `Application`(`clusters/r4spi/apps/mungchilog.yaml`) 추가, PR
-- [ ] PR 머지 → ArgoCD sync 확인 (`kubectl --context microk8s get application mungchilog -n argocd`)
+- [x] `jyje/mungchilog` main에 첫 커밋 push
+- [x] GH Actions 빌드 성공 확인 (`gh run list --repo jyje/mungchilog`) — GHCR public 패키지 확인 완료
+- [x] `jyje/cluster`에 Helm chart(`helm/mungchilog/mungchilog-0.1.0/`) + ArgoCD `Application`(`clusters/r4spi/apps/mungchilog.yaml`) 추가, PR ([#49](https://github.com/jyje/cluster/pull/49))
+- [ ] **PR #49 리뷰 후 머지** (사용자 액션 필요) → ArgoCD sync 확인 (`kubectl --context microk8s get application mungchilog -n argocd`)
 - [ ] `kubectl --context microk8s get pods,ingress,certificate -n mungchilog` 정상 확인
 - [ ] `curl -sI https://mungchilog.app.jyje.online/healthz` → 200
 - [ ] 폰에서 실제 접속 확인
