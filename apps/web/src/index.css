@@ -35,9 +35,22 @@ a:hover {
 }
 
 h1 {
-  font-size: 1.5rem;
-  letter-spacing: -0.01em;
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   margin: 0.5rem 0 0.25rem;
+}
+
+button {
+  font: inherit;
+}
+button:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: no-preference) {
+  button {
+    transition: transform 0.1s ease;
+  }
 }
 
 .meta {
@@ -109,7 +122,8 @@ ul {
   border: 1px solid var(--border);
   color: var(--text-muted);
   border-radius: 999px;
-  padding: 0.4rem 0.9rem;
+  padding: 0.55rem 1rem;
+  min-height: 36px;
   font-size: 0.85rem;
   cursor: pointer;
 }
@@ -156,9 +170,17 @@ ul {
   border: none;
   color: var(--text-muted);
   cursor: grab;
-  font-size: 1.1rem;
-  padding: 0 0.25rem;
+  font-size: 1.3rem;
+  /* 44px min touch target (Apple HIG) - this gets dragged one-handed
+     while walking, not clicked at a desk. */
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   touch-action: none;
+  flex: none;
 }
 .spot-body {
   flex: 1;
@@ -186,9 +208,19 @@ ul {
 .item-list label {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   font-size: 0.85rem;
   cursor: pointer;
+  /* Bigger than a bare checkbox - this gets tapped one-handed on a
+     moving train, not clicked at a desk. */
+  min-height: 32px;
+  padding: 0.15rem 0;
+}
+.item-list input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--accent);
+  flex: none;
 }
 .item-list .done {
   color: var(--text-muted);
