@@ -19,11 +19,37 @@ type TripRow = {
   updated_at: string;
 };
 
+type TripCoverSpot = {
+  id: string;
+  name: string;
+  nameLocal?: string;
+  lat?: number;
+  lng?: number;
+};
+
+function tripCoverSummary(data: TripData) {
+  if (!data.cover) return null;
+  const spot = data.cover.spotId
+    ? data.days.flatMap((day) => day.spots).find((candidate) => candidate.id === data.cover?.spotId)
+    : undefined;
+  const coverSpot: TripCoverSpot | undefined = spot
+    ? { id: spot.id, name: spot.name, nameLocal: spot.nameLocal, lat: spot.lat, lng: spot.lng }
+    : undefined;
+  return { imageDataUrl: data.cover.imageDataUrl, spot: coverSpot };
+}
+
 // Takes the whole trip itinerary as one JSON blob. This endpoint comes
 // before any input UI: that screen only gets used once before departure,
 // so it isn't worth the dev time (see PLAN.md).
 trips.post("/import", async (c) => {
   const user = c.get("user");
+  const contentLength = Number(c.req.header("Content-Length") ?? 0);
+  // Cover images are intentionally temporary Base64 data URLs. Keep this
+  // endpoint bounded until object storage replaces them, instead of letting
+  // a single itinerary request consume unbounded server memory.
+  if (Number.isFinite(contentLength) && contentLength > 3 * 1024 * 1024) {
+    return c.json({ error: "trip payload must not exceed 3 MiB" }, 413);
+  }
   const body = await c.req.json().catch(() => null);
   if (body === null) return c.json({ error: "invalid JSON body" }, 400);
 
@@ -32,7 +58,7 @@ trips.post("/import", async (c) => {
     return c.json({ error: "validation failed", issues: parsed.error.issues }, 400);
   }
 
-  const { id: providedId, ...data } = parsed.data;
+  const { id: providedId, ...submittedData } = parsed.data;
 
   // Updating an existing trip requires being a member (owner or editor) -
   // otherwise an approved-but-unrelated user who happens to know/guess a
@@ -49,7 +75,13 @@ trips.post("/import", async (c) => {
   const id = providedId ?? randomUUID();
   const now = new Date().toISOString();
 
-  const existing = await db.get<{ created_at: string }>("SELECT created_at FROM trips WHERE id = ?", [id]);
+  const existing = await db.get<Pick<TripRow, "created_at" | "data">>("SELECT created_at, data FROM trips WHERE id = ?", [id]);
+  // A legacy JSON import has no cover field. Preserve a cover in that case,
+  // but honor an explicit null from the cover editor as a deliberate clear.
+  const existingData = existing ? (JSON.parse(existing.data) as TripData) : undefined;
+  const data: TripData = submittedData.cover === undefined && existingData?.cover !== undefined
+    ? { ...submittedData, cover: existingData.cover }
+    : submittedData;
 
   await db.run(
     `INSERT INTO trips (id, title, start_date, end_date, data, created_at, updated_at)
@@ -73,11 +105,16 @@ trips.get("/", async (c) => {
   const memberTripIds = await listMemberTripIds(user.id);
   if (memberTripIds.length === 0) return c.json([]);
   const placeholders = memberTripIds.map(() => "?").join(",");
-  const rows = await db.all<Pick<TripRow, "id" | "title" | "start_date" | "end_date">>(
-    `SELECT id, title, start_date, end_date FROM trips WHERE id IN (${placeholders}) ORDER BY updated_at DESC`,
+  const rows = await db.all<Pick<TripRow, "id" | "title" | "start_date" | "end_date" | "data">>(
+    `SELECT id, title, start_date, end_date, data FROM trips WHERE id IN (${placeholders}) ORDER BY updated_at DESC`,
     memberTripIds,
   );
-  return c.json(rows.map((r) => ({ id: r.id, title: r.title, startDate: r.start_date, endDate: r.end_date })));
+  return c.json(
+    rows.map((r) => {
+      const data = JSON.parse(r.data) as TripData;
+      return { id: r.id, title: r.title, startDate: r.start_date, endDate: r.end_date, cover: tripCoverSummary(data) };
+    }),
+  );
 });
 
 trips.get("/:id", async (c) => {

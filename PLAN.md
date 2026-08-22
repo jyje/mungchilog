@@ -66,10 +66,12 @@ Google Maps **Routes/Places API 키**(과금 대상)는 로컬에서 `kubeseal`�
 
 클러스터에 사용할 수 있는 `longhorn` StorageClass가 없어서 실제 배포는 기본 `subdir-usb` NFS PVC를 사용한다. SQLite WAL은 NFS의 공유 메모리와 파일 잠금 특성에 맞지 않으므로 서버는 `PRAGMA journal_mode = DELETE`를 강제한다. Deployment는 단일 replica와 단일 writer를 유지하고, 여러 Pod가 같은 DB를 동시에 열지 않게 한다. PVC 용량은 1Gi로 시작한다.
 
+여행 목록의 대표 이미지는 초기 단계에서만 `trips.data.cover.imageDataUrl`에 Base64 data URL로 저장한다. JPEG, PNG, WebP만 허용하고 원본 바이트는 2 MiB로 제한한다. 목록은 사진을 우선 표시하고, 사진이 없으면 `cover.spotId`가 가리키는 장소의 지도를 표시한다. 이 임시 저장은 사용자 앨범이 아니며, 객체 저장소와 접근 제어, 기존 데이터 이전은 [#9](https://github.com/jyje/mungchilog/issues/9)에서 처리한다.
+
 ## 4. 데이터 모델
 
 ```
-trips: id(UUIDv4), title, timezone, currency, startDate, endDate, data(JSON), version, createdAt, updatedAt, deletedAt
+trips: id(UUIDv4), title, timezone, currency, startDate, endDate, data(JSON, cover: { spotId?, imageDataUrl? }), version, createdAt, updatedAt, deletedAt
 legs:  id, fromSpotId, toSpotId, mode, distanceM, durationS, fareAmount, polyline, fetchedAt   ← TTL 30일 캐시
 users: id, oidcIssuer, oidcSubject, email, name, status(pending/approved/rejected/suspended), platformRole(admin/user), createdAt
 sessions: id, userId, createdAt, expiresAt
@@ -232,7 +234,7 @@ POST   /api/notifications/read-all
 
 ## 8. v1에서 뺄 것
 
-TSP 경로 최적화, 예산 정산, 사진 업로드, 예약 파싱, 브라우저 푸시·이메일 알림, 실시간 커서, CRDT 기반 동시편집은 v1에서 제외한다. OIDC 인증, 관리자 승인, 여행별 게스트·편집자 공유는 M6으로 v1 범위에 포함한다.
+TSP 경로 최적화, 예산 정산, 다중 사진 앨범, 예약 파싱, 브라우저 푸시·이메일 알림, 실시간 커서, CRDT 기반 동시편집은 v1에서 제외한다. 대표 이미지의 객체 저장소 이전은 [#9](https://github.com/jyje/mungchilog/issues/9)로 관리한다. OIDC 인증, 관리자 승인, 여행별 게스트·편집자 공유는 M6으로 v1 범위에 포함한다.
 
 ## 9. 폴백
 
