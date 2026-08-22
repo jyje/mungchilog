@@ -1,26 +1,22 @@
-import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { Pool } from "pg";
 
-// Default is a local dev path. In the cluster, the PVC is mounted at
-// /app/data and must match the Helm chart's values.yaml persistence.mountPath.
-const DB_PATH = process.env.DB_PATH ?? "./data/mungchilog.db";
+type DbValue = string | number | null;
+export type DbRunResult = { changes: number };
 
-mkdirSync(dirname(DB_PATH), { recursive: true });
+export type Database = {
+  get<T>(sql: string, params?: DbValue[]): Promise<T | undefined>;
+  all<T>(sql: string, params?: DbValue[]): Promise<T[]>;
+  run(sql: string, params?: DbValue[]): Promise<DbRunResult>;
+  exec(sql: string): Promise<void>;
+  close(): Promise<void>;
+};
 
-export const db = new DatabaseSync(DB_PATH);
+export type DbProvider = "sqlite" | "postgres";
 
-// The cluster's only StorageClass is NFS-backed (no block storage
-// available: see helm/mungchilog's values.yaml in jyje/cluster). WAL
-// mode depends on shared-memory mmap and real POSIX locks, which NFS
-// does not reliably provide, so force the classic rollback-journal mode
-// instead. This app also runs a single replica with a ReadWriteOnce PVC,
-// so there is only ever one writer: the well-known SQLite-over-NFS
-// corruption risk is a multi-writer problem this app doesn't have.
-db.exec("PRAGMA journal_mode = DELETE;");
-db.exec("PRAGMA busy_timeout = 5000;");
-
-db.exec(`
+const SCHEMA = `
   CREATE TABLE IF NOT EXISTS trips (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -31,11 +27,6 @@ db.exec(`
     updated_at TEXT NOT NULL
   );
 
-  -- Routes API cache, populated in M3. The 30-day TTL is enforced at the
-  -- application level based on fetched_at (no SQLite-side TTL trigger).
-  -- id is a deterministic cache key: fromPlaceId:toPlaceId:mode:bucket,
-  -- where bucket is (day-of-week, hour-of-day/4) in Asia/Tokyo: see
-  -- routes/legs.ts. Same key in, same row updated, no duplicates.
   CREATE TABLE IF NOT EXISTS legs (
     id TEXT PRIMARY KEY,
     from_place_id TEXT NOT NULL,
@@ -50,32 +41,21 @@ db.exec(`
     fetched_at TEXT NOT NULL
   );
 
-  -- Places details cache (opening hours, for M4's "is it open today").
-  -- Same 30-day TTL policy as legs, enforced at the application level.
   CREATE TABLE IF NOT EXISTS places (
     place_id TEXT PRIMARY KEY,
     opening_hours TEXT,
     fetched_at TEXT NOT NULL
   );
 
-  -- M6: OIDC-authenticated users. Created on first successful login, not
-  -- provisioned in advance - status starts "pending" so a stranger who
-  -- somehow gets past the Ingress's Basic Auth still can't see anyone's
-  -- trip data until the admin approves them. The ADMIN_EMAIL env var's
-  -- owner is auto-approved as "admin" the moment they first log in
-  -- (see auth.ts).
   CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     name TEXT,
-    status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'approved'
-    role TEXT NOT NULL DEFAULT 'member',    -- 'admin' | 'member'
+    status TEXT NOT NULL DEFAULT 'pending',
+    role TEXT NOT NULL DEFAULT 'member',
     created_at TEXT NOT NULL
   );
 
-  -- Server-side sessions (not a self-contained JWT cookie) so logout and
-  -- admin-initiated revocation both actually take effect immediately,
-  -- without needing a token blocklist.
   CREATE TABLE IF NOT EXISTS sessions (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id),
@@ -83,19 +63,117 @@ db.exec(`
     expires_at TEXT NOT NULL
   );
 
-  -- Per-trip sharing. "owner" is whoever created the trip (or the admin,
-  -- for trips that existed before M6 - see auth.ts's backfill); "editor"
-  -- is anyone the owner/admin has invited. Both roles can fully edit the
-  -- itinerary (jyje's call: real shared editing, not read-only viewing) -
-  -- only "owner" can additionally delete the trip or manage who else is on
-  -- it. Concurrent edits are last-write-wins on the whole trip JSON, same
-  -- as this app has always done for one person across multiple tabs/
-  -- devices - there's no operational-transform/CRDT merge here.
   CREATE TABLE IF NOT EXISTS trip_members (
     trip_id TEXT NOT NULL REFERENCES trips(id),
     user_id TEXT NOT NULL REFERENCES users(id),
-    role TEXT NOT NULL DEFAULT 'editor', -- 'owner' | 'editor'
+    role TEXT NOT NULL DEFAULT 'editor',
     created_at TEXT NOT NULL,
     PRIMARY KEY (trip_id, user_id)
   );
-`);
+`;
+
+export function getDbProvider(env: NodeJS.ProcessEnv = process.env): DbProvider {
+  const provider = env.DB_PROVIDER ?? "sqlite";
+  if (provider === "sqlite" || provider === "postgres") return provider;
+  throw new Error(`Invalid DB_PROVIDER \"${provider}\". Use \"sqlite\" or \"postgres\".`);
+}
+
+/** Converts the SQLite-style placeholders used by the application into the
+ * numbered placeholders PostgreSQL expects. Current queries do not put ? in
+ * string literals, but the small scanner keeps quoted literals intact. */
+export function toPostgresPlaceholders(sql: string): string {
+  let index = 0;
+  let quoted = false;
+  let result = "";
+
+  for (let i = 0; i < sql.length; i += 1) {
+    const char = sql[i];
+    if (char === "'") {
+      result += char;
+      if (quoted && sql[i + 1] === "'") {
+        result += sql[i + 1];
+        i += 1;
+      } else {
+        quoted = !quoted;
+      }
+      continue;
+    }
+    result += char === "?" && !quoted ? `$${++index}` : char;
+  }
+  return result;
+}
+
+class SqliteDatabase implements Database {
+  constructor(private readonly connection: DatabaseSync) {}
+
+  async get<T>(sql: string, params: DbValue[] = []): Promise<T | undefined> {
+    return this.connection.prepare(sql).get(...params) as T | undefined;
+  }
+
+  async all<T>(sql: string, params: DbValue[] = []): Promise<T[]> {
+    return this.connection.prepare(sql).all(...params) as T[];
+  }
+
+  async run(sql: string, params: DbValue[] = []): Promise<DbRunResult> {
+    const result = this.connection.prepare(sql).run(...params);
+    return { changes: Number(result.changes) };
+  }
+
+  async exec(sql: string): Promise<void> {
+    this.connection.exec(sql);
+  }
+
+  async close(): Promise<void> {
+    this.connection.close();
+  }
+}
+
+class PostgresDatabase implements Database {
+  constructor(private readonly pool: Pool) {}
+
+  async get<T>(sql: string, params: DbValue[] = []): Promise<T | undefined> {
+    const result = await this.pool.query(toPostgresPlaceholders(sql), params);
+    return result.rows[0] as T | undefined;
+  }
+
+  async all<T>(sql: string, params: DbValue[] = []): Promise<T[]> {
+    const result = await this.pool.query(toPostgresPlaceholders(sql), params);
+    return result.rows as T[];
+  }
+
+  async run(sql: string, params: DbValue[] = []): Promise<DbRunResult> {
+    const result = await this.pool.query(toPostgresPlaceholders(sql), params);
+    return { changes: result.rowCount ?? 0 };
+  }
+
+  async exec(sql: string): Promise<void> {
+    await this.pool.query(sql);
+  }
+
+  async close(): Promise<void> {
+    await this.pool.end();
+  }
+}
+
+async function createDatabase(): Promise<Database> {
+  const provider = getDbProvider();
+  if (provider === "postgres") {
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) throw new Error("DATABASE_URL is required when DB_PROVIDER=postgres.");
+    const database = new PostgresDatabase(new Pool({ connectionString }));
+    await database.exec(SCHEMA);
+    return database;
+  }
+
+  const path = process.env.DB_PATH ?? "./data/mungchilog.db";
+  mkdirSync(dirname(path), { recursive: true });
+  const database = new SqliteDatabase(new DatabaseSync(path));
+  // The cluster's SQLite volume is NFS-backed. WAL depends on locking that
+  // is not reliable there, so retain the safe rollback journal mode.
+  await database.exec("PRAGMA journal_mode = DELETE;");
+  await database.exec("PRAGMA busy_timeout = 5000;");
+  await database.exec(SCHEMA);
+  return database;
+}
+
+export const db = await createDatabase();

@@ -66,7 +66,7 @@ legs.post("/compute", async (c) => {
   const bucket = bucketFor(when, timezone);
   const id = cacheKey(fromPlaceId, toPlaceId, mode, bucket);
 
-  const cached = db.prepare("SELECT * FROM legs WHERE id = ?").get(id) as LegRow | undefined;
+  const cached = await db.get<LegRow>("SELECT * FROM legs WHERE id = ?", [id]);
   if (cached && Date.now() - Date.parse(cached.fetched_at) < TTL_MS) {
     return c.json(toLegResponse(cached), 200, { "X-Cache": "hit" });
   }
@@ -91,7 +91,7 @@ legs.post("/compute", async (c) => {
   }
 
   const now = new Date().toISOString();
-  db.prepare(
+  await db.run(
     `INSERT INTO legs (id, from_place_id, to_place_id, mode, bucket, distance_m, duration_s, fare_amount, fare_currency, polyline, fetched_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
@@ -101,18 +101,19 @@ legs.post("/compute", async (c) => {
        fare_currency = excluded.fare_currency,
        polyline = excluded.polyline,
        fetched_at = excluded.fetched_at`,
-  ).run(
-    id,
-    fromPlaceId,
-    toPlaceId,
-    mode,
-    bucket,
-    fetched.distanceM,
-    fetched.durationS,
-    fetched.fareAmount,
-    fetched.fareCurrency,
-    fetched.polyline,
-    now,
+    [
+      id,
+      fromPlaceId,
+      toPlaceId,
+      mode,
+      bucket,
+      fetched.distanceM,
+      fetched.durationS,
+      fetched.fareAmount,
+      fetched.fareCurrency,
+      fetched.polyline,
+      now,
+    ],
   );
 
   return c.json(

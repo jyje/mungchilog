@@ -53,26 +53,23 @@ function rowToUser(row: UserRow): User {
 // while production (env vars present) always enforces real login.
 const DEV_USER: User = { id: "dev-local", email: ADMIN_EMAIL ?? "dev@localhost", name: "Local Dev", status: "approved", role: "admin" };
 
-if (!OIDC_CONFIGURED) {
+async function bootstrapDevUser() {
   // Make sure the pseudo-user row exists and owns whatever trips are
   // already sitting in the local dev DB, so M6's per-trip membership
   // filtering doesn't suddenly hide pre-existing local test data.
   const now = new Date().toISOString();
-  db.prepare(
+  await db.run(
     `INSERT INTO users (id, email, name, status, role, created_at) VALUES (?, ?, ?, 'approved', 'admin', ?)
      ON CONFLICT(id) DO NOTHING`,
-  ).run(DEV_USER.id, DEV_USER.email, DEV_USER.name, now);
-  const orphanTrips = db
-    .prepare("SELECT id FROM trips WHERE id NOT IN (SELECT trip_id FROM trip_members)")
-    .all() as { id: string }[];
+    [DEV_USER.id, DEV_USER.email, DEV_USER.name, now],
+  );
+  const orphanTrips = await db.all<{ id: string }>("SELECT id FROM trips WHERE id NOT IN (SELECT trip_id FROM trip_members)");
   for (const t of orphanTrips) {
-    db.prepare("INSERT INTO trip_members (trip_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)").run(
-      t.id,
-      DEV_USER.id,
-      now,
-    );
+    await db.run("INSERT INTO trip_members (trip_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)", [t.id, DEV_USER.id, now]);
   }
 }
+
+if (!OIDC_CONFIGURED) await bootstrapDevUser();
 
 let oidcConfig: oidc.Configuration | null = null;
 async function getOidcConfig(): Promise<oidc.Configuration> {
@@ -83,14 +80,14 @@ async function getOidcConfig(): Promise<oidc.Configuration> {
   return oidcConfig;
 }
 
-function findOrCreateUser(email: string, name: string | null): User {
-  const existing = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as UserRow | undefined;
+async function findOrCreateUser(email: string, name: string | null): Promise<User> {
+  const existing = await db.get<UserRow>("SELECT * FROM users WHERE email = ?", [email]);
   if (existing) {
     // A name can change upstream (IdP profile edit); status/role don't get
     // silently overwritten here - those only change via the admin flow
     // below or the one-time admin-bootstrap case.
     if (name && name !== existing.name) {
-      db.prepare("UPDATE users SET name = ? WHERE id = ?").run(name, existing.id);
+      await db.run("UPDATE users SET name = ? WHERE id = ?", [name, existing.id]);
       existing.name = name;
     }
     return rowToUser(existing);
@@ -99,51 +96,48 @@ function findOrCreateUser(email: string, name: string | null): User {
   const isAdmin = !!ADMIN_EMAIL && email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const id = randomUUID();
   const now = new Date().toISOString();
-  db.prepare("INSERT INTO users (id, email, name, status, role, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(
+  await db.run("INSERT INTO users (id, email, name, status, role, created_at) VALUES (?, ?, ?, ?, ?, ?)", [
     id,
     email,
     name,
     isAdmin ? "approved" : "pending",
     isAdmin ? "admin" : "member",
     now,
-  );
+  ]);
 
   if (isAdmin) {
     // Backfill: any trip created before this user/membership system
     // existed has no owner yet. The first time the real admin logs in,
     // adopt those orphaned trips rather than leaving them permanently
     // inaccessible.
-    const orphanTrips = db
-      .prepare("SELECT id FROM trips WHERE id NOT IN (SELECT trip_id FROM trip_members)")
-      .all() as { id: string }[];
+    const orphanTrips = await db.all<{ id: string }>("SELECT id FROM trips WHERE id NOT IN (SELECT trip_id FROM trip_members)");
     for (const t of orphanTrips) {
-      db.prepare("INSERT INTO trip_members (trip_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)").run(t.id, id, now);
+      await db.run("INSERT INTO trip_members (trip_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)", [t.id, id, now]);
     }
   }
 
   return { id, email, name, status: isAdmin ? "approved" : "pending", role: isAdmin ? "admin" : "member" };
 }
 
-function createSession(userId: string): string {
+async function createSession(userId: string): Promise<string> {
   const id = randomBytes(32).toString("hex");
   const now = new Date();
   const expires = new Date(now.getTime() + SESSION_TTL_MS);
-  db.prepare("INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)").run(
+  await db.run("INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)", [
     id,
     userId,
     now.toISOString(),
     expires.toISOString(),
-  );
+  ]);
   return id;
 }
 
-function getUserBySession(sessionId: string): User | null {
-  const row = db
-    .prepare(
+async function getUserBySession(sessionId: string): Promise<User | null> {
+  const row = await db.get<UserRow>(
       `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id = ? AND s.expires_at > ?`,
-    )
-    .get(sessionId, new Date().toISOString()) as UserRow | undefined;
+    [sessionId, new Date().toISOString()],
+  );
   return row ? rowToUser(row) : null;
 }
 
@@ -208,8 +202,8 @@ auth.get("/callback", async (c) => {
   if (!email) return c.json({ error: "the identity provider did not return an email claim" }, 400);
   const name = (claims?.name as string | undefined) ?? null;
 
-  const user = findOrCreateUser(email, name);
-  const sessionId = createSession(user.id);
+  const user = await findOrCreateUser(email, name);
+  const sessionId = await createSession(user.id);
   setCookie(c, SESSION_COOKIE, sessionId, {
     httpOnly: true,
     secure: SECURE_COOKIES,
@@ -221,49 +215,49 @@ auth.get("/callback", async (c) => {
   return c.redirect(user.status === "pending" ? "/pending" : "/trips");
 });
 
-auth.post("/logout", (c) => {
+auth.post("/logout", async (c) => {
   const sessionId = getCookie(c, SESSION_COOKIE);
-  if (sessionId) db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
+  if (sessionId) await db.run("DELETE FROM sessions WHERE id = ?", [sessionId]);
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
   return c.json({ loggedOut: true });
 });
 
-auth.get("/me", (c) => {
-  const user = getCurrentUser(c);
+auth.get("/me", async (c) => {
+  const user = await getCurrentUser(c);
   if (!user) return c.json({ error: "not logged in" }, 401);
   return c.json(user);
 });
 
-export function findUserByEmail(email: string): User | null {
-  const row = db.prepare("SELECT * FROM users WHERE email = ?").get(email) as UserRow | undefined;
+export async function findUserByEmail(email: string): Promise<User | null> {
+  const row = await db.get<UserRow>("SELECT * FROM users WHERE email = ?", [email]);
   return row ? rowToUser(row) : null;
 }
 
-export function findUserById(id: string): User | null {
-  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow | undefined;
+export async function findUserById(id: string): Promise<User | null> {
+  const row = await db.get<UserRow>("SELECT * FROM users WHERE id = ?", [id]);
   return row ? rowToUser(row) : null;
 }
 
-export function listUsers(): User[] {
-  return (db.prepare("SELECT * FROM users ORDER BY created_at ASC").all() as UserRow[]).map(rowToUser);
+export async function listUsers(): Promise<User[]> {
+  return (await db.all<UserRow>("SELECT * FROM users ORDER BY created_at ASC")).map(rowToUser);
 }
 
-export function setUserStatus(id: string, status: "pending" | "approved") {
-  db.prepare("UPDATE users SET status = ? WHERE id = ?").run(status, id);
+export async function setUserStatus(id: string, status: "pending" | "approved") {
+  await db.run("UPDATE users SET status = ? WHERE id = ?", [status, id]);
 }
 
-export function getCurrentUser(c: Context): User | null {
+export async function getCurrentUser(c: Context): Promise<User | null> {
   if (!OIDC_CONFIGURED) return DEV_USER;
   const sessionId = getCookie(c, SESSION_COOKIE);
   if (!sessionId) return null;
-  return getUserBySession(sessionId);
+  return await getUserBySession(sessionId);
 }
 
 // Attaches c.var.user for every route it wraps and 401s if there's no
 // valid session. Does NOT check approval status - see requireApproved,
 // which most routes should stack on top of this.
 export async function requireAuth(c: Context, next: Next) {
-  const user = getCurrentUser(c);
+  const user = await getCurrentUser(c);
   if (!user) return c.json({ error: "login required" }, 401);
   c.set("user", user);
   await next();

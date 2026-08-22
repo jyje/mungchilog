@@ -20,7 +20,7 @@ type PlaceRow = {
 places.get("/:placeId/hours", async (c) => {
   const placeId = c.req.param("placeId");
 
-  const cached = db.prepare("SELECT * FROM places WHERE place_id = ?").get(placeId) as PlaceRow | undefined;
+  const cached = await db.get<PlaceRow>("SELECT * FROM places WHERE place_id = ?", [placeId]);
   if (cached && Date.now() - Date.parse(cached.fetched_at) < TTL_MS) {
     return c.json(toResponse(cached), 200, { "X-Cache": "hit" });
   }
@@ -54,10 +54,11 @@ places.get("/:placeId/hours", async (c) => {
   }
 
   const now = new Date().toISOString();
-  db.prepare(
+  await db.run(
     `INSERT INTO places (place_id, opening_hours, fetched_at) VALUES (?, ?, ?)
      ON CONFLICT(place_id) DO UPDATE SET opening_hours = excluded.opening_hours, fetched_at = excluded.fetched_at`,
-  ).run(placeId, JSON.stringify(openingHours), now);
+    [placeId, JSON.stringify(openingHours), now],
+  );
 
   return c.json({ regularOpeningHours: openingHours, fetchedAt: now }, 200, { "X-Cache": "miss" });
 });

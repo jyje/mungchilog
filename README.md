@@ -26,7 +26,7 @@ Live at `https://mungchilog.app.jyje.online` (personal itinerary data, gated beh
 
 ## Stack
 
-- **Server**: [Hono](https://hono.dev) on Node.js, SQLite (`node:sqlite`)
+- **Server**: [Hono](https://hono.dev) on Node.js, selectable SQLite (`node:sqlite`) or PostgreSQL storage
 - **Web**: React 19 + Vite, [TanStack Query](https://tanstack.com/query), [dnd-kit](https://dndkit.com), [@vis.gl/react-google-maps](https://visgl.github.io/react-google-maps/)
 - **Deploy**: single container, GitOps via ArgoCD on a self-hosted microk8s cluster (manifests in [jyje/cluster](https://github.com/jyje/cluster))
 
@@ -38,5 +38,17 @@ cd apps/web && npm install && npm run dev       # http://localhost:5173
 ```
 
 Copy `.env.sample` to `.env` at the repo root for local Google Maps keys (optional: the app runs fine without them, map and routing UI just show a placeholder).
+
+### Database backend
+
+SQLite is the default and keeps data in `./data/mungchilog.db`. To use another
+path, set `DB_PROVIDER=sqlite` and `DB_PATH=/path/to/mungchilog.db`.
+
+For PostgreSQL, set `DB_PROVIDER=postgres` and a complete `DATABASE_URL`, for
+example `postgresql://user:password@host:5432/mungchilog?sslmode=require`.
+The server initializes the same schema for either provider. Keep credentials in
+your local `.env` or deployment secret, never in the repository. Switching an
+existing deployment to PostgreSQL initializes an empty schema; migrate existing
+SQLite data separately before changing providers.
 
 See [`PLAN.md`](PLAN.md) for architecture decisions and [`TASK.md`](TASK.md) for the milestone checklist.
