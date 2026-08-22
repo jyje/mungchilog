@@ -29,6 +29,11 @@ export default defineConfig({
         // point of offline caching here is surviving that, not saving
         // API calls (see PLAN.md). Cache the app shell aggressively and
         // let GET /api/trips/* fall back to the last successful response.
+        // OIDC needs real document navigations for both endpoints. Without
+        // this exclusion Workbox returns the SPA shell for /auth/login and
+        // /auth/callback, preventing the server from issuing or consuming
+        // the OIDC session cookies.
+        navigateFallbackDenylist: [/^\/auth(?:\/|$)/],
         runtimeCaching: [
           {
             urlPattern: /^\/api\/trips(\/.*)?$/,
