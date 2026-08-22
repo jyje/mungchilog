@@ -8,6 +8,7 @@ import { TripMap } from "../components/TripMap";
 import { SpotCard } from "../components/SpotCard";
 import { LegInfo } from "../components/LegInfo";
 import { AddSpotForm } from "../components/AddSpotForm";
+import { SplitMapShell } from "../components/SplitMapShell";
 
 function nextDate(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -127,24 +128,8 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
     scheduleSave({ ...trip, days });
   }
 
-  return (
-    <div className="page">
-      <p>
-        <a
-          href="/trips"
-          onClick={(e) => {
-            e.preventDefault();
-            navigate("/trips");
-          }}
-        >
-          ← 목록
-        </a>
-      </p>
-      <h1>{trip.title}</h1>
-      <p className="meta">
-        {trip.startDate} ~ {trip.endDate} · {trip.timezone} {mutation.isPending && "· 저장 중..."}
-      </p>
-
+  const panel = (
+    <>
       <div className="day-tabs">
         {trip.days.map((d, i) => (
           <button key={d.date} className={i === dayIndex ? "active" : ""} onClick={() => setDayIndex(i)}>
@@ -158,7 +143,6 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
 
       {day ? (
         <>
-          <TripMap spots={day.spots} date={day.date} timezone={trip.timezone} />
           <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={day.spots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               <ul className="spot-list">
@@ -201,6 +185,28 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
           일자가 없습니다. 위 <strong>+ 날짜</strong> 버튼으로 추가하세요.
         </p>
       )}
-    </div>
+    </>
+  );
+
+  return (
+    <SplitMapShell
+      map={<TripMap spots={day?.spots ?? []} date={day?.date ?? trip.startDate} timezone={trip.timezone} />}
+      headerLeft={
+        <a
+          className="map-hero-back"
+          href="/trips"
+          aria-label="목록으로"
+          onClick={(event) => {
+            event.preventDefault();
+            navigate("/trips");
+          }}
+        >
+          ←
+        </a>
+      }
+      title={trip.title}
+      subtitle={`${trip.startDate} ~ ${trip.endDate} · ${trip.timezone}${mutation.isPending ? " · 저장 중..." : ""}`}
+      panel={panel}
+    />
   );
 }
