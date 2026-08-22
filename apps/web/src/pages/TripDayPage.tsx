@@ -12,6 +12,7 @@ import { LegInfo } from "../components/LegInfo";
 import { SpotForm, type SpotFormValues } from "../components/SpotForm";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { TripShareButton } from "../components/TripShareButton";
+import { TripCoverEditor } from "../components/TripCoverEditor";
 import type { Me } from "../api";
 
 function nextDate(dateStr: string): string {
@@ -269,7 +270,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   function deleteSpot(spotId: string) {
     if (!trip) return;
     const days = trip.days.map((d, i) => (i !== dayIndex ? d : { ...d, spots: d.spots.filter((s) => s.id !== spotId) }));
-    saveNow({ ...trip, days });
+    const cover = trip.cover?.spotId === spotId
+      ? (trip.cover.imageDataUrl ? { imageDataUrl: trip.cover.imageDataUrl } : null)
+      : trip.cover;
+    saveNow({ ...trip, days, cover });
   }
 
   function addItem(spotId: string, item: Omit<Item, "id" | "done">) {
@@ -359,6 +363,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         }
         panel={
           <>
+            <TripCoverEditor trip={trip} onSave={saveNow} saving={mutation.isPending} />
             <div className="day-tabs-wrap">
               <div className="day-tabs">
                 {trip.days.map((d, i) => (
