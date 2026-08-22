@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import type { Context, Next } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { db } from "./db.js";
+import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness, isOidcConfigured } from "./auth-config.js";
 
 // Standard OIDC login, configured entirely via env vars so this works with
 // any compliant provider (Authentik, Keycloak, Google Workspace, ...) -
@@ -17,14 +18,21 @@ const REDIRECT_URI = process.env.OIDC_REDIRECT_URI;
 // log in - no manual DB edit needed to bootstrap the very first account.
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 
-const OIDC_CONFIGURED = !!(ISSUER_URL && CLIENT_ID && CLIENT_SECRET && REDIRECT_URI);
+const OIDC_CONFIGURED = isOidcConfigured();
 // A missing production Secret or ConfigMap must never turn into an
-// authenticated local administrator. The development fallback is limited to
-// non-production processes so a misconfigured deployment fails closed.
-const LOCAL_DEV_AUTH = !OIDC_CONFIGURED && process.env.NODE_ENV !== "production";
+// authenticated local administrator. The fallback is limited to an explicit
+// development process so a misconfigured deployment fails closed.
+const LOCAL_DEV_AUTH = canUseLocalDevAuth();
 const SESSION_COOKIE = "mungchilog_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const SECURE_COOKIES = process.env.NODE_ENV === "production";
+
+// Kubernetes uses this through /readyz before admitting production traffic.
+// A locally started development server remains usable without an identity
+// provider, but every other environment requires complete OIDC settings.
+export function isAuthenticationReady() {
+  return getAuthenticationReadiness();
+}
 
 // Threaded through every router that stacks requireAuth, so c.get("user")
 // type-checks without a manual cast (see routes/trips.ts).

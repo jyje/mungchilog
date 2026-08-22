@@ -6,11 +6,16 @@ import { trips } from "./routes/trips.js";
 import { legs } from "./routes/legs.js";
 import { places } from "./routes/places.js";
 import { admin } from "./routes/admin.js";
-import { auth, requireApproved, requireAuth, requireSameOrigin } from "./auth.js";
+import { auth, isAuthenticationReady, requireApproved, requireAuth, requireSameOrigin } from "./auth.js";
 
 const app = new Hono();
 
 app.get("/healthz", (c) => c.json({ status: "ok", service: "mungchilog-server" }));
+app.get("/readyz", (c) =>
+  isAuthenticationReady()
+    ? c.json({ status: "ready", service: "mungchilog-server" })
+    : c.json({ status: "not-ready", service: "mungchilog-server" }, 503),
+);
 
 app.route("/auth", auth);
 // Authentication is an application boundary, not just a trips-route
