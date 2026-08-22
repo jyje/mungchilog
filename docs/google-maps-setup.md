@@ -12,7 +12,7 @@ M3(구간 정보)와 M4(영업시간)를 완성하려면 이 3개가 필요합�
 
 https://console.cloud.google.com/apis/library 에서 각각 검색해서 "사용 설정":
 - **Maps JavaScript API**
-- **Places API (New)**
+- **Places API (New)** ⚠️ **"Places API"(New 없는 것)와는 다른 별개의 API입니다.** 검색하면 이름이 비슷한 두 개가 나오는데, 반드시 **"(New)"가 붙은 것**을 선택하세요. 이 앱의 장소 검색 자동완성·영업시간 조회는 전부 New 쪽 엔드포인트(`places.googleapis.com`)만 호출합니다 — 구버전 "Places API"를 활성화·선택해도 자동완성은 계속 403으로 막힙니다. 직접 링크: https://console.cloud.google.com/apis/library/places.googleapis.com
 - **Routes API**
 
 ## 3. 키 2개 발급
@@ -26,7 +26,10 @@ https://console.cloud.google.com/apis/credentials → "사용자 인증 정보 �
 - 이름: `mungchilog-web`
 - **애플리케이션 제한사항** → HTTP 리퍼러(웹사이트) → 다음 항목 추가:
   - `https://mungchilog.app.jyje.online/*`
-- **API 제한사항** → 키 제한 → **Maps JavaScript API**만 체크
+  - (선택) `http://localhost:5173/*` — 로컬 개발 서버에서도 실제 지도·장소 검색을 보고 싶으면 추가하세요. 안 넣어도 배포된 사이트는 영향 없고, 로컬에서만 "지도를 불러오지 못했습니다" 안내가 대신 뜹니다 (정상)
+- **API 제한사항** → 키 제한 → **Maps JavaScript API**, **Places API (New)** 둘 다 체크
+  (Places API (New)은 스팟 추가 폼의 장소 검색 자동완성에 씁니다. 안 넣어도 앱은 동작하고, 자동완성만 빠지고 이름 직접 입력으로 자연스럽게 대체됩니다)
+  - 체크박스 목록에 **"Places API (New)"가 안 보인다면** 아직 프로젝트에서 활성화가 안 된 것입니다 — 위 2단계로 돌아가서 정확한 이름으로 다시 활성화한 뒤 이 화면을 새로고침하면 뜹니다. 목록에 "Places API"(New 없음)만 있고 체크했다면 그건 다른 API라 자동완성이 계속 403(Forbidden)으로 막힙니다.
 
 이 키를 → 저에게 알려주시면 GitHub Actions repo secret `VITE_GOOGLE_MAPS_API_KEY`로 넣고 재배포합니다.
 

@@ -1,4 +1,41 @@
+/*
+ * Theme tokens: light is the bare :root default. Dark applies either from
+ * the OS (prefers-color-scheme, unless the user picked "light" explicitly
+ * via [data-theme="light"]) or from an explicit user choice
+ * ([data-theme="dark"], set by ThemeToggle.tsx / the boot script in
+ * index.html). Both dark blocks repeat the same values on purpose - the
+ * explicit block is what lets a user's choice win over the OS setting.
+ */
 :root {
+  color-scheme: light dark;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --border: #e2e4e8;
+  --text: #14151a;
+  --text-muted: #666b73;
+  --accent: #0284c7;
+  --accent-contrast: #ffffff;
+  --danger: #dc2626;
+  --shadow-color: rgba(20, 21, 26, 0.16);
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111214;
+    --surface: #1b1c1f;
+    --border: #2a2b2f;
+    --text: #ececee;
+    --text-muted: #8b8d94;
+    --accent: #7dd3fc;
+    --accent-contrast: #0b1220;
+    --danger: #f87171;
+    --shadow-color: rgba(0, 0, 0, 0.45);
+  }
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #111214;
   --surface: #1b1c1f;
@@ -6,8 +43,9 @@
   --text: #ececee;
   --text-muted: #8b8d94;
   --accent: #7dd3fc;
+  --accent-contrast: #0b1220;
   --danger: #f87171;
-  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+  --shadow-color: rgba(0, 0, 0, 0.45);
 }
 
 * {
@@ -16,8 +54,35 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
   background: var(--bg);
   color: var(--text);
+}
+@media (prefers-reduced-motion: no-preference) {
+  body {
+    transition:
+      background-color 0.15s ease,
+      color 0.15s ease;
+  }
+}
+
+.theme-toggle {
+  position: fixed;
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: max(0.75rem, env(safe-area-inset-right));
+  z-index: 50;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 10px var(--shadow-color);
 }
 
 #root {
@@ -39,6 +104,11 @@ h1 {
   font-weight: 700;
   letter-spacing: -0.02em;
   margin: 0.5rem 0 0.25rem;
+}
+h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 1.5rem 0 0.5rem;
 }
 
 button {
@@ -135,7 +205,7 @@ ul {
 }
 .day-tabs button.active {
   background: var(--accent);
-  color: #0b1220;
+  color: var(--accent-contrast);
   border-color: var(--accent);
   font-weight: 600;
 }
@@ -146,6 +216,7 @@ ul {
 
 /* map */
 .map-container {
+  position: relative;
   height: 260px;
   border-radius: 12px;
   overflow: hidden;
@@ -159,9 +230,26 @@ ul {
   margin: 1rem 0;
   text-align: center;
 }
+.map-placeholder-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow-y: auto;
+}
 
-/* The day view is map-first. The panel can dock as a bottom sheet or side
-   rail, then become a small movable work surface on an expansive screen. */
+/* map-first day view: a fixed, full-viewport app shell (deliberately
+   escapes #root's centered/padded column - this page is its own
+   full-screen view, not part of the normal scrolling document) with the
+   map as the dominant pane, a floating header on top of it, and a
+   resizable panel (day tabs + spot list) that docks to the bottom, left,
+   or right - or hides entirely for a fullscreen map. */
 .trip-shell {
   position: fixed;
   inset: 0;
@@ -183,15 +271,16 @@ ul {
 
 .trip-map-pane {
   position: relative;
-  z-index: 1;
+  /* Above .trip-panel-pane (which has no z-index of its own, so it would
+     otherwise win DOM-order stacking) so the layout menu's full-viewport
+     backdrop - nested inside this pane - can actually catch clicks over
+     the panel area and close the menu, even though the panes never
+     visually overlap. */
+  z-index: 2;
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   background: var(--surface);
-}
-.trip-shell[data-panel-position="floating"] .trip-map-pane {
-  width: 100%;
-  height: 100%;
 }
 .trip-map-pane .map-container,
 .trip-map-pane .map-placeholder {
@@ -208,13 +297,15 @@ ul {
 
 .map-hero-header {
   position: absolute;
-  inset: 0 0 auto;
+  inset: 0 0 auto 0;
   z-index: 6;
+  padding: max(0.75rem, env(safe-area-inset-top)) 0.9rem 2rem;
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
-  padding: max(0.75rem, env(safe-area-inset-top)) 0.9rem 2rem;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0) 85%);
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0) 85%);
+  /* Lets clicks reach the map underneath everywhere except the actual
+     back/menu/title controls. */
   pointer-events: none;
 }
 .map-hero-header > * {
@@ -222,23 +313,24 @@ ul {
 }
 .map-hero-back,
 .menu-button {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  flex: none;
-  border: none;
+  width: 36px;
+  height: 36px;
   border-radius: 999px;
-  background: rgba(20, 20, 24, 0.64);
+  border: none;
+  background: rgba(20, 20, 24, 0.55);
   color: #fff;
+  font-size: 1rem;
   cursor: pointer;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(6px);
 }
 .map-hero-back:hover,
 .menu-button:hover {
-  background: rgba(20, 20, 24, 0.82);
   text-decoration: none;
+  background: rgba(20, 20, 24, 0.7);
 }
 .map-hero-title {
   flex: 1;
@@ -248,10 +340,9 @@ ul {
   margin: 0.15rem 0;
   color: #fff;
   font-size: 1.3rem;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.54);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
 }
 .map-hero-title .meta {
-  margin: 0;
   color: rgba(255, 255, 255, 0.85);
 }
 
@@ -264,6 +355,7 @@ ul {
   z-index: 6;
   border: none;
   background: transparent;
+  padding: 0;
   cursor: default;
 }
 .layout-menu {
@@ -271,31 +363,29 @@ ul {
   z-index: 7;
   top: calc(100% + 8px);
   left: 0;
+  min-width: 180px;
+  padding: 0.4rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  min-width: 196px;
-  padding: 0.45rem;
+  gap: 0.3rem;
+  background: var(--surface);
+  color: var(--text);
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--surface);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 8px 24px var(--shadow-color);
 }
 .layout-menu button {
-  border: 1px solid transparent;
-  border-radius: 8px;
   background: none;
+  border: none;
   color: var(--text);
-  padding: 0.5rem 0.65rem;
   text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
   font-size: 0.85rem;
   cursor: pointer;
 }
-.layout-menu button:hover,
-.layout-menu button.active {
-  border-color: var(--accent);
+.layout-menu button:hover {
   background: var(--bg);
-  color: var(--accent);
 }
 .layout-menu-positions {
   display: flex;
@@ -303,22 +393,30 @@ ul {
 }
 .layout-menu-positions button {
   flex: 1;
-  padding: 0.45rem 0.3rem;
   text-align: center;
+  padding: 0.4rem 0.3rem;
+  border: 1px solid var(--border);
+}
+.layout-menu-positions button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
 }
 
+/* resizable panel: bottom/left/right all share the same pane, only the
+   handle's edge/cursor and the pane's rounded corner change by position. */
 .trip-panel-pane {
   position: relative;
-  display: flex;
   flex: 0 0 auto;
+  display: flex;
   flex-direction: column;
-  overflow: hidden;
   background: var(--bg);
+  overflow: hidden;
 }
 .trip-shell[data-panel-position="bottom"] .trip-panel-pane {
-  max-height: 88vh;
+  max-height: 92vh;
   border-radius: 20px 20px 0 0;
-  box-shadow: 0 -8px 22px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 -8px 20px var(--shadow-color);
 }
 .trip-shell[data-panel-position="left"] .trip-panel-pane,
 .trip-shell[data-panel-position="right"] .trip-panel-pane {
@@ -326,33 +424,22 @@ ul {
 }
 .trip-shell[data-panel-position="left"] .trip-panel-pane {
   border-radius: 0 20px 20px 0;
-  box-shadow: 8px 0 22px rgba(0, 0, 0, 0.28);
+  box-shadow: 8px 0 20px var(--shadow-color);
 }
 .trip-shell[data-panel-position="right"] .trip-panel-pane {
   border-radius: 20px 0 0 20px;
-  box-shadow: -8px 0 22px rgba(0, 0, 0, 0.28);
-}
-.trip-shell[data-panel-position="floating"] .trip-panel-pane {
-  position: absolute;
-  z-index: 5;
-  max-width: calc(100vw - 24px);
-  max-height: calc(100vh - 24px);
-  /* Resize hit areas straddle the border. They must not be clipped down to
-     a one-pixel strip by the docked panel's overflow rule. */
-  overflow: visible;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.42);
+  box-shadow: -8px 0 20px var(--shadow-color);
 }
 
 .panel-drag-handle {
   position: absolute;
   z-index: 3;
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
   background: none;
+  border: none;
   padding: 0;
   touch-action: none;
 }
@@ -362,35 +449,84 @@ ul {
 }
 .trip-shell[data-panel-position="bottom"] .panel-drag-handle {
   top: 0;
-  right: 0;
   left: 0;
-  height: 24px;
+  right: 0;
+  height: 20px;
   cursor: row-resize;
 }
-.trip-shell[data-panel-position="bottom"] .handle-bar {
-  width: 42px;
+.trip-shell[data-panel-position="bottom"] .panel-drag-handle .handle-bar {
+  width: 40px;
   height: 4px;
 }
 .trip-shell[data-panel-position="left"] .panel-drag-handle {
   top: 0;
-  right: 0;
   bottom: 0;
-  width: 20px;
+  right: 0;
+  width: 18px;
   cursor: col-resize;
 }
 .trip-shell[data-panel-position="right"] .panel-drag-handle {
   top: 0;
   bottom: 0;
   left: 0;
-  width: 20px;
+  width: 18px;
   cursor: col-resize;
 }
-.trip-shell[data-panel-position="left"] .handle-bar,
-.trip-shell[data-panel-position="right"] .handle-bar {
+.trip-shell[data-panel-position="left"] .panel-drag-handle .handle-bar,
+.trip-shell[data-panel-position="right"] .panel-drag-handle .handle-bar {
   width: 4px;
-  height: 42px;
+  height: 40px;
 }
 
+body.panel-resizing {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.panel-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 1.1rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+}
+.trip-shell[data-panel-position="bottom"] .panel-content {
+  padding-top: 1.3rem;
+}
+.trip-shell[data-panel-position="left"] .panel-content {
+  padding-right: 1.5rem;
+}
+.trip-shell[data-panel-position="right"] .panel-content {
+  padding-left: 1.5rem;
+}
+
+.day-note {
+  margin-bottom: 0.85rem;
+}
+.day-note .field-label {
+  margin: 0 0 0.35rem;
+}
+
+/* Wide screens can lift the itinerary into a movable work surface while
+   retaining the docked layout and all existing theme/auth styles. */
+.trip-shell[data-panel-position="floating"] .trip-map-pane {
+  width: 100%;
+  height: 100%;
+}
+.trip-shell[data-panel-position="floating"] .trip-panel-pane {
+  position: absolute;
+  z-index: 5;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow: visible;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.42);
+}
+.trip-shell[data-panel-position="floating"] .panel-content {
+  padding-top: 0.75rem;
+  border-radius: 0 0 16px 16px;
+}
 .floating-panel-titlebar {
   z-index: 2;
   display: flex;
@@ -408,13 +544,8 @@ ul {
   cursor: grab;
   touch-action: none;
 }
-.floating-panel-titlebar:active {
-  cursor: grabbing;
-}
-.floating-panel-grip {
-  color: var(--text-muted);
-  letter-spacing: -0.1em;
-}
+.floating-panel-titlebar:active { cursor: grabbing; }
+.floating-panel-grip { color: var(--text-muted); letter-spacing: -0.1em; }
 .floating-panel-hint {
   margin-left: auto;
   color: var(--text-muted);
@@ -458,52 +589,20 @@ ul {
 .floating-resize-bottom-right { right: -8px; bottom: -8px; cursor: nwse-resize; }
 .floating-resize-top-right { top: -8px; right: -8px; cursor: nesw-resize; }
 .floating-resize-bottom-left { bottom: -8px; left: -8px; cursor: nesw-resize; }
-
-.panel-content {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 1.1rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
-  -webkit-overflow-scrolling: touch;
-}
-.trip-shell[data-panel-position="bottom"] .panel-content {
-  padding-top: 1.45rem;
-}
-.trip-shell[data-panel-position="left"] .panel-content {
-  padding-right: 1.5rem;
-}
-.trip-shell[data-panel-position="right"] .panel-content {
-  padding-left: 1.5rem;
-}
-.trip-shell[data-panel-position="floating"] .panel-content {
-  padding-top: 0.75rem;
-  border-radius: 0 0 16px 16px;
-}
-
 body.trip-panel-dragging,
 body.trip-panel-resizing {
   user-select: none;
 }
-body.trip-panel-dragging {
-  cursor: grabbing;
-}
-body.trip-panel-resizing {
-  cursor: col-resize;
-}
+body.trip-panel-dragging { cursor: grabbing; }
+body.trip-panel-resizing { cursor: col-resize; }
 .trip-panel-pane button:focus-visible,
 .map-hero-header button:focus-visible,
 .map-hero-header a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-
 @media (max-width: 640px) {
-  .trip-shell[data-panel-position="bottom"] .trip-panel-pane {
-    max-height: 84vh;
-  }
-  .floating-panel-hint {
-    display: none;
-  }
+  .floating-panel-hint { display: none; }
 }
 
 /* spot list */
@@ -555,8 +654,8 @@ body.trip-panel-resizing {
   color: var(--text-muted);
   font-size: 0.85rem;
 }
+.spot-edit,
 .spot-delete {
-  margin-left: auto;
   flex: none;
   background: none;
   border: none;
@@ -565,6 +664,12 @@ body.trip-panel-resizing {
   height: 32px;
   border-radius: 6px;
   cursor: pointer;
+}
+.spot-edit {
+  margin-left: auto;
+}
+.spot-edit:hover {
+  color: var(--accent);
 }
 .spot-delete:hover {
   color: var(--danger);
@@ -658,6 +763,37 @@ body.trip-panel-resizing {
   flex-direction: column;
   gap: 0.5rem;
 }
+.place-autocomplete {
+  position: relative;
+}
+.place-autocomplete input {
+  width: 100%;
+}
+.place-suggestions {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow-color);
+  max-height: 220px;
+  overflow-y: auto;
+}
+.place-suggestions li {
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.place-suggestions li:hover {
+  background: var(--bg);
+}
 .add-spot-row {
   display: flex;
   gap: 0.5rem;
@@ -665,6 +801,109 @@ body.trip-panel-resizing {
 .add-spot-row > * {
   flex: 1;
   min-width: 0;
+}
+.spot-time-input {
+  align-self: flex-start;
+  min-width: 140px;
+}
+
+/* markdown editor: a Notion-ish write/preview toggle over a plain
+   textarea - see MarkdownEditor.tsx/MarkdownView.tsx. */
+.markdown-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.markdown-editor-tabs {
+  display: flex;
+  gap: 0.3rem;
+}
+.markdown-editor-tabs button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.markdown-editor-tabs button.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.markdown-editor-textarea {
+  width: 100%;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  font-family: inherit;
+  resize: vertical;
+}
+.markdown-editor-preview {
+  min-height: 2.5rem;
+  padding: 0.6rem 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.markdown-editor-empty {
+  padding: 0.6rem 0.7rem;
+  margin: 0;
+}
+
+.markdown-view {
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+.markdown-view :first-child {
+  margin-top: 0;
+}
+.markdown-view :last-child {
+  margin-bottom: 0;
+}
+.markdown-view h1,
+.markdown-view h2,
+.markdown-view h3 {
+  font-size: 1em;
+  font-weight: 700;
+  margin: 0.6em 0 0.3em;
+}
+.markdown-view p {
+  margin: 0.4em 0;
+}
+.markdown-view ul,
+.markdown-view ol {
+  list-style: revert;
+  margin: 0.4em 0;
+  padding-left: 1.3em;
+}
+.markdown-view li {
+  padding: 0;
+  border: none;
+}
+.markdown-view a {
+  text-decoration: underline;
+}
+.markdown-view code {
+  background: var(--bg);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+.markdown-view blockquote {
+  margin: 0.4em 0;
+  padding-left: 0.7em;
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+}
+.spot-note {
+  color: var(--text-muted);
 }
 
 button.ghost {
@@ -708,7 +947,7 @@ textarea {
 button[type="submit"] {
   align-self: flex-start;
   background: var(--accent);
-  color: #0b1220;
+  color: var(--accent-contrast);
   border: none;
   border-radius: 8px;
   padding: 0.6rem 1.2rem;
@@ -745,4 +984,118 @@ input[type="text"]::placeholder {
 .field-label {
   font-size: 0.8rem;
   color: var(--text-muted);
+}
+
+/* M6: top nav (non-map pages only - see App.tsx) */
+.app-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  margin: -0.5rem 0 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.app-nav-brand {
+  font-weight: 700;
+  color: var(--text);
+}
+.app-nav-brand:hover {
+  text-decoration: none;
+}
+.app-nav-spacer {
+  flex: 1;
+}
+.app-nav-link {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.app-nav-avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.layout-menu-right {
+  left: auto;
+  right: 0;
+}
+.app-nav-menu-identity {
+  padding: 0.3rem 0.6rem;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+/* M6: login/pending */
+.login-page {
+  text-align: center;
+  padding-top: 20vh;
+}
+.login-button {
+  display: inline-block;
+  margin-top: 1.5rem;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-radius: 999px;
+  padding: 0.7rem 1.6rem;
+  font-weight: 600;
+}
+.login-button:hover {
+  text-decoration: none;
+}
+
+/* M6: admin */
+.admin-user-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.admin-user-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.admin-user-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex: none;
+}
+
+/* M6: trip sharing popover (reuses .layout-menu's own look) */
+.share-panel {
+  min-width: 240px;
+}
+.share-member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0 0 0.5rem;
+}
+.share-member-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.2rem 0.3rem;
+  font-size: 0.85rem;
+}
+.share-invite-row {
+  display: flex;
+  gap: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border);
+}
+.share-invite-row input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  min-height: 34px;
 }

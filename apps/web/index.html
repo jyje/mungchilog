@@ -7,6 +7,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#111214" />
     <title>뭉치로그</title>
+    <script>
+      // Applies the saved light/dark choice (or system default) before the
+      // first paint, so switching pages/reloading never flashes the wrong
+      // theme. Mirrored at runtime by ThemeToggle.tsx.
+      (function () {
+        try {
+          var v = localStorage.getItem("mungchilog-theme");
+          if (v === "light" || v === "dark") document.documentElement.setAttribute("data-theme", v);
+          var dark = v === "dark" || (v !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", dark ? "#111214" : "#f5f6f8");
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -30,12 +30,19 @@ export const SpotSchema = z.object({
   // hubs, wherever the trip is - Google routinely underestimates
   // in-station walking time at big stations/airports.
   bufferMinutes: z.number().int().nonnegative().default(10),
+  // Freeform markdown notes scoped to this one spot (opening-hours quirks,
+  // "ask for the window seat", a phrase to show staff) - rendered/edited
+  // as markdown client-side, stored as plain text server-side either way.
   note: z.string().optional(),
   items: z.array(ItemSchema).default([]),
 });
 
 export const DaySchema = z.object({
   date: z.string(), // "YYYY-MM-DD"
+  // Freeform markdown notes for the day as a whole (weather plan, packing
+  // reminders, "call the ryokan by noon") - separate from each spot's own
+  // `note`, which is scoped to that one stop.
+  note: z.string().optional(),
   spots: z.array(SpotSchema).default([]),
 });
 

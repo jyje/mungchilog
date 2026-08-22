@@ -1,8 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.js";
+import { requireAuth, requireApproved, type AuthEnv } from "../auth.js";
 
-export const legs = new Hono();
+export const legs = new Hono<AuthEnv>();
+// Not trip-scoped (keyed by placeId pairs, cached across all trips), so
+// just login+approval is required here - no per-trip membership check.
+legs.use("*", requireAuth, requireApproved);
 
 const TRAVEL_MODES = ["DRIVE", "WALK", "BICYCLE", "TRANSIT", "TWO_WHEELER"] as const;
 

@@ -149,12 +149,14 @@ const POSITION_LABEL: Record<PanelPosition, string> = {
 export function SplitMapShell({
   map,
   headerLeft,
+  headerRight,
   title,
   subtitle,
   panel,
 }: {
   map: ReactNode;
   headerLeft?: ReactNode;
+  headerRight?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
   panel: ReactNode;
@@ -289,6 +291,7 @@ export function SplitMapShell({
             <h1>{title}</h1>
             {subtitle && <p className="meta">{subtitle}</p>}
           </div>
+          {headerRight}
         </div>
       </div>
 

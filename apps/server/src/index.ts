@@ -5,14 +5,23 @@ import { Hono } from "hono";
 import { trips } from "./routes/trips.js";
 import { legs } from "./routes/legs.js";
 import { places } from "./routes/places.js";
+import { admin } from "./routes/admin.js";
+import { auth, requireApproved, requireAuth } from "./auth.js";
 
 const app = new Hono();
 
 app.get("/healthz", (c) => c.json({ status: "ok", service: "mungchilog-server" }));
 
+app.route("/auth", auth);
+// Authentication is an application boundary, not just a trips-route
+// concern. In particular, a newly created but unapproved account must not
+// be able to call the Places or Routes endpoints directly, even though the
+// trip routes themselves already enforce the same rule.
+app.use("/api/*", requireAuth, requireApproved);
 app.route("/api/trips", trips);
 app.route("/api/legs", legs);
 app.route("/api/places", places);
+app.route("/api/admin", admin);
 
 // apps/web's build lands in ./public (see Dockerfile). Everything not
 // matched above, including /trips and /trips/:id, falls through to
