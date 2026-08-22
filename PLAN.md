@@ -33,7 +33,7 @@
 
 - Electron 데스크톱: v1 제외, 여행 후로.
 - 모노레포(pnpm+Turborepo): 생략. 단일 `apps/web`(Vite React) + `apps/server`(Hono) 2개 프로젝트로 충분.
-- DB: SQLite. 테이블은 `trips`(일정 JSON 컬럼), `legs`(구간 캐시) 2개.
+- DB: SQLite. 일정과 지도 캐시 외에 사용자, 세션, 여행별 멤버십, 가입 요청, 초대, 알림, 감사 로그를 같은 DB에 저장한다.
 - 일정 입력: CRUD UI보다 `POST /api/trips/import` (JSON 통째로) 먼저. JSON이 정본이자 폴백(Google My Maps로 export).
 
 ## 3. 이번에 새로 확정한 아키텍처 결정
@@ -62,22 +62,149 @@ Google Maps **Routes/Places API 키**(과금 대상)는 로컬에서 `kubeseal`�
 
 → **결정: 컨테이너 1개(`mungchilog`), Hono가 `/api/*`는 API로, 나머지는 정적 파일로 서빙.** 이미지도 1개면 충분 (3.2의 web/server 분리는 철회).
 
-### 3.5 스토리지 — 기본 StorageClass(NFS) 대신 Longhorn
+### 3.5 스토리지 - `subdir-usb` NFS와 SQLite rollback journal
 
-SQLite는 WAL 모드에서 POSIX 파일 락에 의존하는데, 클러스터 기본 StorageClass `subdir-usb`는 NFS 기반이라 락 동작이 불안정하다(NFS는 원래 SQLite WAL과 궁합이 나쁘다는 게 잘 알려진 문제). 데이터 손상 리스크를 안고 갈 이유가 없다.
+클러스터에 사용할 수 있는 `longhorn` StorageClass가 없어서 실제 배포는 기본 `subdir-usb` NFS PVC를 사용한다. SQLite WAL은 NFS의 공유 메모리와 파일 잠금 특성에 맞지 않으므로 서버는 `PRAGMA journal_mode = DELETE`를 강제한다. Deployment는 단일 replica와 단일 writer를 유지하고, 여러 Pod가 같은 DB를 동시에 열지 않게 한다. PVC 용량은 1Gi로 시작한다.
 
-→ **결정: PVC를 `longhorn`(블록 스토리지) StorageClass로 명시.** 용량 1Gi면 충분(개인 여행 일정 데이터).
-
-## 4. 데이터 모델 (유지)
+## 4. 데이터 모델
 
 ```
-trips: id, title, timezone(IANA 타임존, 여행마다 지정, 기본값 Asia/Tokyo), currency, startDate, endDate, data(JSON: days/spots/items)
+trips: id(UUIDv4), title, timezone, currency, startDate, endDate, data(JSON), version, createdAt, updatedAt, deletedAt
 legs:  id, fromSpotId, toSpotId, mode, distanceM, durationS, fareAmount, polyline, fetchedAt   ← TTL 30일 캐시
+users: id, oidcIssuer, oidcSubject, email, name, status(pending/approved/rejected/suspended), platformRole(admin/user), createdAt
+sessions: id, userId, createdAt, expiresAt
+trip_members: tripId, userId, role(owner/editor/guest), createdAt
+trip_join_requests: id, tripId, requesterId, status(pending/approved/rejected/canceled/blocked), requestedAt, decidedAt, decidedBy
+trip_invites: id, tripId, tokenHash, role(editor/guest), expiresAt, claimedBy, claimedAt, redeemedAt, revokedAt, createdBy
+auth_intents: id, inviteId, expiresAt, createdAt
+notifications: id, recipientUserId, type, entityId, readAt, createdAt
+membership_audit_logs: id, actorUserId, tripId, action, targetUserId, metadata, createdAt
 ```
 
 `Spot`에는 `nameLocal`(현지어 원문), `bufferMinutes`(기본 10, 대형 환승역/공항은 15 권장 — 어느 도시든) 반드시 포함.
 
-## 5. Google Maps API (유지)
+OIDC 사용자의 정본 키는 이메일이 아니라 `(oidcIssuer, oidcSubject)`의 유일 조합이다. 이메일과 이름은 표시용 프로필로 취급한다. `ADMIN_EMAIL`은 최초 관리자 부트스트랩에 한 번만 쓰고, 부트스트랩 뒤에는 저장된 OIDC subject로 관리자를 식별한다.
+
+여러 편집자가 전체 여행 JSON을 동시에 저장하면 마지막 저장이 앞선 변경을 덮을 수 있다. 이를 막기 위해 `trips.version`을 추가하고 모든 변경에 `If-Match` 또는 `baseVersion`을 요구한다. 버전이 다르면 서버는 `409 Conflict`를 반환하고 클라이언트가 최신 데이터를 다시 불러온 뒤 사용자에게 충돌을 알려야 한다.
+
+## 5. 인증, 가입 요청, 멤버십, 초대
+
+### 5.1 두 단계 접근 모델
+
+인증과 여행 접근 권한을 분리한다.
+
+1. 미로그인 사용자는 OIDC 로그인과 공개 정적 자산 외에는 접근할 수 없다.
+2. 최초 로그인 사용자는 `pending`으로 생성된다. `/auth/me`, `/auth/logout`, 승인 대기 화면 외에는 어떤 API도 사용할 수 없다.
+3. 플랫폼 관리자가 승인하면 `/trips` UI에 들어갈 수 있다. 이 화면은 공개 여행 목록이나 제목 검색을 제공하지 않고, 현재 사용자가 이미 가입한 여행만 보여준다.
+4. 가입한 여행이 없으면 빈 상태와 정확한 여행 UUID 입력 폼만 보여준다.
+5. 여행 UUID 조회는 제목과 소유자 표시명만 포함한 최소 카드만 반환한다. 날짜, 목적지, 일정, 멤버 목록은 멤버십 승인 전에는 공개하지 않는다.
+6. 사용자가 가입 요청을 보내면 소유자만 요청을 검토하고 `guest` 또는 `editor`로 승인할 수 있다.
+
+초대 링크도 플랫폼 관리자 승인을 우회하지 않는다. 이미 승인된 사용자는 링크 사용 직후 가입하고 해당 여행으로 이동한다. 신규 또는 `pending` 사용자는 유효한 링크로 OIDC 로그인을 마치면 초대를 자신의 계정에 선점하고 승인 대기 화면으로 이동한다. 관리자가 계정을 승인하면 선점된 초대를 자동 적용하고 여행으로 이동한다. 링크가 1시간 뒤 만료되더라도 만료 전에 계정에 선점됐다면 관리자 승인 대기 중인 선점은 유지한다.
+
+최초 플랫폼 관리자는 다른 관리자가 존재하지 않는 부트스트랩 문제를 피하기 위해 `ADMIN_EMAIL`과 일치하는 첫 OIDC 계정만 예외적으로 자동 승인한다. 이후 일반 사용자는 모두 관리자 승인을 거친다.
+
+### 5.2 권한 표
+
+| 주체 | 가입 여행 목록 | UUID 최소 조회 | 일정 조회 | 일정 편집 | 가입 승인·멤버 관리 | 초대 링크 | 여행 삭제 | 플랫폼 사용자 관리 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `pending` 사용자 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 |
+| 승인된 비멤버 | 빈 목록만 | 예 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 |
+| `guest` | 예 | 예 | 예 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 |
+| `editor` | 예 | 예 | 예 | 예 | 아니오 | 아니오 | 아니오 | 아니오 |
+| `owner` | 예 | 예 | 예 | 예 | 예 | 예 | 예 | 아니오 |
+| 플랫폼 `admin` | 본인이 가입한 여행만 | 예 | 멤버십이 있을 때만 | 멤버십 역할에 따름 | 소유자일 때만 | 소유자일 때만 | 소유자일 때만 | 예 |
+
+플랫폼 관리자는 계정 승인 담당자이지 모든 여행을 볼 수 있는 슈퍼유저가 아니다. 여행 데이터 권한은 항상 `trip_members` 관계로 판정한다. 서버는 기본 거부 방식으로 모든 요청마다 사용자 상태와 여행 관계를 다시 확인한다.
+
+`editor`는 날짜, 스팟, 순서, 메모, 체크리스트 등 여행 내용 전체를 편집할 수 있다. 여행 삭제, 가입 요청 처리, 역할 변경, 멤버 제거, 초대 생성 및 취소, 소유권 이전은 할 수 없다. `guest`는 읽기 전용이다.
+
+각 여행은 정확히 한 명의 소유자를 유지한다. 소유권 이전은 기존 소유자와 새 소유자의 역할을 하나의 트랜잭션에서 교환한다. 게스트와 편집자는 멤버의 표시명과 역할만 볼 수 있고 이메일은 볼 수 없다. 소유자는 가입 요청과 멤버 관리 화면에서만 이메일을 볼 수 있다.
+
+### 5.3 UUID 조회와 가입 요청
+
+- 여행 ID는 UUIDv4로 유지한다. UUID의 추측 난이도는 보조 방어선일 뿐 권한 검사를 대체하지 않는다.
+- 소유자 화면에는 여행 UUID 복사 버튼을 제공한다. UUID 자체는 가입 권한이 아니며, 조회 뒤에도 소유자 승인이 필요하다.
+- `POST /api/trips/lookup`에 정확한 UUID를 보내 최소 정보만 조회한다. 공개 목록, 부분 일치, 제목 검색, 추천 기능은 만들지 않는다.
+- 조회 및 요청 API는 사용자와 IP 기준 속도 제한을 적용한다. 초기값은 조회 10회/분, 가입 요청 5회/시간이다.
+- 동일 사용자와 여행 사이에는 활성 가입 요청을 하나만 허용한다. 중복 요청은 기존 상태를 반환하고 소유자 알림도 중복 생성하지 않는다.
+- 거절 후 재요청에는 24시간 대기 시간을 둔다. 소유자는 반복 요청 사용자를 `blocked`로 바꿀 수 있다.
+- 소유자가 승인할 때 `guest` 또는 `editor`를 명시해야 하며, 승인과 멤버십 생성은 하나의 DB 트랜잭션으로 처리한다.
+
+### 5.4 사이트 내 알림
+
+- v1 알림은 사이트 내부 알림 센터와 읽지 않은 개수 배지로 제공한다. 브라우저 푸시와 이메일은 v1 범위에서 제외한다.
+- 가입 요청이 생성되면 해당 여행 소유자에게만 알림을 만든다. 온라인 상태에서는 15~30초 폴링과 창 포커스 재조회로 갱신하고, 오프라인이었다면 다음 접속 시 표시한다.
+- 알림을 누르면 여행의 가입 요청 패널로 이동한다. 여기서 요청자 표시명과 이메일을 확인하고 `guest` 또는 `editor`로 승인하거나 거절, 차단할 수 있다.
+- 승인, 거절, 역할 변경, 멤버 제거, 초대 생성, 선점, 사용, 취소는 감사 로그에 남긴다. 초대 원문 토큰과 일정 내용은 로그에 남기지 않는다.
+
+### 5.5 초대 링크
+
+- 소유자만 `guest` 또는 `editor` 역할을 선택해 링크를 생성한다.
+- 만료시간은 5분, 15분, 30분, 60분 중 선택하며 기본값과 최대값은 60분이다.
+- v1 초대 링크는 한 사람만 사용할 수 있는 단일 사용 링크다. 여러 사람을 초대할 때는 각각 새 링크를 만든다.
+- 토큰은 암호학적으로 안전한 32바이트 난수로 만들고 DB에는 SHA-256 해시만 저장한다. 원문은 생성 응답에서 한 번만 보여준다.
+- 공유 URL은 `/invite#token=<원문>` 형태를 사용한다. fragment는 HTTP 요청과 서버 접근 로그에 자동 전송되지 않는다. SPA는 즉시 token을 서버의 초대 의도 생성 API로 교환하고 `history.replaceState`로 주소에서 제거한다.
+- 로그인 전에는 서버가 짧은 수명의 `auth_intent`와 HttpOnly 쿠키만 만들며, OIDC callback의 이동 대상은 서버가 허용한 내부 경로만 사용한다. 사용자 입력 URL을 그대로 redirect하지 않는다.
+- 링크 사용은 트랜잭션 안에서 선점한다. 동시에 여러 명이 열어도 한 계정만 성공한다. 이미 멤버인 사용자가 열면 역할을 낮추거나 높이지 않고 기존 여행으로 이동한다.
+- 소유자는 사용 전 링크를 취소할 수 있다. 만료, 취소, 사용 완료 토큰은 다시 쓸 수 없다.
+
+### 5.6 OIDC와 웹 보안 기준
+
+- Authentik을 표준 OIDC Provider로 사용하되 애플리케이션 코드는 issuer discovery 기반으로 유지한다.
+- Authorization Code + PKCE, `state`, `nonce`, 정확히 등록된 redirect URI를 사용한다. implicit flow는 사용하지 않는다.
+- 세션 쿠키는 서버 저장형 opaque ID, `HttpOnly`, `Secure`, `SameSite=Lax`로 만들고 로그인 성공 시 회전한다.
+- 상태 변경 API는 SameSite 쿠키에만 의존하지 않고 Origin 검사 또는 CSRF 토큰을 추가한다.
+- 초대와 가입 요청의 권한 판정은 UI가 아니라 서버에서 수행한다. 권한 실패는 기본적으로 존재 여부를 과하게 노출하지 않는 `404` 또는 일관된 오류로 처리한다.
+- 로그아웃, 계정 정지, 멤버 제거 시 서버 세션과 해당 사용자의 PWA 개인 캐시를 정리한다.
+- Authentik 2025.10 이후 `email_verified` 기본값이 false일 수 있으므로, Google Source의 검증 상태를 반영하는 scope mapping을 명시적으로 구성한다. 사용자 식별은 항상 issuer와 subject를 기준으로 한다.
+
+### 5.7 Ingress 전환
+
+기존 Ingress Basic Auth는 OIDC 도입 전 임시 보호 수단이었다. 외부 초대 링크 사용자는 공유 Basic Auth 비밀번호를 알 수 없으므로, OIDC 라이브 검증이 끝난 뒤 애플리케이션 경로의 Basic Auth를 제거해야 한다. 전환 순서는 다음과 같다.
+
+1. Basic Auth를 유지한 상태에서 관리자와 테스트 계정으로 OIDC 및 권한 회귀 테스트를 완료한다.
+2. API가 미로그인, `pending`, 비멤버 요청을 모두 기본 거부하는지 확인한다.
+3. Ingress의 Basic Auth를 제거하고 로그인, 초대, 정적 자산, PWA 설치를 외부 네트워크에서 재검증한다.
+4. `/healthz`는 민감 정보를 포함하지 않는 상태 응답만 공개한다. 로그인과 초대 엔드포인트에는 Ingress 또는 애플리케이션 속도 제한을 적용한다.
+
+### 5.8 API 초안
+
+```text
+GET    /auth/me
+GET    /auth/login
+GET    /auth/callback
+POST   /auth/logout
+POST   /auth/invite-intents                 # raw token을 짧은 수명 로그인 의도로 교환
+
+GET    /api/trips                           # 현재 사용자의 가입 여행만
+POST   /api/trips/lookup                    # 정확한 UUID, 최소 정보만
+POST   /api/trips/:id/join-requests
+GET    /api/trips/:id/join-requests         # owner only
+POST   /api/trips/:id/join-requests/:rid/approve
+POST   /api/trips/:id/join-requests/:rid/reject
+POST   /api/trips/:id/join-requests/:rid/block
+
+POST   /api/trips/:id/invites               # owner, role + ttlMinutes
+GET    /api/trips/:id/invites               # owner, 원문 token 제외
+DELETE /api/trips/:id/invites/:inviteId
+PATCH  /api/trips/:id/members/:userId       # owner, guest/editor 변경
+DELETE /api/trips/:id/members/:userId       # owner, owner 자신은 불가
+POST   /api/trips/:id/transfer-ownership     # owner, 명시 확인 필요
+
+GET    /api/notifications
+POST   /api/notifications/:id/read
+POST   /api/notifications/read-all
+```
+
+### 5.9 설계 근거
+
+- [OAuth 2.0 Security Best Current Practice, RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html)
+- [OWASP Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)
+- [OWASP Forgot Password Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html): 초대 URL 토큰의 난수성, 안전한 저장, 단일 사용, 만료, 속도 제한 원칙에 적용
+- [Authentik OAuth 2.0 Provider 문서](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/)
+
+## 6. Google Maps API (유지)
 
 | API | 용도 | 캐시 |
 |---|---|---|
@@ -87,9 +214,9 @@ legs:  id, fromSpotId, toSpotId, mode, distanceM, durationS, fareAmount, polylin
 
 드래그 중 호출 금지, 드롭 후 debounce 800ms. Cloud Console에서 Routes 일일 쿼터 상한 + 예산 알림 $1 선(先) 설정.
 
-## 6. D-day 로드맵
+## 7. D-day 로드맵
 
-⚠️ **정확한 출발일을 아직 못 받았다.** 아래는 이전 세션에서 "2주 미만"이라는 상대 표현으로 짠 순서다. 실제 출발일을 알려주면 날짜를 박아 넣는다. 우선순위 순서 자체는 그대로 유효:
+출발일은 **2026-09-07**, 기능 동결 목표는 **2026-09-01**이다. 우선순위는 다음과 같다.
 
 1. **관통 배포부터**: `apps/server`에 `/healthz`만 있는 빈 껍데기를 GHCR→`jyje/cluster` PR→ArgoCD sync까지 통과시켜 `https://mungchilog.app.jyje.online`이 폰에서 열리는 것 확인 (DNS는 이미 끝남)
 2. JSON import + 목록 화면
@@ -97,14 +224,16 @@ legs:  id, fromSpotId, toSpotId, mode, distanceM, durationS, fareAmount, polylin
 4. Routes 프록시 + 구간 정보
 5. 살 것/먹을 것 체크 + 영업시간
 6. PWA + 오프라인 캐시 → **기능 동결**
-7. 실기기 리허설 (기내모드 포함)
-8. 실제 여행 데이터 입력 + 예행연습
-9. 예비일 (아무것도 안 함)
+7. OIDC, 플랫폼 승인, 가입 요청, 게스트·편집자 권한, 초대 링크
+8. Basic Auth 제거 후 외부 초대와 권한 매트릭스 재검증
+9. 실기기 리허설 (기내모드 포함)
+10. 실제 여행 데이터 입력 + 예행연습
+11. 예비일 (아무것도 안 함)
 
-## 7. v1에서 뺄 것 (유지)
+## 8. v1에서 뺄 것
 
-TSP 경로 최적화, 다인 공유, 예산 정산, 사진 업로드, 예약 파싱, 인증(단일 사용자 + 홈 네트워크 포트포워딩이라 Authentik forward-auth로 앞단 보호할 수도 있으나 이것도 v1에서는 생략 — 도메인을 아는 사람만 접근 가능한 수준으로 충분).
+TSP 경로 최적화, 예산 정산, 사진 업로드, 예약 파싱, 브라우저 푸시·이메일 알림, 실시간 커서, CRDT 기반 동시편집은 v1에서 제외한다. OIDC 인증, 관리자 승인, 여행별 게스트·편집자 공유는 M6으로 v1 범위에 포함한다.
 
-## 8. 폴백
+## 9. 폴백
 
 D-3 리허설에서 안 되면 `trips.data` JSON을 Google My Maps로 export. `export` 버튼이 이 계획 전체의 보험.
