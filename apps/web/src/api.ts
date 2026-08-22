@@ -1,4 +1,5 @@
 import type { Trip, TripData, TripSummary } from "./types";
+import { clearPrivateCache } from "./queryClient";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -28,6 +29,55 @@ export function saveTrip(data: TripData & { id?: string }): Promise<{ id: string
 
 export function deleteTrip(id: string): Promise<{ deleted: boolean }> {
   return fetch(`/api/trips/${id}`, { method: "DELETE" }).then((r) => json(r));
+}
+
+// --- auth / M6 ---
+
+export type Me = { id: string; email: string; name: string | null; status: "pending" | "approved"; role: "admin" | "member" };
+
+export function getMe(): Promise<Me | null> {
+  return fetch("/auth/me").then((r) => (r.status === 401 ? null : json<Me>(r)));
+}
+
+export async function logout(): Promise<void> {
+  // Clear local itinerary data even if the network is already unavailable:
+  // the server session may remain until it expires, but this browser must no
+  // longer present the previous user's cached data as its own.
+  try {
+    await fetch("/auth/logout", { method: "POST" });
+  } finally {
+    await clearPrivateCache();
+  }
+}
+
+export function adminListUsers(): Promise<Me[]> {
+  return fetch("/api/admin/users").then((r) => json(r));
+}
+
+export function adminApproveUser(id: string): Promise<Me> {
+  return fetch(`/api/admin/users/${id}/approve`, { method: "POST" }).then((r) => json(r));
+}
+
+export function adminRejectUser(id: string): Promise<{ removed: boolean }> {
+  return fetch(`/api/admin/users/${id}`, { method: "DELETE" }).then((r) => json(r));
+}
+
+export type TripMember = { id: string; email: string; name: string | null; role: "owner" | "editor" };
+
+export function listTripMembers(tripId: string): Promise<TripMember[]> {
+  return fetch(`/api/trips/${tripId}/members`).then((r) => json(r));
+}
+
+export function inviteToTrip(tripId: string, email: string): Promise<{ invited: string }> {
+  return fetch(`/api/trips/${tripId}/invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  }).then((r) => json(r));
+}
+
+export function removeTripMember(tripId: string, userId: string): Promise<{ removed: boolean }> {
+  return fetch(`/api/trips/${tripId}/members/${userId}`, { method: "DELETE" }).then((r) => json(r));
 }
 
 export type LegMode = "DRIVE" | "WALK" | "BICYCLE" | "TRANSIT" | "TWO_WHEELER";

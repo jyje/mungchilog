@@ -23,3 +23,14 @@ export const persister = createAsyncStoragePersister({
     removeItem: (key: string) => del(key),
   },
 });
+
+// The offline cache deliberately keeps itineraries for a month while the
+// same person is travelling. Once that person explicitly logs out, however,
+// it must not become the next user's data on a shared browser. Keep this in
+// one place so both normal logout and the pending-account logout do the same
+// complete cleanup.
+export async function clearPrivateCache() {
+  queryClient.clear();
+  await persister.removeClient();
+  await globalThis.caches?.delete("trips-api");
+}

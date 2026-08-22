@@ -47,6 +47,11 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://localhost:3000",
+      // OIDC starts and completes as ordinary server-side navigations
+      // (/auth/login -> provider -> /auth/callback). Proxy this namespace
+      // in development as well, otherwise the Vite server returns its SPA
+      // fallback for both the login link and the current-user check.
+      "/auth": "http://localhost:3000",
     },
   },
 });

@@ -11,6 +11,8 @@ import { SpotCard } from "../components/SpotCard";
 import { LegInfo } from "../components/LegInfo";
 import { SpotForm, type SpotFormValues } from "../components/SpotForm";
 import { MarkdownEditor } from "../components/MarkdownEditor";
+import { TripShareButton } from "../components/TripShareButton";
+import type { Me } from "../api";
 
 function nextDate(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -18,7 +20,7 @@ function nextDate(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function TripDayPage({ id, navigate }: { id: string; navigate: (path: string) => void }) {
+export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path: string) => void; me: Me }) {
   const qc = useQueryClient();
   const queryKey = ["trip", id];
   const { data: trip, error } = useQuery({ queryKey, queryFn: () => getTrip(id) });
@@ -167,6 +169,7 @@ export function TripDayPage({ id, navigate }: { id: string; navigate: (path: str
             ←
           </a>
         }
+        headerRight={<TripShareButton tripId={id} me={me} />}
         title={trip.title}
         subtitle={
           <>

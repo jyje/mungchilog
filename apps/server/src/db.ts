@@ -57,4 +57,45 @@ db.exec(`
     opening_hours TEXT,
     fetched_at TEXT NOT NULL
   );
+
+  -- M6: OIDC-authenticated users. Created on first successful login, not
+  -- provisioned in advance - status starts "pending" so a stranger who
+  -- somehow gets past the Ingress's Basic Auth still can't see anyone's
+  -- trip data until the admin approves them. The ADMIN_EMAIL env var's
+  -- owner is auto-approved as "admin" the moment they first log in
+  -- (see auth.ts).
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT,
+    status TEXT NOT NULL DEFAULT 'pending', -- 'pending' | 'approved'
+    role TEXT NOT NULL DEFAULT 'member',    -- 'admin' | 'member'
+    created_at TEXT NOT NULL
+  );
+
+  -- Server-side sessions (not a self-contained JWT cookie) so logout and
+  -- admin-initiated revocation both actually take effect immediately,
+  -- without needing a token blocklist.
+  CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+  );
+
+  -- Per-trip sharing. "owner" is whoever created the trip (or the admin,
+  -- for trips that existed before M6 - see auth.ts's backfill); "editor"
+  -- is anyone the owner/admin has invited. Both roles can fully edit the
+  -- itinerary (jyje's call: real shared editing, not read-only viewing) -
+  -- only "owner" can additionally delete the trip or manage who else is on
+  -- it. Concurrent edits are last-write-wins on the whole trip JSON, same
+  -- as this app has always done for one person across multiple tabs/
+  -- devices - there's no operational-transform/CRDT merge here.
+  CREATE TABLE IF NOT EXISTS trip_members (
+    trip_id TEXT NOT NULL REFERENCES trips(id),
+    user_id TEXT NOT NULL REFERENCES users(id),
+    role TEXT NOT NULL DEFAULT 'editor', -- 'owner' | 'editor'
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (trip_id, user_id)
+  );
 `);

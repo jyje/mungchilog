@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { db } from "../db.js";
+import { requireAuth, requireApproved, type AuthEnv } from "../auth.js";
 
-export const places = new Hono();
+export const places = new Hono<AuthEnv>();
+places.use("*", requireAuth, requireApproved);
 
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days, same policy as legs
 
