@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mungchilog
+  labels:
+    app: mungchilog
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: mungchilog
+  template:
+    metadata:
+      labels:
+        app: mungchilog
+    spec:
+      containers:
+        - name: mungchilog
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: PORT
+              value: "{{ .Values.service.targetPort }}"
+            - name: DB_PROVIDER
+              value: {{ .Values.database.provider | quote }}
+            {{- if eq .Values.database.provider "sqlite" }}
+            - name: DB_SQLITE_PATH
+              value: {{ required "database.sqlite.path is required for SQLite" .Values.database.sqlite.path | quote }}
+            {{- else if eq .Values.database.provider "postgres" }}
+            {{- $postgres := .Values.database.postgres }}
+            {{- if not $postgres.existingSecret }}
+            {{- fail "database.postgres.existingSecret is required for PostgreSQL" }}
+            {{- end }}
+            {{- if eq $postgres.connectionMode "url" }}
+            - name: DB_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.urlKey is required for PostgreSQL URL mode" $postgres.urlKey }}
+            {{- else if eq $postgres.connectionMode "components" }}
+            - name: DB_POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.hostKey is required for PostgreSQL component mode" $postgres.hostKey }}
+            - name: DB_POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.portKey is required for PostgreSQL component mode" $postgres.portKey }}
+            - name: DB_POSTGRES_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.databaseKey is required for PostgreSQL component mode" $postgres.databaseKey }}
+            - name: DB_POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.usernameKey is required for PostgreSQL component mode" $postgres.usernameKey }}
+            - name: DB_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.passwordKey is required for PostgreSQL component mode" $postgres.passwordKey }}
+            {{- else }}
+            {{- fail "database.postgres.connectionMode must be url or components" }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mungchilog-data
+      {{- end }}

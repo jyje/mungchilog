@@ -1,0 +1,27 @@
+name: Validate Helm chart
+
+on:
+  pull_request:
+    paths:
+      - "charts/mungchilog/**"
+      - ".github/workflows/helm-chart.yml"
+  push:
+    branches: [main]
+    paths:
+      - "charts/mungchilog/**"
+      - ".github/workflows/helm-chart.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint charts/mungchilog
+      - run: helm template mungchilog charts/mungchilog > /tmp/mungchilog-sqlite.yaml
+      - run: >-
+          helm template mungchilog charts/mungchilog
+          --set database.provider=postgres
+          --set database.postgres.existingSecret=mungchilog-postgres
+          --set database.postgres.connectionMode=components
+          > /tmp/mungchilog-postgres.yaml

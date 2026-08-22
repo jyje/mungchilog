@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "database": {
+      "type": "object",
+      "required": ["provider", "sqlite", "postgres"],
+      "properties": {
+        "provider": { "type": "string", "enum": ["sqlite", "postgres"] },
+        "sqlite": {
+          "type": "object",
+          "required": ["path"],
+          "properties": { "path": { "type": "string", "minLength": 1 } }
+        },
+        "postgres": {
+          "type": "object",
+          "required": ["connectionMode", "existingSecret"],
+          "properties": {
+            "connectionMode": { "type": "string", "enum": ["url", "components"] },
+            "existingSecret": { "type": "string" },
+            "urlKey": { "type": "string", "minLength": 1 },
+            "hostKey": { "type": "string", "minLength": 1 },
+            "portKey": { "type": "string", "minLength": 1 },
+            "databaseKey": { "type": "string", "minLength": 1 },
+            "usernameKey": { "type": "string", "minLength": 1 },
+            "passwordKey": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}

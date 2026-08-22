@@ -55,4 +55,18 @@ your local `.env` or deployment secret, never in the repository. Switching an
 existing deployment to PostgreSQL initializes an empty schema; migrate existing
 SQLite data separately before changing providers.
 
+### Helm chart
+
+The source chart is maintained in [`charts/mungchilog`](charts/mungchilog).
+It renders the same provider-specific environment variables as the server:
+`DB_SQLITE_PATH` for SQLite, or `DB_POSTGRES_URL` / the complete set of
+`DB_POSTGRES_*` component values for PostgreSQL. PostgreSQL credentials must
+come from an existing Kubernetes Secret and are never chart values.
+
+Chart releases are OCI artifacts published to
+`oci://ghcr.io/jyje/charts/mungchilog`. Every chart source change must bump
+`charts/mungchilog/Chart.yaml` before merge. The main-branch release workflow
+then packages and publishes that immutable version. Cluster GitOps
+configuration should consume the version rather than copying chart source.
+
 See [`PLAN.md`](PLAN.md) for architecture decisions and [`TASK.md`](TASK.md) for the milestone checklist.
