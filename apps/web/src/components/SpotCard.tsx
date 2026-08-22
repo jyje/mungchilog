@@ -3,6 +3,8 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Item, Spot } from "../types";
 import { OpeningHours } from "./OpeningHours";
+import { SpotForm, type SpotFormValues } from "./SpotForm";
+import { MarkdownView } from "./MarkdownView";
 
 const KIND_LABEL: Record<Item["kind"], string> = { buy: "🛍️ 살 것", eat: "🍜 먹을 것", todo: "✅ 할 일" };
 
@@ -52,21 +54,45 @@ export function SpotCard({
   onDeleteItem,
   onAddItem,
   onDeleteSpot,
+  onEditSpot,
 }: {
   spot: Spot;
   onToggleItem: (itemId: string) => void;
   onDeleteItem: (itemId: string) => void;
   onAddItem: (item: Omit<Item, "id" | "done">) => void;
   onDeleteSpot: () => void;
+  onEditSpot: (updates: SpotFormValues) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: spot.id });
   const [addingItem, setAddingItem] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
+
+  if (editing) {
+    return (
+      <li ref={setNodeRef} style={style} className="spot-card">
+        <span className="drag-handle" aria-hidden>
+          ⠿
+        </span>
+        <div className="spot-body">
+          <SpotForm
+            initial={spot}
+            submitLabel="저장"
+            onSubmit={(updates) => {
+              onEditSpot(updates);
+              setEditing(false);
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        </div>
+      </li>
+    );
+  }
 
   return (
     <li ref={setNodeRef} style={style} className="spot-card">
@@ -78,11 +104,14 @@ export function SpotCard({
           {spot.plannedArrival && <span className="meta">{spot.plannedArrival}</span>}
           <span className="spot-name">{spot.name}</span>
           {spot.nameLocal && <span className="spot-local">{spot.nameLocal}</span>}
+          <button type="button" className="spot-edit" aria-label={`${spot.name} 수정`} onClick={() => setEditing(true)}>
+            ✎
+          </button>
           <button type="button" className="spot-delete" aria-label={`${spot.name} 삭제`} onClick={onDeleteSpot}>
             ✕
           </button>
         </div>
-        {spot.note && <p className="meta">{spot.note}</p>}
+        {spot.note && <MarkdownView text={spot.note} className="spot-note" />}
         <OpeningHours placeId={spot.placeId} />
         {(spot.items.length > 0 || addingItem) && (
           <ul className="item-list">

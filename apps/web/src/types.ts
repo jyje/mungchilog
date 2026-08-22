@@ -31,6 +31,7 @@ export const SpotSchema = z.object({
 
 export const DaySchema = z.object({
   date: z.string(),
+  note: z.string().optional(),
   spots: z.array(SpotSchema).default([]),
 });
 
