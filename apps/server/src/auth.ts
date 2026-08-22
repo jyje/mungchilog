@@ -18,6 +18,10 @@ const REDIRECT_URI = process.env.OIDC_REDIRECT_URI;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 
 const OIDC_CONFIGURED = !!(ISSUER_URL && CLIENT_ID && CLIENT_SECRET && REDIRECT_URI);
+// A missing production Secret or ConfigMap must never turn into an
+// authenticated local administrator. The development fallback is limited to
+// non-production processes so a misconfigured deployment fails closed.
+const LOCAL_DEV_AUTH = !OIDC_CONFIGURED && process.env.NODE_ENV !== "production";
 const SESSION_COOKIE = "mungchilog_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const SECURE_COOKIES = process.env.NODE_ENV === "production";
@@ -69,7 +73,7 @@ async function bootstrapDevUser() {
   }
 }
 
-if (!OIDC_CONFIGURED) await bootstrapDevUser();
+if (LOCAL_DEV_AUTH) await bootstrapDevUser();
 
 let oidcConfig: oidc.Configuration | null = null;
 async function getOidcConfig(): Promise<oidc.Configuration> {
@@ -148,13 +152,14 @@ const FLOW_COOKIE = "mungchilog_oidc_flow";
 export const auth = new Hono();
 
 auth.get("/login", async (c) => {
-  if (!OIDC_CONFIGURED) return c.json({ error: "OIDC is not configured on this deployment" }, 501);
+  if (!OIDC_CONFIGURED) return c.json({ error: "OIDC is not configured on this deployment" }, 503);
   const config = await getOidcConfig();
   const codeVerifier = oidc.randomPKCECodeVerifier();
   const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
   const state = oidc.randomState();
+  const nonce = oidc.randomNonce();
 
-  setCookie(c, FLOW_COOKIE, JSON.stringify({ codeVerifier, state }), {
+  setCookie(c, FLOW_COOKIE, JSON.stringify({ codeVerifier, state, nonce }), {
     httpOnly: true,
     secure: SECURE_COOKIES,
     sameSite: "Lax",
@@ -168,17 +173,18 @@ auth.get("/login", async (c) => {
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
     state,
+    nonce,
   });
   return c.redirect(url.toString());
 });
 
 auth.get("/callback", async (c) => {
-  if (!OIDC_CONFIGURED) return c.json({ error: "OIDC is not configured on this deployment" }, 501);
+  if (!OIDC_CONFIGURED) return c.json({ error: "OIDC is not configured on this deployment" }, 503);
   const flowRaw = getCookie(c, FLOW_COOKIE);
   deleteCookie(c, FLOW_COOKIE, { path: "/" });
   if (!flowRaw) return c.json({ error: "login session expired, try again" }, 400);
 
-  let flow: { codeVerifier: string; state: string };
+  let flow: { codeVerifier: string; state: string; nonce: string };
   try {
     flow = JSON.parse(flowRaw);
   } catch {
@@ -191,6 +197,7 @@ auth.get("/callback", async (c) => {
     tokens = await oidc.authorizationCodeGrant(config, new URL(c.req.url), {
       pkceCodeVerifier: flow.codeVerifier,
       expectedState: flow.state,
+      expectedNonce: flow.nonce,
     }, { redirect_uri: REDIRECT_URI! });
   } catch (err) {
     console.error("OIDC callback failed:", err);
@@ -199,10 +206,16 @@ auth.get("/callback", async (c) => {
 
   const claims = tokens.claims();
   const email = claims?.email as string | undefined;
+  const emailVerified = claims?.email_verified;
   if (!email) return c.json({ error: "the identity provider did not return an email claim" }, 400);
+  if (emailVerified !== true) return c.json({ error: "the identity provider did not verify the email claim" }, 400);
   const name = (claims?.name as string | undefined) ?? null;
 
   const user = await findOrCreateUser(email, name);
+  // Rotate any session that was already present before this login so a
+  // pre-login cookie cannot remain valid after authentication.
+  const priorSessionId = getCookie(c, SESSION_COOKIE);
+  if (priorSessionId) await db.run("DELETE FROM sessions WHERE id = ?", [priorSessionId]);
   const sessionId = await createSession(user.id);
   setCookie(c, SESSION_COOKIE, sessionId, {
     httpOnly: true,
@@ -215,7 +228,7 @@ auth.get("/callback", async (c) => {
   return c.redirect(user.status === "pending" ? "/pending" : "/trips");
 });
 
-auth.post("/logout", async (c) => {
+auth.post("/logout", requireSameOrigin, async (c) => {
   const sessionId = getCookie(c, SESSION_COOKIE);
   if (sessionId) await db.run("DELETE FROM sessions WHERE id = ?", [sessionId]);
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
@@ -247,7 +260,7 @@ export async function setUserStatus(id: string, status: "pending" | "approved") 
 }
 
 export async function getCurrentUser(c: Context): Promise<User | null> {
-  if (!OIDC_CONFIGURED) return DEV_USER;
+  if (LOCAL_DEV_AUTH) return DEV_USER;
   const sessionId = getCookie(c, SESSION_COOKIE);
   if (!sessionId) return null;
   return await getUserBySession(sessionId);
@@ -278,5 +291,24 @@ export async function requireAdmin(c: Context, next: Next) {
   const user = c.get("user") as User | undefined;
   if (!user) return c.json({ error: "login required" }, 401);
   if (user.role !== "admin") return c.json({ error: "admin only" }, 403);
+  await next();
+}
+
+// SameSite=Lax cookies can still be sent by a same-site subdomain. Protect
+// every state-changing production request with the configured public origin.
+export async function requireSameOrigin(c: Context, next: Next) {
+  if (LOCAL_DEV_AUTH || !["POST", "PUT", "PATCH", "DELETE"].includes(c.req.method)) {
+    await next();
+    return;
+  }
+  let expectedOrigin: string | null = null;
+  try {
+    expectedOrigin = REDIRECT_URI ? new URL(REDIRECT_URI).origin : null;
+  } catch {
+    expectedOrigin = null;
+  }
+  if (!expectedOrigin || c.req.header("origin") !== expectedOrigin) {
+    return c.json({ error: "same-origin request required" }, 403);
+  }
   await next();
 }

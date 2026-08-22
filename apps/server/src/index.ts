@@ -6,7 +6,7 @@ import { trips } from "./routes/trips.js";
 import { legs } from "./routes/legs.js";
 import { places } from "./routes/places.js";
 import { admin } from "./routes/admin.js";
-import { auth, requireApproved, requireAuth } from "./auth.js";
+import { auth, requireApproved, requireAuth, requireSameOrigin } from "./auth.js";
 
 const app = new Hono();
 
@@ -17,7 +17,7 @@ app.route("/auth", auth);
 // concern. In particular, a newly created but unapproved account must not
 // be able to call the Places or Routes endpoints directly, even though the
 // trip routes themselves already enforce the same rule.
-app.use("/api/*", requireAuth, requireApproved);
+app.use("/api/*", requireSameOrigin, requireAuth, requireApproved);
 app.route("/api/trips", trips);
 app.route("/api/legs", legs);
 app.route("/api/places", places);
