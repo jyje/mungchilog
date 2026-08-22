@@ -5,6 +5,7 @@ import type { Context, Next } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { db } from "./db.js";
 import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness, isOidcConfigured } from "./auth-config.js";
+import { oidcClientAuthentication } from "./oidc-client-auth.js";
 
 // Standard OIDC login, configured entirely via env vars so this works with
 // any compliant provider (Authentik, Keycloak, Google Workspace, ...) -
@@ -87,7 +88,12 @@ let oidcConfig: oidc.Configuration | null = null;
 async function getOidcConfig(): Promise<oidc.Configuration> {
   if (!OIDC_CONFIGURED) throw new Error("OIDC is not configured (OIDC_ISSUER_URL/CLIENT_ID/CLIENT_SECRET/REDIRECT_URI)");
   if (!oidcConfig) {
-    oidcConfig = await oidc.discovery(new URL(ISSUER_URL!), CLIENT_ID!, CLIENT_SECRET!);
+    oidcConfig = await oidc.discovery(
+      new URL(ISSUER_URL!),
+      CLIENT_ID!,
+      undefined,
+      oidcClientAuthentication(CLIENT_SECRET!),
+    );
   }
   return oidcConfig;
 }
