@@ -8,9 +8,10 @@ on:
       - ".github/workflows/build.yml"
   workflow_dispatch: {}
 
-# A later commit's :latest push racing ahead of an earlier commit's is a
-# real footgun under arm64/QEMU build times (10+ min): cancel superseded
-# runs so :latest always ends up as the newest main commit.
+# A later mutable-tag push racing ahead of an earlier commit is a real
+# footgun under arm64/QEMU build times (10+ min). Cancel superseded runs so
+# :managed always identifies the newest main commit while Image Updater moves
+# the deployment itself to the immutable SHA tag.
 concurrency:
   group: build-main
   cancel-in-progress: true
@@ -53,4 +54,4 @@ jobs:
             VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
           tags: |
             ${{ env.IMAGE }}:${{ github.sha }}
-            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:managed
