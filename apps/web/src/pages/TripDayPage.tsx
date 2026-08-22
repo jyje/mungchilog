@@ -1,10 +1,10 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { getTrip, saveTrip } from "../api";
 import type { Item, Spot, Trip } from "../types";
-import { TripMap } from "../components/TripMap";
+import { TripMap, type ItinerarySelection } from "../components/TripMap";
 import { MapsScope } from "../components/MapsScope";
 import { SplitMapShell } from "../components/SplitMapShell";
 import { SpotCard } from "../components/SpotCard";
@@ -20,6 +20,18 @@ function nextDate(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+function sortDays<T extends { date: string }>(days: T[]): T[] {
+  return [...days].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function formatScheduleDate(date: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const weekday = new Intl.DateTimeFormat("ko-KR", { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, day)));
+  return `${month}월 ${day}일 (${weekday})`;
+}
+
+const SELECTION_HISTORY_KEY = "mungchilog:itinerary-selection";
+
 export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path: string) => void; me: Me }) {
   const qc = useQueryClient();
   const queryKey = ["trip", id];
@@ -27,7 +39,56 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [dayIndex, setDayIndex] = useState(0);
   const [addingSpot, setAddingSpot] = useState(false);
   const [dayNoteOpen, setDayNoteOpen] = useState(false);
+  const [dateAddOpen, setDateAddOpen] = useState(false);
+  const [customDate, setCustomDate] = useState("");
+  const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [dateEditValue, setDateEditValue] = useState("");
+  const [dateError, setDateError] = useState<string | null>(null);
+  const [selection, setSelection] = useState<ItinerarySelection>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ignoreNextDayClick = useRef(false);
+
+  function removeSelectionHistoryState() {
+    const state = (window.history.state ?? {}) as Record<string, unknown>;
+    if (!state[SELECTION_HISTORY_KEY]) return;
+    const { [SELECTION_HISTORY_KEY]: _selection, ...nextState } = state;
+    window.history.replaceState(nextState, "", window.location.href);
+  }
+
+  function clearSelection() {
+    setSelection(null);
+    removeSelectionHistoryState();
+  }
+
+  function selectItinerary(next: Exclude<ItinerarySelection, null>) {
+    setSelection(next);
+  }
+
+  useEffect(() => {
+    if (!selection) return;
+    const state = (window.history.state ?? {}) as Record<string, unknown>;
+    const nextState = { ...state, [SELECTION_HISTORY_KEY]: true };
+    if (state[SELECTION_HISTORY_KEY]) window.history.replaceState(nextState, "", window.location.href);
+    else window.history.pushState(nextState, "", window.location.href);
+  }, [selection]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape" || !selection) return;
+      event.preventDefault();
+      clearSelection();
+    }
+    function onPopState() {
+      if (selection) setSelection(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [selection]);
 
   const mutation = useMutation({
     mutationFn: (next: Trip) => {
@@ -59,16 +120,118 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   const day = trip.days[dayIndex];
 
-  function addDay() {
-    if (!trip) return;
-    const date = trip.days.length > 0 ? nextDate(trip.days[trip.days.length - 1].date) : trip.startDate;
-    // "YYYY-MM-DD" strings sort lexicographically the same as chronologically,
-    // so a plain string compare is enough here. Without this, the header's
-    // date range (trip.startDate ~ trip.endDate) silently fell out of sync
-    // with the actual day tabs whenever + 날짜 pushed past the old endDate.
+  function defaultNewDayDate() {
+    if (!trip) return "";
+    const lastDate = sortDays(trip.days).at(-1)?.date;
+    return lastDate ? nextDate(lastDate) : trip.startDate;
+  }
+
+  function addDayAt(date: string) {
+    if (!trip) return false;
+    if (!date) {
+      setDateError("날짜를 선택해주세요.");
+      return false;
+    }
+    if (trip.days.some((d) => d.date === date)) {
+      setDateError("이미 일정에 추가된 날짜입니다.");
+      return false;
+    }
+
+    const days = sortDays([...trip.days, { date, spots: [] }]);
+    const startDate = date < trip.startDate ? date : trip.startDate;
     const endDate = date > trip.endDate ? date : trip.endDate;
-    saveNow({ ...trip, endDate, days: [...trip.days, { date, spots: [] }] });
-    setDayIndex(trip.days.length);
+    saveNow({ ...trip, startDate, endDate, days });
+    setDayIndex(days.findIndex((d) => d.date === date));
+    clearSelection();
+    setAddingSpot(false);
+    setDayNoteOpen(false);
+    setDateError(null);
+    return true;
+  }
+
+  function addDay() {
+    addDayAt(defaultNewDayDate());
+  }
+
+  function openDateAdd() {
+    setCustomDate(defaultNewDayDate());
+    setDateError(null);
+    setEditingDate(null);
+    setDateAddOpen((open) => !open);
+  }
+
+  function openDateEditor(date: string) {
+    setDateAddOpen(false);
+    setDateError(null);
+    setEditingDate(date);
+    setDateEditValue(date);
+  }
+
+  function closeDatePopover() {
+    setDateAddOpen(false);
+    setEditingDate(null);
+    setDateError(null);
+  }
+
+  function addCustomDay() {
+    if (addDayAt(customDate)) setDateAddOpen(false);
+  }
+
+  function updateDayDate() {
+    if (!trip || !editingDate || !dateEditValue) {
+      setDateError("날짜를 선택해주세요.");
+      return;
+    }
+    if (dateEditValue !== editingDate && trip.days.some((d) => d.date === dateEditValue)) {
+      setDateError("이미 일정에 추가된 날짜입니다.");
+      return;
+    }
+
+    const days = sortDays(trip.days.map((d) => (d.date === editingDate ? { ...d, date: dateEditValue } : d)));
+    const startDate = dateEditValue < trip.startDate ? dateEditValue : trip.startDate;
+    const endDate = dateEditValue > trip.endDate ? dateEditValue : trip.endDate;
+    saveNow({ ...trip, startDate, endDate, days });
+    setDayIndex(days.findIndex((d) => d.date === dateEditValue));
+    clearSelection();
+    closeDatePopover();
+  }
+
+  function deleteDay(date: string) {
+    if (!trip) return;
+    const target = trip.days.find((d) => d.date === date);
+    if (!target) return;
+    if (!window.confirm(`${date} 일정과 그 안의 스팟을 삭제할까요?`)) return;
+
+    const removedIndex = trip.days.findIndex((d) => d.date === date);
+    const days = trip.days.filter((d) => d.date !== date);
+    saveNow({ ...trip, days });
+    setDayIndex(Math.max(0, Math.min(dayIndex > removedIndex ? dayIndex - 1 : dayIndex, days.length - 1)));
+    clearSelection();
+    setAddingSpot(false);
+    setDayNoteOpen(false);
+    closeDatePopover();
+  }
+
+  function startDayLongPress(date: string) {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      ignoreNextDayClick.current = true;
+      openDateEditor(date);
+    }, 600);
+  }
+
+  function cancelDayLongPress() {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  }
+
+  function selectDay(index: number) {
+    if (ignoreNextDayClick.current) {
+      ignoreNextDayClick.current = false;
+      return;
+    }
+    clearSelection();
+    setDayIndex(index);
   }
 
   function updateDayNote(note: string) {
@@ -155,7 +318,15 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   return (
     <MapsScope>
       <SplitMapShell
-        map={<TripMap spots={day?.spots ?? []} date={day?.date ?? trip.startDate} timezone={trip.timezone} />}
+        map={
+          <TripMap
+            spots={day?.spots ?? []}
+            date={day?.date ?? trip.startDate}
+            timezone={trip.timezone}
+            selection={selection}
+            onSelect={selectItinerary}
+          />
+        }
         headerLeft={
           <a
             className="map-hero-back"
@@ -173,20 +344,84 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         title={trip.title}
         subtitle={
           <>
-            {trip.startDate} ~ {trip.endDate} · {trip.timezone} {mutation.isPending && "· 저장 중..."}
+            {formatScheduleDate(trip.startDate)} ~ {formatScheduleDate(trip.endDate)} · {trip.timezone} {mutation.isPending && "· 저장 중..."}
           </>
         }
         panel={
           <>
-            <div className="day-tabs">
-              {trip.days.map((d, i) => (
-                <button key={d.date} className={i === dayIndex ? "active" : ""} onClick={() => setDayIndex(i)}>
-                  {d.date}
-                </button>
-              ))}
-              <button type="button" className="day-add" onClick={addDay}>
-                + 날짜
-              </button>
+            <div className="day-tabs-wrap">
+              <div className="day-tabs">
+                {trip.days.map((d, i) => (
+                  <button
+                    key={d.date}
+                    type="button"
+                    className={i === dayIndex ? "active" : ""}
+                    onClick={() => selectDay(i)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      openDateEditor(d.date);
+                    }}
+                    onPointerDown={(event) => {
+                      if (event.pointerType !== "mouse" || event.button === 0) startDayLongPress(d.date);
+                    }}
+                    onPointerUp={cancelDayLongPress}
+                    onPointerCancel={cancelDayLongPress}
+                    onPointerLeave={cancelDayLongPress}
+                    aria-label={`${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리`}
+                  >
+                    {formatScheduleDate(d.date)}
+                  </button>
+                ))}
+                <div className="day-add-group">
+                  <button type="button" className="day-add" onClick={addDay}>
+                    + 날짜
+                  </button>
+                  <button
+                    type="button"
+                    className="day-add-arrow"
+                    aria-label="특정 날짜 추가"
+                    aria-expanded={dateAddOpen}
+                    onClick={openDateAdd}
+                  >
+                    ▾
+                  </button>
+                </div>
+                {day && (
+                  <button type="button" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
+                    ⋮
+                  </button>
+                )}
+              </div>
+
+              {dateAddOpen && (
+                <div className="day-date-popover" role="dialog" aria-label="특정 날짜 추가">
+                  <label>
+                    일정 날짜
+                    <input type="date" value={customDate} onChange={(event) => setCustomDate(event.target.value)} />
+                  </label>
+                  {dateError && <p className="error day-date-error">{dateError}</p>}
+                  <div className="day-date-actions">
+                    <button type="button" onClick={addCustomDay}>추가</button>
+                    <button type="button" className="ghost" onClick={closeDatePopover}>취소</button>
+                  </div>
+                </div>
+              )}
+
+              {editingDate && (
+                <div className="day-date-popover" role="dialog" aria-label={`${editingDate} 날짜 관리`}>
+                  <label>
+                    일정 날짜
+                    <input type="date" value={dateEditValue} onChange={(event) => setDateEditValue(event.target.value)} />
+                  </label>
+                  <p className="meta day-date-hint">날짜를 바꾸면 해당 날짜의 메모와 스팟도 함께 이동합니다.</p>
+                  {dateError && <p className="error day-date-error">{dateError}</p>}
+                  <div className="day-date-actions">
+                    <button type="button" onClick={updateDayDate}>변경 저장</button>
+                    <button type="button" className="ghost" onClick={closeDatePopover}>취소</button>
+                    <button type="button" className="day-delete" onClick={() => deleteDay(editingDate)}>날짜 삭제</button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {day ? (
@@ -222,6 +457,12 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                               onAddItem={(item) => addItem(spot.id, item)}
                               onDeleteSpot={() => deleteSpot(spot.id)}
                               onEditSpot={(updates) => editSpot(spot.id, updates)}
+                              selected={
+                                (selection?.kind === "spot" && selection.spotId === spot.id) ||
+                                (selection?.kind === "leg" && (selection.fromId === spot.id || selection.toId === spot.id))
+                              }
+                              onSelect={() => selectItinerary({ kind: "spot", spotId: spot.id })}
+                              date={day.date}
                             />
                           );
                           if (i === sorted.length - 1) return [card];
@@ -231,7 +472,14 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                           return [
                             card,
                             <li key={`${spot.id}-leg`} className="leg-row">
-                              <LegInfo from={spot} to={sorted[i + 1]} date={day.date} timezone={trip.timezone} />
+                              <LegInfo
+                                from={spot}
+                                to={sorted[i + 1]}
+                                date={day.date}
+                                timezone={trip.timezone}
+                                selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
+                                onSelect={() => selectItinerary({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
+                              />
                             </li>,
                           ];
                         })}

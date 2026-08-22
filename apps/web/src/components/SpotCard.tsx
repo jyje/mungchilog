@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Item, Spot } from "../types";
@@ -7,6 +7,16 @@ import { SpotForm, type SpotFormValues } from "./SpotForm";
 import { MarkdownView } from "./MarkdownView";
 
 const KIND_LABEL: Record<Item["kind"], string> = { buy: "🛍️ 살 것", eat: "🍜 먹을 것", todo: "✅ 할 일" };
+
+function googleMapsUrl(spot: Spot) {
+  if (spot.placeId) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.name)}&query_place_id=${encodeURIComponent(spot.placeId)}`;
+  }
+  if (spot.lat != null && spot.lng != null) {
+    return `https://www.google.com/maps/search/?api=1&query=${spot.lat},${spot.lng}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.name)}`;
+}
 
 function AddItemForm({ onAdd, onCancel }: { onAdd: (item: Omit<Item, "id" | "done">) => void; onCancel: () => void }) {
   const [kind, setKind] = useState<Item["kind"]>("buy");
@@ -55,6 +65,9 @@ export function SpotCard({
   onAddItem,
   onDeleteSpot,
   onEditSpot,
+  selected,
+  onSelect,
+  date,
 }: {
   spot: Spot;
   onToggleItem: (itemId: string) => void;
@@ -62,10 +75,31 @@ export function SpotCard({
   onAddItem: (item: Omit<Item, "id" | "done">) => void;
   onDeleteSpot: () => void;
   onEditSpot: (updates: SpotFormValues) => void;
+  selected: boolean;
+  onSelect: () => void;
+  date: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: spot.id });
   const [addingItem, setAddingItem] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmingDeletion, setConfirmingDeletion] = useState(false);
+
+  function closeMenu() {
+    setMenuOpen(false);
+    setConfirmingDeletion(false);
+  }
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeMenu();
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [menuOpen]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -75,7 +109,7 @@ export function SpotCard({
 
   if (editing) {
     return (
-      <li ref={setNodeRef} style={style} className="spot-card">
+      <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}`}>
         <span className="drag-handle" aria-hidden>
           ⠿
         </span>
@@ -95,24 +129,77 @@ export function SpotCard({
   }
 
   return (
-    <li ref={setNodeRef} style={style} className="spot-card">
+    <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}`}>
       <button className="drag-handle" aria-label="순서 변경" {...attributes} {...listeners}>
         ⠿
       </button>
       <div className="spot-body">
         <div className="spot-header">
-          {spot.plannedArrival && <span className="meta">{spot.plannedArrival}</span>}
-          <span className="spot-name">{spot.name}</span>
-          {spot.nameLocal && <span className="spot-local">{spot.nameLocal}</span>}
-          <button type="button" className="spot-edit" aria-label={`${spot.name} 수정`} onClick={() => setEditing(true)}>
-            ✎
+          <button type="button" className="spot-select" onClick={onSelect} aria-pressed={selected} aria-label={`${spot.name} 지도에서 보기`}>
+            {spot.plannedArrival && <span className="meta">{spot.plannedArrival}</span>}
+            <span className="spot-name">{spot.name}</span>
+            {spot.nameLocal && <span className="spot-local">{spot.nameLocal}</span>}
           </button>
-          <button type="button" className="spot-delete" aria-label={`${spot.name} 삭제`} onClick={onDeleteSpot}>
-            ✕
-          </button>
+          <div className="spot-actions">
+            <a
+              className="spot-map-link"
+              href={googleMapsUrl(spot)}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`${spot.name} Google 지도에서 열기 (새 창)`}
+              data-place-id={spot.placeId}
+            >
+              ↗
+            </a>
+            <button
+              type="button"
+              className="spot-more"
+              aria-label={`${spot.name} 더보기`}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => {
+                setMenuOpen((open) => !open);
+                setConfirmingDeletion(false);
+              }}
+            >
+              ⋮
+            </button>
+            {menuOpen && (
+              <>
+                <button type="button" className="spot-menu-backdrop" aria-label="장소 메뉴 닫기" onClick={closeMenu} />
+                <div className="spot-context-menu" role={confirmingDeletion ? "dialog" : "menu"} aria-label={`${spot.name} 메뉴`}>
+                  {confirmingDeletion ? (
+                    <>
+                      <p>이 장소와 목록을 삭제할까요?</p>
+                      <div className="spot-context-actions">
+                        <button type="button" onClick={closeMenu}>취소</button>
+                        <button type="button" className="danger" onClick={onDeleteSpot}>삭제</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          closeMenu();
+                          setEditing(true);
+                        }}
+                      >
+                        수정
+                      </button>
+                      <button type="button" role="menuitem" className="danger" onClick={() => setConfirmingDeletion(true)}>
+                        삭제
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
         {spot.note && <MarkdownView text={spot.note} className="spot-note" />}
-        <OpeningHours placeId={spot.placeId} />
+        <OpeningHours placeId={spot.placeId} date={date} />
         {(spot.items.length > 0 || addingItem) && (
           <ul className="item-list">
             {spot.items.map((item) => (
