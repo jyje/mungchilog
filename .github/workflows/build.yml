@@ -5,11 +5,12 @@ on:
     branches: [main]
     paths:
       - "apps/**"
+      - ".dockerignore"
       - ".github/workflows/build.yml"
   workflow_dispatch: {}
 
-# A later arm64/QEMU build must not finish after a newer main commit and become
-# Image Updater's newest-build candidate. Cancel superseded work so the newest
+# A later build must not finish after a newer main commit and become Image
+# Updater's newest-build candidate. Cancel superseded work so the newest
 # completed run represents the newest main revision.
 concurrency:
   group: build-main
@@ -19,11 +20,11 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+  metadata:
+    runs-on: ubuntu-26.04
+    outputs:
+      image_tag: ${{ steps.image_tag.outputs.value }}
+      publish: ${{ steps.publish.outputs.value }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,10 +35,68 @@ jobs:
           short_sha="$(git rev-parse --short=7 "$GITHUB_SHA")"
           echo "value=${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_OUTPUT"
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      # workflow_dispatch can run from a feature branch for build validation,
+      # but only main may publish a tag that Image Updater could deploy.
+      - name: Decide whether this run may publish
+        id: publish
+        run: echo "value=${{ github.ref == 'refs/heads/main' }}" >> "$GITHUB_OUTPUT"
+
+  validate:
+    needs: metadata
+    if: needs.metadata.outputs.publish != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-26.04
+            cache_scope: mungchilog-linux-amd64
+            artifact_suffix: amd64
+          - platform: linux/arm64
+            runner: ubuntu-26.04-arm
+            cache_scope: mungchilog-linux-arm64
+            artifact_suffix: arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build platform image without publishing
+        uses: docker/build-push-action@v6
         with:
-          platforms: arm64
+          context: .
+          file: apps/server/Dockerfile
+          platforms: ${{ matrix.platform }}
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
+          build-args: |
+            VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+
+  build:
+    needs: metadata
+    if: needs.metadata.outputs.publish == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-26.04
+            cache_scope: mungchilog-linux-amd64
+            artifact_suffix: amd64
+          - platform: linux/arm64
+            runner: ubuntu-26.04-arm
+            cache_scope: mungchilog-linux-arm64
+            artifact_suffix: arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -49,14 +108,86 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push platform image by digest
+        id: build_push
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/server/Dockerfile
-          platforms: linux/arm64
-          push: true
+          platforms: ${{ matrix.platform }}
+          # Do not tag either platform image. The finalize job creates the
+          # sole deployable tag after both native images are available.
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.cache_scope }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
           build-args: |
             VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
-          tags: |
-            ${{ env.IMAGE }}:${{ steps.image_tag.outputs.value }}
+
+      - name: Export platform digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build_push.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload platform digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.artifact_suffix }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  finalize:
+    needs: [metadata, build]
+    if: needs.metadata.outputs.publish == 'true'
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download platform digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digests-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Publish multi-architecture image manifest
+        env:
+          IMAGE_TAG: ${{ needs.metadata.outputs.image_tag }}
+        run: |
+          shopt -s nullglob
+          digest_files=(/tmp/digests/*)
+          test "${#digest_files[@]}" -eq 2
+
+          references=()
+          for digest_file in "${digest_files[@]}"; do
+            digest="$(basename "$digest_file")"
+            [[ "$digest" =~ ^[a-f0-9]{64}$ ]]
+            references+=("${IMAGE}@sha256:${digest}")
+          done
+
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${IMAGE_TAG}" \
+            "${references[@]}"
+
+      - name: Verify Linux amd64 and arm64 manifest variants
+        env:
+          IMAGE_TAG: ${{ needs.metadata.outputs.image_tag }}
+        run: |
+          docker buildx imagetools inspect "${IMAGE}:${IMAGE_TAG}" --raw | jq -e '
+            [.manifests[].platform
+             | select(.os == "linux")
+             | .architecture]
+            | sort == ["amd64", "arm64"]
+          '
