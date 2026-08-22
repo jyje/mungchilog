@@ -20,6 +20,8 @@ service:
 ingress:
   enabled: true
   className: nginx
+  # Additional labels for ingress-based integrations such as dashboards.
+  labels: {}
   annotations: {}
   host: mungchilog.example.com
   tlsSecretName: mungchilog-tls
