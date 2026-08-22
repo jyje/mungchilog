@@ -42,10 +42,14 @@ Copy `.env.sample` to `.env` at the repo root for local Google Maps keys (option
 ### Database backend
 
 SQLite is the default and keeps data in `./data/mungchilog.db`. To use another
-path, set `DB_PROVIDER=sqlite` and `DB_PATH=/path/to/mungchilog.db`.
+path, set `DB_PROVIDER=sqlite` and
+`DB_SQLITE_PATH=/path/to/mungchilog.db`.
 
-For PostgreSQL, set `DB_PROVIDER=postgres` and a complete `DATABASE_URL`, for
-example `postgresql://user:password@host:5432/mungchilog?sslmode=require`.
+For PostgreSQL, set `DB_PROVIDER=postgres` and either a complete
+`DB_POSTGRES_URL`, for example
+`postgresql://user:password@host:5432/mungchilog?sslmode=require`, or every
+component setting: `DB_POSTGRES_HOST`, `DB_POSTGRES_PORT`,
+`DB_POSTGRES_DATABASE`, `DB_POSTGRES_USERNAME`, and `DB_POSTGRES_PASSWORD`.
 The server initializes the same schema for either provider. Keep credentials in
 your local `.env` or deployment secret, never in the repository. Switching an
 existing deployment to PostgreSQL initializes an empty schema; migrate existing

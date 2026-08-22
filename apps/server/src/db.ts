@@ -78,6 +78,35 @@ export function getDbProvider(env: NodeJS.ProcessEnv = process.env): DbProvider 
   throw new Error(`Invalid DB_PROVIDER \"${provider}\". Use \"sqlite\" or \"postgres\".`);
 }
 
+/**
+ * PostgreSQL settings intentionally use only the DB_POSTGRES_* namespace.
+ * A complete URL is convenient for managed providers; the component form
+ * makes each credential explicit for secret-backed deployments.
+ */
+export function getPostgresConnectionString(env: NodeJS.ProcessEnv = process.env): string {
+  if (env.DB_POSTGRES_URL) return env.DB_POSTGRES_URL;
+
+  const requiredSettings = [
+    "DB_POSTGRES_HOST",
+    "DB_POSTGRES_DATABASE",
+    "DB_POSTGRES_USERNAME",
+    "DB_POSTGRES_PASSWORD",
+  ] as const;
+  const missingSettings = requiredSettings.filter((name) => !env[name]);
+  if (missingSettings.length > 0) {
+    throw new Error(
+      `DB_POSTGRES_URL or all of ${requiredSettings.join(", ")} are required when DB_PROVIDER=postgres. Missing: ${missingSettings.join(", ")}.`,
+    );
+  }
+
+  const host = env.DB_POSTGRES_HOST!;
+  const port = env.DB_POSTGRES_PORT ?? "5432";
+  const database = encodeURIComponent(env.DB_POSTGRES_DATABASE!);
+  const username = encodeURIComponent(env.DB_POSTGRES_USERNAME!);
+  const password = encodeURIComponent(env.DB_POSTGRES_PASSWORD!);
+  return `postgresql://${username}:${password}@${host}:${port}/${database}`;
+}
+
 /** Converts the SQLite-style placeholders used by the application into the
  * numbered placeholders PostgreSQL expects. Current queries do not put ? in
  * string literals, but the small scanner keeps quoted literals intact. */
@@ -158,14 +187,13 @@ class PostgresDatabase implements Database {
 async function createDatabase(): Promise<Database> {
   const provider = getDbProvider();
   if (provider === "postgres") {
-    const connectionString = process.env.DATABASE_URL;
-    if (!connectionString) throw new Error("DATABASE_URL is required when DB_PROVIDER=postgres.");
+    const connectionString = getPostgresConnectionString();
     const database = new PostgresDatabase(new Pool({ connectionString }));
     await database.exec(SCHEMA);
     return database;
   }
 
-  const path = process.env.DB_PATH ?? "./data/mungchilog.db";
+  const path = process.env.DB_SQLITE_PATH ?? "./data/mungchilog.db";
   mkdirSync(dirname(path), { recursive: true });
   const database = new SqliteDatabase(new DatabaseSync(path));
   // The cluster's SQLite volume is NFS-backed. WAL depends on locking that
