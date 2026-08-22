@@ -196,7 +196,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     <p className="field-label">📝 이 날 메모</p>
                     <MarkdownEditor
                       value={day.note ?? ""}
-                      onChange={updateDayNote}
+                      onSave={updateDayNote}
                       rows={3}
                       placeholder="오늘 계획, 준비물, 예약 확인 같은 걸 적어두세요"
                     />
