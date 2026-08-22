@@ -8,10 +8,9 @@ on:
       - ".github/workflows/build.yml"
   workflow_dispatch: {}
 
-# A later mutable-tag push racing ahead of an earlier commit is a real
-# footgun under arm64/QEMU build times (10+ min). Cancel superseded runs so
-# :managed always identifies the newest main commit while Image Updater moves
-# the deployment itself to the immutable SHA tag.
+# A later arm64/QEMU build must not finish after a newer main commit and become
+# Image Updater's newest-build candidate. Cancel superseded work so the newest
+# completed run represents the newest main revision.
 concurrency:
   group: build-main
   cancel-in-progress: true
@@ -27,6 +26,13 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute immutable image tag
+        id: image_tag
+        shell: bash
+        run: |
+          short_sha="$(git rev-parse --short=7 "$GITHUB_SHA")"
+          echo "value=${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -53,5 +59,4 @@ jobs:
           build-args: |
             VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
           tags: |
-            ${{ env.IMAGE }}:${{ github.sha }}
-            ${{ env.IMAGE }}:managed
+            ${{ env.IMAGE }}:${{ steps.image_tag.outputs.value }}
