@@ -507,6 +507,104 @@ body.panel-resizing {
   margin: 0 0 0.35rem;
 }
 
+/* Wide screens can lift the itinerary into a movable work surface while
+   retaining the docked layout and all existing theme/auth styles. */
+.trip-shell[data-panel-position="floating"] .trip-map-pane {
+  width: 100%;
+  height: 100%;
+}
+.trip-shell[data-panel-position="floating"] .trip-panel-pane {
+  position: absolute;
+  z-index: 5;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
+  overflow: visible;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.42);
+}
+.trip-shell[data-panel-position="floating"] .panel-content {
+  padding-top: 0.75rem;
+  border-radius: 0 0 16px 16px;
+}
+.floating-panel-titlebar {
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 0.8rem;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 650;
+  text-align: left;
+  cursor: grab;
+  touch-action: none;
+}
+.floating-panel-titlebar:active { cursor: grabbing; }
+.floating-panel-grip { color: var(--text-muted); letter-spacing: -0.1em; }
+.floating-panel-hint {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  font-weight: 400;
+}
+.floating-resize-handle {
+  position: absolute;
+  z-index: 4;
+  border: none;
+  background: transparent;
+  padding: 0;
+  touch-action: none;
+}
+.floating-resize-top,
+.floating-resize-bottom {
+  right: 10px;
+  left: 10px;
+  height: 12px;
+  cursor: row-resize;
+}
+.floating-resize-top { top: -6px; }
+.floating-resize-bottom { bottom: -6px; }
+.floating-resize-left,
+.floating-resize-right {
+  top: 10px;
+  bottom: 10px;
+  width: 12px;
+  cursor: col-resize;
+}
+.floating-resize-left { left: -6px; }
+.floating-resize-right { right: -6px; }
+.floating-resize-top-left,
+.floating-resize-bottom-right,
+.floating-resize-top-right,
+.floating-resize-bottom-left {
+  width: 18px;
+  height: 18px;
+}
+.floating-resize-top-left { top: -8px; left: -8px; cursor: nwse-resize; }
+.floating-resize-bottom-right { right: -8px; bottom: -8px; cursor: nwse-resize; }
+.floating-resize-top-right { top: -8px; right: -8px; cursor: nesw-resize; }
+.floating-resize-bottom-left { bottom: -8px; left: -8px; cursor: nesw-resize; }
+body.trip-panel-dragging,
+body.trip-panel-resizing {
+  user-select: none;
+}
+body.trip-panel-dragging { cursor: grabbing; }
+body.trip-panel-resizing { cursor: col-resize; }
+.trip-panel-pane button:focus-visible,
+.map-hero-header button:focus-visible,
+.map-hero-header a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 640px) {
+  .floating-panel-hint { display: none; }
+}
+
 /* spot list */
 .spot-list {
   display: flex;
