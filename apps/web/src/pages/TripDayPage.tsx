@@ -62,6 +62,16 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   }
 
   function selectItinerary(next: Exclude<ItinerarySelection, null>) {
+    const isSameSelection =
+      (selection?.kind === "spot" && next.kind === "spot" && selection.spotId === next.spotId) ||
+      (selection?.kind === "leg" &&
+        next.kind === "leg" &&
+        selection.fromId === next.fromId &&
+        selection.toId === next.toId);
+    if (isSameSelection) {
+      clearSelection();
+      return;
+    }
     setSelection(next);
   }
 

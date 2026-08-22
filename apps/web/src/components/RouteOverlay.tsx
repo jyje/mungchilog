@@ -13,6 +13,128 @@ const ARROW_ICONS: google.maps.IconSequence[] = [
   },
 ];
 
+type Coordinate = { lat: number; lng: number };
+
+const ACCESS_CONNECTOR_MIN_METERS = 8;
+const ACCESS_CONNECTOR_MAX_METERS = 120;
+
+function decodeEncodedPolyline(encodedPath: string): Coordinate[] {
+  const coordinates: Coordinate[] = [];
+  let index = 0;
+  let latitude = 0;
+  let longitude = 0;
+
+  try {
+    while (index < encodedPath.length) {
+      let result = 0;
+      let shift = 0;
+      let byte: number;
+      do {
+        byte = encodedPath.charCodeAt(index++) - 63;
+        if (!Number.isFinite(byte)) return [];
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
+      latitude += result & 1 ? ~(result >> 1) : result >> 1;
+
+      result = 0;
+      shift = 0;
+      do {
+        byte = encodedPath.charCodeAt(index++) - 63;
+        if (!Number.isFinite(byte)) return [];
+        result |= (byte & 0x1f) << shift;
+        shift += 5;
+      } while (byte >= 0x20);
+      longitude += result & 1 ? ~(result >> 1) : result >> 1;
+      coordinates.push({ lat: latitude / 1e5, lng: longitude / 1e5 });
+    }
+  } catch {
+    return [];
+  }
+
+  return coordinates;
+}
+
+function distanceMeters(a: Coordinate, b: Coordinate): number {
+  const radians = Math.PI / 180;
+  const latitudeDelta = (b.lat - a.lat) * radians;
+  const longitudeDelta = (b.lng - a.lng) * radians;
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(a.lat * radians) * Math.cos(b.lat * radians) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function accessConnector(anchor: Coordinate, spot: Spot): Coordinate[] | null {
+  if (spot.lat == null || spot.lng == null) return null;
+  const place = { lat: spot.lat, lng: spot.lng };
+  const distance = distanceMeters(anchor, place);
+  // Google snaps route geometry to its navigable network. A short dotted
+  // connector explains the remaining entrance or property-centroid gap,
+  // while refusing to invent a long straight route when a place is imprecise.
+  if (distance < ACCESS_CONNECTOR_MIN_METERS || distance > ACCESS_CONNECTOR_MAX_METERS) return null;
+  return [anchor, place];
+}
+
+function RouteAccessConnectors({
+  encodedPath,
+  from,
+  to,
+  selected,
+  hasSelection,
+  onSelect,
+}: {
+  encodedPath: string;
+  from: Spot;
+  to: Spot;
+  selected: boolean;
+  hasSelection: boolean;
+  onSelect: () => void;
+}) {
+  const coordinates = decodeEncodedPolyline(encodedPath);
+  if (coordinates.length < 2) return null;
+
+  const paths = [
+    accessConnector(coordinates[0], from),
+    accessConnector(coordinates[coordinates.length - 1], to),
+  ].filter((path): path is Coordinate[] => path !== null);
+  if (paths.length === 0) return null;
+
+  // Access connectors are part of the same itinerary leg, not an unrelated
+  // annotation. Their color and emphasis therefore track the route itself.
+  const color = selected ? "#f59e0b" : "#7dd3fc";
+  const opacity = selected ? 1 : hasSelection ? 0.28 : 0.85;
+  return (
+    <>
+      {paths.map((path) => (
+        <Polyline
+          key={`${path[0].lat}:${path[0].lng}:${path[1].lat}:${path[1].lng}`}
+          path={path}
+          strokeColor={color}
+          strokeOpacity={0}
+          strokeWeight={selected ? 4 : 3}
+          icons={[
+            {
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                fillColor: color,
+                fillOpacity: opacity,
+                strokeColor: color,
+                strokeOpacity: opacity,
+                strokeWeight: 1,
+                scale: selected ? 2.4 : 2,
+              },
+              offset: "0",
+              repeat: "7px",
+            },
+          ]}
+          onClick={onSelect}
+        />
+      ))}
+    </>
+  );
+}
+
 function RouteLeg({
   from,
   to,
@@ -39,14 +161,24 @@ function RouteLeg({
     // Real road/rail-following route from the Routes API - what "the
     // route between stops" actually means once a server key exists.
     return (
-      <Polyline
-        encodedPath={leg.polyline}
-        strokeColor={strokeColor}
-        strokeOpacity={strokeOpacity}
-        strokeWeight={strokeWeight}
-        icons={selected ? [] : ARROW_ICONS}
-        onClick={onSelect}
-      />
+      <>
+        <Polyline
+          encodedPath={leg.polyline}
+          strokeColor={strokeColor}
+          strokeOpacity={strokeOpacity}
+          strokeWeight={strokeWeight}
+          icons={selected ? [] : ARROW_ICONS}
+          onClick={onSelect}
+        />
+        <RouteAccessConnectors
+          encodedPath={leg.polyline}
+          from={from}
+          to={to}
+          selected={selected}
+          hasSelection={hasSelection}
+          onSelect={onSelect}
+        />
+      </>
     );
   }
 
