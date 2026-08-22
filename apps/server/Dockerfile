@@ -5,7 +5,7 @@
 FROM node:22-alpine AS web-build
 WORKDIR /web
 COPY apps/web/package.json apps/web/package-lock.json* ./
-RUN npm install
+RUN npm ci
 COPY apps/web/ ./
 # Vite inlines VITE_* env vars at build time, not runtime: so the Maps
 # key (once it exists) has to be a build-arg, not a container env var.
@@ -17,7 +17,7 @@ RUN npm run build
 FROM node:22-alpine AS server-build
 WORKDIR /app
 COPY apps/server/package.json apps/server/package-lock.json* ./
-RUN npm install
+RUN npm ci
 COPY apps/server/tsconfig.json ./
 COPY apps/server/src ./src
 RUN npm run build
@@ -26,7 +26,7 @@ FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY apps/server/package.json apps/server/package-lock.json* ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 COPY --from=server-build /app/dist ./dist
 COPY --from=web-build /web/dist ./public
 # node:sqlite is experimental on Node 22 (unflagged from Node 24+); pin this

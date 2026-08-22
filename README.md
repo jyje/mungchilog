@@ -39,6 +39,37 @@ cd apps/web && npm install && npm run dev       # http://localhost:5173
 
 Copy `.env.sample` to `.env` at the repo root for local Google Maps keys (optional: the app runs fine without them, map and routing UI just show a placeholder).
 
+### Container development
+
+The production image contains both the compiled React application and the Hono
+server. The server exposes the API and serves the web application's static
+files, so the runtime is one `app` container on port 3000.
+
+Run the default SQLite-backed container locally:
+
+```bash
+docker compose up --build
+```
+
+Open `http://localhost:3000`. The Compose configuration sets development mode
+only for local use, which permits the documented local pseudo-user when OIDC is
+not configured. It is not a production deployment configuration.
+
+To verify the PostgreSQL provider, layer its Compose override over the default
+configuration:
+
+```bash
+docker compose -f docker-compose.yaml -f docker/docker-compose.postgres.yaml up --build
+```
+
+The SQLite and PostgreSQL data directories use separate named Docker volumes.
+Remove them only when intentionally resetting local data:
+
+```bash
+docker compose down --volumes
+docker compose -f docker-compose.yaml -f docker/docker-compose.postgres.yaml down --volumes
+```
+
 ### Database backend
 
 SQLite is the default and keeps data in `./data/mungchilog.db`. To use another

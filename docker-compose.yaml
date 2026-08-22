@@ -1,0 +1,24 @@
+name: mungchilog
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+      args:
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
+    ports:
+      - "3000:3000"
+    environment:
+      # This Compose file is for local use only. Production requires OIDC and
+      # deliberately fails closed when it is not configured.
+      NODE_ENV: development
+      PORT: "3000"
+      DB_PROVIDER: sqlite
+      DB_SQLITE_PATH: /app/data/mungchilog.db
+      GOOGLE_MAPS_SERVER_API_KEY: ${GOOGLE_MAPS_SERVER_API_KEY:-}
+    volumes:
+      - mungchilog-data:/app/data
+
+volumes:
+  mungchilog-data:
