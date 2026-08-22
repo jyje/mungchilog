@@ -1,0 +1,56 @@
+image:
+  repository: ghcr.io/jyje/mungchilog
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 300m
+    memory: 256Mi
+
+service:
+  port: 80
+  targetPort: 3000
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  host: mungchilog.example.com
+  tlsSecretName: mungchilog-tls
+  publicPaths: []
+
+# DB_PROVIDER is the only shared selector. Every provider-specific value uses
+# its own namespace so no SQLite or PostgreSQL credential can be ambiguous.
+database:
+  provider: sqlite
+  sqlite:
+    path: /app/data/mungchilog.db
+  postgres:
+    # Select `url` for a DB_POSTGRES_URL secret key, or `components` for the
+    # DB_POSTGRES_HOST/PORT/DATABASE/USERNAME/PASSWORD secret keys.
+    connectionMode: url
+    existingSecret: ""
+    urlKey: DB_POSTGRES_URL
+    hostKey: DB_POSTGRES_HOST
+    portKey: DB_POSTGRES_PORT
+    databaseKey: DB_POSTGRES_DATABASE
+    usernameKey: DB_POSTGRES_USERNAME
+    passwordKey: DB_POSTGRES_PASSWORD
+
+persistence:
+  enabled: true
+  storageClassName: ""
+  size: 1Gi
+  mountPath: /app/data
+
+# Use these for application settings outside the database block, for example
+# OIDC variables or values from an existing sealed secret.
+extraEnv: []
+extraEnvFrom: []
+extraResources: []

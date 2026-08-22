@@ -26,7 +26,7 @@ Live at `https://mungchilog.app.jyje.online` (personal itinerary data, gated beh
 
 ## Stack
 
-- **Server**: [Hono](https://hono.dev) on Node.js, SQLite (`node:sqlite`)
+- **Server**: [Hono](https://hono.dev) on Node.js, selectable SQLite (`node:sqlite`) or PostgreSQL storage
 - **Web**: React 19 + Vite, [TanStack Query](https://tanstack.com/query), [dnd-kit](https://dndkit.com), [@vis.gl/react-google-maps](https://visgl.github.io/react-google-maps/)
 - **Deploy**: single container, GitOps via ArgoCD on a self-hosted microk8s cluster (manifests in [jyje/cluster](https://github.com/jyje/cluster))
 
@@ -38,5 +38,35 @@ cd apps/web && npm install && npm run dev       # http://localhost:5173
 ```
 
 Copy `.env.sample` to `.env` at the repo root for local Google Maps keys (optional: the app runs fine without them, map and routing UI just show a placeholder).
+
+### Database backend
+
+SQLite is the default and keeps data in `./data/mungchilog.db`. To use another
+path, set `DB_PROVIDER=sqlite` and
+`DB_SQLITE_PATH=/path/to/mungchilog.db`.
+
+For PostgreSQL, set `DB_PROVIDER=postgres` and either a complete
+`DB_POSTGRES_URL`, for example
+`postgresql://user:password@host:5432/mungchilog?sslmode=require`, or every
+component setting: `DB_POSTGRES_HOST`, `DB_POSTGRES_PORT`,
+`DB_POSTGRES_DATABASE`, `DB_POSTGRES_USERNAME`, and `DB_POSTGRES_PASSWORD`.
+The server initializes the same schema for either provider. Keep credentials in
+your local `.env` or deployment secret, never in the repository. Switching an
+existing deployment to PostgreSQL initializes an empty schema; migrate existing
+SQLite data separately before changing providers.
+
+### Helm chart
+
+The source chart is maintained in [`charts/mungchilog`](charts/mungchilog).
+It renders the same provider-specific environment variables as the server:
+`DB_SQLITE_PATH` for SQLite, or `DB_POSTGRES_URL` / the complete set of
+`DB_POSTGRES_*` component values for PostgreSQL. PostgreSQL credentials must
+come from an existing Kubernetes Secret and are never chart values.
+
+Chart releases are OCI artifacts published to
+`oci://ghcr.io/jyje/charts/mungchilog`. Every chart source change must bump
+`charts/mungchilog/Chart.yaml` before merge. The main-branch release workflow
+then packages and publishes that immutable version. Cluster GitOps
+configuration should consume the version rather than copying chart source.
 
 See [`PLAN.md`](PLAN.md) for architecture decisions and [`TASK.md`](TASK.md) for the milestone checklist.
