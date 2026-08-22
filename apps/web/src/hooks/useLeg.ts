@@ -2,6 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { computeLeg } from "../api";
 import type { Spot } from "../types";
 
+// Keep browser-persisted route data aligned with the server cache whenever
+// route geometry changes. The same version is used by the server's cache key.
+const ROUTE_GEOMETRY_VERSION = "high-quality-v1";
+
 // Converts a "wall-clock time in an arbitrary IANA timezone" into a UTC
 // ISO string, without a date library. Standard single-correction trick:
 // guess the UTC instant assuming offset 0, ask what wall-clock time that
@@ -52,7 +56,7 @@ export function useLeg(from: Spot, to: Spot, date: string, timezone: string) {
   const when = zonedIso(date, from.plannedArrival, timezone);
 
   return useQuery({
-    queryKey: ["leg", from.placeId, to.placeId, "TRANSIT", when],
+    queryKey: ["leg", from.placeId, to.placeId, "TRANSIT", when, ROUTE_GEOMETRY_VERSION],
     queryFn: () => computeLeg(from.placeId!, to.placeId!, "TRANSIT", when, timezone),
     enabled,
     staleTime: 1000 * 60 * 60 * 24 * 30, // matches the server's 30-day leg cache

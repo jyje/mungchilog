@@ -9,6 +9,10 @@ export const legs = new Hono<AuthEnv>();
 legs.use("*", requireAuth, requireApproved);
 
 const TRAVEL_MODES = ["DRIVE", "WALK", "BICYCLE", "TRANSIT", "TWO_WHEELER"] as const;
+// A route shape is cached alongside its journey summary. Bump this whenever
+// the requested geometry changes so an old overview polyline cannot conceal a
+// newly available, more accurate route for the entire 30-day TTL.
+const ROUTE_GEOMETRY_VERSION = "high-quality-v1";
 
 const ComputeLegSchema = z.object({
   fromPlaceId: z.string(),
@@ -51,7 +55,7 @@ function bucketFor(when: Date, timezone: string): string {
 }
 
 function cacheKey(fromPlaceId: string, toPlaceId: string, mode: string, bucket: string): string {
-  return `${fromPlaceId}:${toPlaceId}:${mode}:${bucket}`;
+  return `${fromPlaceId}:${toPlaceId}:${mode}:${bucket}:${ROUTE_GEOMETRY_VERSION}`;
 }
 
 legs.post("/compute", async (c) => {
@@ -159,6 +163,11 @@ async function callRoutesApi(
       destination: { placeId: toPlaceId },
       travelMode: mode,
       ...(mode === "TRANSIT" ? { departureTime: when.toISOString() } : {}),
+      // OVERVIEW is the API default and can reduce a short urban route to
+      // only a few straight segments. This application renders the route on
+      // an interactive map, so retain the official road and rail geometry.
+      polylineQuality: "HIGH_QUALITY",
+      polylineEncoding: "ENCODED_POLYLINE",
       // languageCode is the user's language preference, not tied to the
       // destination. No regionCode - every call here uses placeId, which
       // is already unambiguous, so region biasing has nothing to do.
