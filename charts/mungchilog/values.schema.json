@@ -27,6 +27,18 @@
           }
         }
       }
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "initialAdmin": {
+          "type": "object",
+          "properties": {
+            "existingSecret": { "type": "string" },
+            "key": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
     }
   }
 }

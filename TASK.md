@@ -87,7 +87,7 @@
 - [ ] 사용자 상태를 `pending`/`approved`/`rejected`/`suspended`로 확장. 거절 시 계정을 삭제해 재로그인으로 우회하게 하지 말고 세션을 즉시 폐기
 - [ ] `pending`, `rejected`, `suspended` 사용자는 `/auth/me`, `/auth/logout`, 상태 안내 외 모든 API를 서버에서 기본 거부
 - [ ] 승인 대기 화면은 15~30초마다 상태를 확인하고, 계정 승인 및 선점 초대 적용 뒤 해당 여행 또는 `/trips`로 자동 이동
-- [ ] 최초 관리자만 `ADMIN_EMAIL`로 한 번 부트스트랩하고 이후에는 저장된 OIDC subject로 식별
+- [x] Secret의 쉼표 구분 `INITIAL_ADMIN_EMAIL` 목록으로 초기 관리자 후보를 시드하고, 검증된 OIDC 로그인 뒤 저장된 subject로 활성 관리자 식별
 - [ ] Authorization Code + PKCE, state, nonce, 세션 회전, exact redirect URI, CSRF 또는 Origin 검사 회귀 테스트
 - [ ] Authentik의 Google Source 검증 상태를 반영하는 `email_verified` scope mapping 문서화 및 적용
 

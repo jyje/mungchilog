@@ -68,9 +68,22 @@ Authentik 2025.10 이후 기본 `email` 스코프는 `email_verified: false`를 
 | `OIDC_CLIENT_ID` | (3단계에서 발급된 값) |
 | `OIDC_CLIENT_SECRET` | (3단계에서 발급된 값, SealedSecret으로만 전달) |
 | `OIDC_REDIRECT_URI` | `https://mungchilog.app.jyje.online/auth/callback` |
-| `ADMIN_EMAIL` | `jyjeon@outlook.com` |
+| `INITIAL_ADMIN_EMAIL` | deployment Secret key |
 
 로컬 개발에서는 이 값들을 안 넣으면(즉 `.env`에 아무것도 안 적으면) 로그인 없이 관리자 권한으로 자동 로그인된 것처럼 동작합니다 (Google Maps 키 없을 때 placeholder로 대체되는 것과 같은 패턴) - 로컬 개발 편의를 위한 것이고, 배포 환경에서는 항상 실제 로그인이 강제됩니다.
+
+`INITIAL_ADMIN_EMAIL`은 쉼표로 구분한 초기 관리자 이메일 목록입니다. 첫 OIDC 배포 시 목록의 각 주소를 `pending` 관리자 후보로 미리 생성합니다. 각 후보는 해당 주소가 포함된 **검증된** OIDC 로그인을 완료할 때만 `approved` 관리자로 활성화되고, OIDC issuer와 subject가 연결됩니다. 따라서 Secret만 마운트했다고 관리자 세션이 생기지는 않습니다.
+
+목록에 넣은 이메일 주소는 부트스트랩 후보 레코드로 데이터베이스에 보관됩니다. 이미 `approved` 관리자가 하나라도 있으면 이 Secret 목록은 더 이상 데이터베이스를 변경하지 않습니다. 따라서 운영 중인 관리자 추가와 회수는 별도 사용자 관리 기능으로 처리해야 합니다.
+
+```yaml
+auth:
+  initialAdmin:
+    existingSecret: mungchilog-oidc
+    key: INITIAL_ADMIN_EMAIL
+```
+
+기존 `ADMIN_EMAIL` 환경 변수는 이미 배포된 환경의 호환을 위해서만 읽습니다. 두 키 모두 쉼표 구분 목록을 지원하지만, 새 Secret에는 `INITIAL_ADMIN_EMAIL` 키를 사용하세요.
 
 실제 OIDC 로그인까지 로컬에서 확인할 때는 `.env`에 위 값을 두고 다음 명령을 실행합니다. 이 모드는 웹을 빌드한 뒤 서버가 함께 제공하므로 callback 후에도 같은 `localhost:3000` 앱으로 돌아옵니다.
 

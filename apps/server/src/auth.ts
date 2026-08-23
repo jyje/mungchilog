@@ -8,6 +8,11 @@ import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness
 import { oidcCallbackUrl, oidcClientAuthentication } from "./oidc-client-auth.js";
 import { oidcIdentityFromClaims, type OidcIdentity } from "./oidc-identity.js";
 import { oidcLoginRequest } from "./oidc-login-request.js";
+import {
+  canActivateInitialAdminCandidate,
+  initialAdminEmails,
+  shouldSeedInitialAdminCandidates,
+} from "./initial-admin.js";
 import { canAllowUnverifiedEmailForLocalOidc, canAuthenticateWithUnverifiedEmailClaim } from "./local-oidc-email-verification.js";
 import { sessionStorageId } from "./session-security.js";
 
@@ -19,9 +24,10 @@ const ISSUER_URL = process.env.OIDC_ISSUER_URL;
 const CLIENT_ID = process.env.OIDC_CLIENT_ID;
 const CLIENT_SECRET = process.env.OIDC_CLIENT_SECRET;
 const REDIRECT_URI = process.env.OIDC_REDIRECT_URI;
-// Whoever owns this email is auto-approved as admin the moment they first
-// log in - no manual DB edit needed to bootstrap the very first account.
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+// This comma-separated value must come from a deployment Secret. It seeds
+// pending administrator candidates before the first sign-in. A candidate is
+// activated only when a verified OIDC identity claims its configured address.
+const INITIAL_ADMIN_EMAILS = initialAdminEmails();
 
 const OIDC_CONFIGURED = isOidcConfigured();
 const ALLOW_UNVERIFIED_EMAIL_FOR_LOCAL_OIDC = canAllowUnverifiedEmailForLocalOidc();
@@ -77,7 +83,7 @@ function rowToUser(row: UserRow): User {
 // placeholder/plain-text-input when its keys aren't set, rather than
 // hard-failing): keeps `npm run dev` usable without standing up an IdP,
 // while production (env vars present) always enforces real login.
-const DEV_USER: User = { id: "dev-local", email: ADMIN_EMAIL ?? "dev@localhost", name: "Local Dev", status: "approved", role: "admin" };
+const DEV_USER: User = { id: "dev-local", email: "dev@localhost", name: "Local Dev", status: "approved", role: "admin" };
 
 async function bootstrapDevUser() {
   // Make sure the pseudo-user row exists and owns whatever trips are
@@ -97,6 +103,41 @@ async function bootstrapDevUser() {
 
 if (LOCAL_DEV_AUTH) await bootstrapDevUser();
 
+function isPendingAdministratorCandidate(row: UserRow, email: string): boolean {
+  return row.status === "pending" && row.role === "admin" && row.email === email;
+}
+
+async function adoptOrphanTrips(userId: string, now: string) {
+  // Keep the legacy migration behavior: the first real administrator to
+  // activate owns trips created before memberships existed.
+  const orphanTrips = await db.all<{ id: string }>("SELECT id FROM trips WHERE id NOT IN (SELECT trip_id FROM trip_members)");
+  for (const trip of orphanTrips) {
+    await db.run("INSERT INTO trip_members (trip_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)", [trip.id, userId, now]);
+  }
+}
+
+async function seedInitialAdministratorCandidates() {
+  const existingApprovedAdmin = await db.get<Pick<UserRow, "id">>("SELECT id FROM users WHERE role = 'admin' AND status = 'approved' LIMIT 1");
+  if (!shouldSeedInitialAdminCandidates({
+    configuredInitialAdminEmails: INITIAL_ADMIN_EMAILS,
+    hasApprovedAdmin: !!existingApprovedAdmin,
+  })) return;
+
+  const now = new Date().toISOString();
+  for (const email of INITIAL_ADMIN_EMAILS) {
+    // A list member is deliberately a pending account until the exact address
+    // has been returned by a verified OIDC login. This leaves no usable
+    // administrator session behind merely because a Secret was mounted.
+    await db.run(
+      `INSERT INTO users (id, email, name, status, role, created_at) VALUES (?, ?, NULL, 'pending', 'admin', ?)
+       ON CONFLICT(email) DO UPDATE SET status = 'pending', role = 'admin'`,
+      [randomUUID(), email, now],
+    );
+  }
+}
+
+if (OIDC_CONFIGURED) await seedInitialAdministratorCandidates();
+
 let oidcConfig: oidc.Configuration | null = null;
 async function getOidcConfig(): Promise<oidc.Configuration> {
   if (!OIDC_CONFIGURED) throw new Error("OIDC is not configured (OIDC_ISSUER_URL/CLIENT_ID/CLIENT_SECRET/REDIRECT_URI)");
@@ -115,24 +156,46 @@ async function findUserByIdentity(identity: OidcIdentity): Promise<UserRow | und
   return db.get<UserRow>("SELECT * FROM users WHERE oidc_issuer = ? AND oidc_subject = ?", [identity.issuer, identity.subject]);
 }
 
-async function findOrCreateUser(identity: OidcIdentity, email: string, name: string | null, emailIsVerified: boolean): Promise<User> {
+async function findOrCreateUser(
+  identity: OidcIdentity,
+  email: string,
+  name: string | null,
+  emailIsVerified: boolean,
+): Promise<User> {
   const identityMatch = await findUserByIdentity(identity);
   if (identityMatch) {
+    const activateInitialAdmin = canActivateInitialAdminCandidate({
+      email,
+      emailIsVerified,
+      configuredInitialAdminEmails: INITIAL_ADMIN_EMAILS,
+      isPendingAdministratorCandidate: isPendingAdministratorCandidate(identityMatch, email),
+    });
     if (emailIsVerified && email !== identityMatch.email) {
-      const emailOwner = await db.get<Pick<UserRow, "id">>("SELECT id FROM users WHERE email = ?", [email]);
+      const emailOwner = await db.get<Pick<UserRow, "id">>("SELECT id FROM users WHERE LOWER(email) = ?", [email]);
       if (emailOwner && emailOwner.id !== identityMatch.id) {
         throw new Error("email is already associated with another account");
       }
     }
-    if ((emailIsVerified && email !== identityMatch.email) || (name && name !== identityMatch.name)) {
-      await db.run("UPDATE users SET email = ?, name = ? WHERE id = ?", [emailIsVerified ? email : identityMatch.email, name, identityMatch.id]);
+    if ((emailIsVerified && email !== identityMatch.email) || (name && name !== identityMatch.name) || activateInitialAdmin) {
+      await db.run("UPDATE users SET email = ?, name = ?, status = ?, role = ? WHERE id = ?", [
+        emailIsVerified ? email : identityMatch.email,
+        name,
+        activateInitialAdmin ? "approved" : identityMatch.status,
+        activateInitialAdmin ? "admin" : identityMatch.role,
+        identityMatch.id,
+      ]);
       if (emailIsVerified) identityMatch.email = email;
       identityMatch.name = name;
+      if (activateInitialAdmin) {
+        identityMatch.status = "approved";
+        identityMatch.role = "admin";
+        await adoptOrphanTrips(identityMatch.id, new Date().toISOString());
+      }
     }
     return rowToUser(identityMatch);
   }
 
-  const emailMatch = await db.get<UserRow>("SELECT * FROM users WHERE email = ?", [email]);
+  const emailMatch = await db.get<UserRow>("SELECT * FROM users WHERE LOWER(email) = ?", [email]);
   if (emailMatch) {
     if (!emailIsVerified) {
       throw new Error("an unverified email cannot claim an existing account");
@@ -140,17 +203,34 @@ async function findOrCreateUser(identity: OidcIdentity, email: string, name: str
     if (emailMatch.oidc_issuer || emailMatch.oidc_subject) {
       throw new Error("email is already associated with a different identity provider account");
     }
+    const activateInitialAdmin = canActivateInitialAdminCandidate({
+      email,
+      emailIsVerified,
+      configuredInitialAdminEmails: INITIAL_ADMIN_EMAILS,
+      isPendingAdministratorCandidate: isPendingAdministratorCandidate(emailMatch, email),
+    });
     // Existing email-only users bind their stable OIDC identity on the next
     // verified login, preserving their memberships without trusting email
     // as the account key from then on.
-    await db.run("UPDATE users SET oidc_issuer = ?, oidc_subject = ?, name = ? WHERE id = ?", [identity.issuer, identity.subject, name, emailMatch.id]);
+    await db.run("UPDATE users SET oidc_issuer = ?, oidc_subject = ?, name = ?, status = ?, role = ? WHERE id = ?", [
+      identity.issuer,
+      identity.subject,
+      name,
+      activateInitialAdmin ? "approved" : emailMatch.status,
+      activateInitialAdmin ? "admin" : emailMatch.role,
+      emailMatch.id,
+    ]);
     emailMatch.oidc_issuer = identity.issuer;
     emailMatch.oidc_subject = identity.subject;
     emailMatch.name = name;
+    if (activateInitialAdmin) {
+      emailMatch.status = "approved";
+      emailMatch.role = "admin";
+      await adoptOrphanTrips(emailMatch.id, new Date().toISOString());
+    }
     return rowToUser(emailMatch);
   }
 
-  const isAdmin = emailIsVerified && !!ADMIN_EMAIL && email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const id = randomUUID();
   const now = new Date().toISOString();
   await db.run("INSERT INTO users (id, email, name, oidc_issuer, oidc_subject, status, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
@@ -159,23 +239,12 @@ async function findOrCreateUser(identity: OidcIdentity, email: string, name: str
     name,
     identity.issuer,
     identity.subject,
-    isAdmin ? "approved" : "pending",
-    isAdmin ? "admin" : "member",
+    "pending",
+    "member",
     now,
   ]);
 
-  if (isAdmin) {
-    // Backfill: any trip created before this user/membership system
-    // existed has no owner yet. The first time the real admin logs in,
-    // adopt those orphaned trips rather than leaving them permanently
-    // inaccessible.
-    const orphanTrips = await db.all<{ id: string }>("SELECT id FROM trips WHERE id NOT IN (SELECT trip_id FROM trip_members)");
-    for (const t of orphanTrips) {
-      await db.run("INSERT INTO trip_members (trip_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)", [t.id, id, now]);
-    }
-  }
-
-  return { id, email, name, status: isAdmin ? "approved" : "pending", role: isAdmin ? "admin" : "member" };
+  return { id, email, name, status: "pending", role: "member" };
 }
 
 async function createSession(userId: string): Promise<string> {
@@ -306,20 +375,20 @@ auth.get("/callback", async (c) => {
   }
 
   const claims = tokens.claims();
-  const email = claims?.email as string | undefined;
+  const email = (claims?.email as string | undefined)?.trim().toLowerCase();
   const emailVerified = claims?.email_verified;
   if (!email) return c.json({ error: "the identity provider did not return an email claim" }, 400);
   const name = (claims?.name as string | undefined) ?? null;
   const identity = oidcIdentityFromClaims(claims as Record<string, unknown> | undefined);
   if (!identity) return c.json({ error: "the identity provider did not return a stable account identity" }, 400);
   const knownIdentity = await findUserByIdentity(identity);
-  const existingEmailAccount = await db.get<Pick<UserRow, "id">>("SELECT id FROM users WHERE email = ?", [email]);
+  const existingEmailAccount = await db.get<Pick<UserRow, "id">>("SELECT id FROM users WHERE LOWER(email) = ?", [email]);
   const emailIsVerified = emailVerified === true || ALLOW_UNVERIFIED_EMAIL_FOR_LOCAL_OIDC;
   if (!emailIsVerified && !canAuthenticateWithUnverifiedEmailClaim({
     isLocalDevelopmentCallback: ALLOW_UNVERIFIED_EMAIL_FOR_LOCAL_OIDC,
     hasKnownIdentity: !!knownIdentity,
     hasExistingEmailAccount: !!existingEmailAccount,
-    isConfiguredAdminEmail: !!ADMIN_EMAIL && email.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
+    isConfiguredAdminEmail: INITIAL_ADMIN_EMAILS.includes(email),
   })) {
     return c.json({ error: "the identity provider did not verify the email claim" }, 400);
   }
@@ -361,7 +430,7 @@ auth.get("/me", async (c) => {
 });
 
 export async function findUserByEmail(email: string): Promise<User | null> {
-  const row = await db.get<UserRow>("SELECT * FROM users WHERE email = ?", [email]);
+  const row = await db.get<UserRow>("SELECT * FROM users WHERE LOWER(email) = ?", [email.trim().toLowerCase()]);
   return row ? rowToUser(row) : null;
 }
 

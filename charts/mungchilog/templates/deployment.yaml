@@ -70,6 +70,15 @@ spec:
             {{- fail "database.postgres.connectionMode must be url or components" }}
             {{- end }}
             {{- end }}
+            {{- with .Values.auth.initialAdmin }}
+            {{- if .existingSecret }}
+            - name: INITIAL_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .existingSecret }}
+                  key: {{ required "auth.initialAdmin.key is required when auth.initialAdmin.existingSecret is set" .key }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

@@ -45,6 +45,13 @@ database:
     usernameKey: DB_POSTGRES_USERNAME
     passwordKey: DB_POSTGRES_PASSWORD
 
+auth:
+  initialAdmin:
+    # The comma-separated initial administrator email list is personal data.
+    # Reference a Secret instead of placing the value in Helm values or Git.
+    existingSecret: ""
+    key: INITIAL_ADMIN_EMAIL
+
 persistence:
   enabled: true
   storageClassName: ""
