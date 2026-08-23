@@ -7,6 +7,7 @@ import { db } from "./db.js";
 import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness, isOidcConfigured } from "./auth-config.js";
 import { oidcCallbackUrl, oidcClientAuthentication } from "./oidc-client-auth.js";
 import { oidcIdentityFromClaims, type OidcIdentity } from "./oidc-identity.js";
+import { oidcLoginRequest } from "./oidc-login-request.js";
 import { canAllowUnverifiedEmailForLocalOidc, canAuthenticateWithUnverifiedEmailClaim } from "./local-oidc-email-verification.js";
 import { sessionStorageId } from "./session-security.js";
 
@@ -221,7 +222,7 @@ const FLOW_COOKIE = "mungchilog_oidc_flow";
 
 export const auth = new Hono();
 
-auth.get("/login", async (c) => {
+async function beginOidcLogin(c: Context, requireFreshAuthentication = false): Promise<URL | Response> {
   if (!OIDC_CONFIGURED) return c.json({ error: "OIDC is not configured on this deployment" }, 503);
   const config = await getOidcConfig();
   const codeVerifier = oidc.randomPKCECodeVerifier();
@@ -237,15 +238,33 @@ auth.get("/login", async (c) => {
     path: "/",
   });
 
-  const url = oidc.buildAuthorizationUrl(config, {
-    redirect_uri: REDIRECT_URI!,
-    scope: "openid email profile",
-    code_challenge: codeChallenge,
-    code_challenge_method: "S256",
+  return oidc.buildAuthorizationUrl(config, oidcLoginRequest({
+    redirectUri: REDIRECT_URI!,
+    codeChallenge,
     state,
     nonce,
-  });
+    requireFreshAuthentication,
+  }));
+}
+
+auth.get("/login", async (c) => {
+  const url = await beginOidcLogin(c);
+  if (url instanceof Response) return url;
   return c.redirect(url.toString());
+});
+
+// This is intentionally a same-origin POST. It removes only Mungchilog's
+// application session, then asks the identity provider to authenticate again
+// so a shared browser can switch accounts without a cross-site logout vector.
+auth.post("/restart-login", requireSameOrigin, async (c) => {
+  const sessionId = getCookie(c, SESSION_COOKIE);
+  if (sessionId) await deleteSession(sessionId);
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+  deleteCookie(c, FLOW_COOKIE, { path: "/" });
+
+  const url = await beginOidcLogin(c, true);
+  if (url instanceof Response) return url;
+  return c.json({ authorizationUrl: url.toString() });
 });
 
 auth.get("/callback", async (c) => {
