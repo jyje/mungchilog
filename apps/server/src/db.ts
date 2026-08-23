@@ -51,6 +51,8 @@ const SCHEMA = `
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     name TEXT,
+    oidc_issuer TEXT,
+    oidc_subject TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     role TEXT NOT NULL DEFAULT 'member',
     created_at TEXT NOT NULL
@@ -71,6 +73,31 @@ const SCHEMA = `
     PRIMARY KEY (trip_id, user_id)
   );
 `;
+
+/**
+ * Existing deployments predate stable OIDC identifiers. Add the nullable
+ * columns in place, then enforce uniqueness only once both values exist.
+ */
+export async function migrateUserIdentityColumns(database: Database, provider: DbProvider) {
+  if (provider === "postgres") {
+    await database.exec(`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS oidc_issuer TEXT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS oidc_subject TEXT;
+    `);
+  } else {
+    const columns = await database.all<{ name: string }>("PRAGMA table_info(users)");
+    if (!columns.some((column) => column.name === "oidc_issuer")) {
+      await database.exec("ALTER TABLE users ADD COLUMN oidc_issuer TEXT");
+    }
+    if (!columns.some((column) => column.name === "oidc_subject")) {
+      await database.exec("ALTER TABLE users ADD COLUMN oidc_subject TEXT");
+    }
+  }
+
+  await database.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS users_oidc_identity ON users(oidc_issuer, oidc_subject) WHERE oidc_issuer IS NOT NULL AND oidc_subject IS NOT NULL",
+  );
+}
 
 export function getDbProvider(env: NodeJS.ProcessEnv = process.env): DbProvider {
   const provider = env.DB_PROVIDER ?? "sqlite";
@@ -190,6 +217,7 @@ async function createDatabase(): Promise<Database> {
     const connectionString = getPostgresConnectionString();
     const database = new PostgresDatabase(new Pool({ connectionString }));
     await database.exec(SCHEMA);
+    await migrateUserIdentityColumns(database, provider);
     return database;
   }
 
@@ -201,6 +229,7 @@ async function createDatabase(): Promise<Database> {
   await database.exec("PRAGMA journal_mode = DELETE;");
   await database.exec("PRAGMA busy_timeout = 5000;");
   await database.exec(SCHEMA);
+  await migrateUserIdentityColumns(database, provider);
   return database;
 }
 

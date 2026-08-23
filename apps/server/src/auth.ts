@@ -6,6 +6,7 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { db } from "./db.js";
 import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness, isOidcConfigured } from "./auth-config.js";
 import { oidcCallbackUrl, oidcClientAuthentication } from "./oidc-client-auth.js";
+import { oidcIdentityFromClaims, type OidcIdentity } from "./oidc-identity.js";
 import { sessionStorageId } from "./session-security.js";
 
 // Standard OIDC login, configured entirely via env vars so this works with
@@ -48,7 +49,15 @@ export type User = {
   role: "admin" | "member";
 };
 
-type UserRow = { id: string; email: string; name: string | null; status: string; role: string };
+type UserRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  oidc_issuer: string | null;
+  oidc_subject: string | null;
+  status: string;
+  role: string;
+};
 
 function rowToUser(row: UserRow): User {
   return {
@@ -99,26 +108,45 @@ async function getOidcConfig(): Promise<oidc.Configuration> {
   return oidcConfig;
 }
 
-async function findOrCreateUser(email: string, name: string | null): Promise<User> {
-  const existing = await db.get<UserRow>("SELECT * FROM users WHERE email = ?", [email]);
-  if (existing) {
-    // A name can change upstream (IdP profile edit); status/role don't get
-    // silently overwritten here - those only change via the admin flow
-    // below or the one-time admin-bootstrap case.
-    if (name && name !== existing.name) {
-      await db.run("UPDATE users SET name = ? WHERE id = ?", [name, existing.id]);
-      existing.name = name;
+async function findOrCreateUser(identity: OidcIdentity, email: string, name: string | null): Promise<User> {
+  const identityMatch = await db.get<UserRow>("SELECT * FROM users WHERE oidc_issuer = ? AND oidc_subject = ?", [identity.issuer, identity.subject]);
+  if (identityMatch) {
+    const emailOwner = await db.get<Pick<UserRow, "id">>("SELECT id FROM users WHERE email = ?", [email]);
+    if (emailOwner && emailOwner.id !== identityMatch.id) {
+      throw new Error("email is already associated with another account");
     }
-    return rowToUser(existing);
+    if (email !== identityMatch.email || (name && name !== identityMatch.name)) {
+      await db.run("UPDATE users SET email = ?, name = ? WHERE id = ?", [email, name, identityMatch.id]);
+      identityMatch.email = email;
+      identityMatch.name = name;
+    }
+    return rowToUser(identityMatch);
+  }
+
+  const emailMatch = await db.get<UserRow>("SELECT * FROM users WHERE email = ?", [email]);
+  if (emailMatch) {
+    if (emailMatch.oidc_issuer || emailMatch.oidc_subject) {
+      throw new Error("email is already associated with a different identity provider account");
+    }
+    // Existing email-only users bind their stable OIDC identity on the next
+    // verified login, preserving their memberships without trusting email
+    // as the account key from then on.
+    await db.run("UPDATE users SET oidc_issuer = ?, oidc_subject = ?, name = ? WHERE id = ?", [identity.issuer, identity.subject, name, emailMatch.id]);
+    emailMatch.oidc_issuer = identity.issuer;
+    emailMatch.oidc_subject = identity.subject;
+    emailMatch.name = name;
+    return rowToUser(emailMatch);
   }
 
   const isAdmin = !!ADMIN_EMAIL && email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const id = randomUUID();
   const now = new Date().toISOString();
-  await db.run("INSERT INTO users (id, email, name, status, role, created_at) VALUES (?, ?, ?, ?, ?, ?)", [
+  await db.run("INSERT INTO users (id, email, name, oidc_issuer, oidc_subject, status, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
     id,
     email,
     name,
+    identity.issuer,
+    identity.subject,
     isAdmin ? "approved" : "pending",
     isAdmin ? "admin" : "member",
     now,
@@ -242,8 +270,16 @@ auth.get("/callback", async (c) => {
   if (!email) return c.json({ error: "the identity provider did not return an email claim" }, 400);
   if (emailVerified !== true) return c.json({ error: "the identity provider did not verify the email claim" }, 400);
   const name = (claims?.name as string | undefined) ?? null;
+  const identity = oidcIdentityFromClaims(claims as Record<string, unknown> | undefined);
+  if (!identity) return c.json({ error: "the identity provider did not return a stable account identity" }, 400);
 
-  const user = await findOrCreateUser(email, name);
+  let user: User;
+  try {
+    user = await findOrCreateUser(identity, email, name);
+  } catch (error) {
+    console.error("OIDC user binding failed:", error);
+    return c.json({ error: "login failed" }, 400);
+  }
   // Rotate any session that was already present before this login so a
   // pre-login cookie cannot remain valid after authentication.
   const priorSessionId = getCookie(c, SESSION_COOKIE);

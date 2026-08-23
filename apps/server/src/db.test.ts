@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getDbProvider, getPostgresConnectionString, toPostgresPlaceholders } from "./db.js";
+import { getDbProvider, getPostgresConnectionString, migrateUserIdentityColumns, toPostgresPlaceholders, type Database } from "./db.js";
 
 test("SQLite remains the default provider", () => {
   assert.equal(getDbProvider({}), "sqlite");
@@ -41,4 +41,23 @@ test("PostgreSQL placeholder conversion preserves quoted question marks", () => 
     toPostgresPlaceholders("SELECT * FROM trips WHERE id = ? AND title = '?' AND updated_at > ?"),
     "SELECT * FROM trips WHERE id = $1 AND title = '?' AND updated_at > $2",
   );
+});
+
+test("SQLite user identity migration adds missing columns and a unique identity index", async () => {
+  const statements: string[] = [];
+  const database: Database = {
+    get: async <T>() => undefined as T | undefined,
+    all: async <T>() => [{ name: "id" }, { name: "email" }] as T[],
+    run: async () => ({ changes: 0 }),
+    exec: async (sql) => { statements.push(sql); },
+    close: async () => {},
+  };
+
+  await migrateUserIdentityColumns(database, "sqlite");
+
+  assert.deepEqual(statements, [
+    "ALTER TABLE users ADD COLUMN oidc_issuer TEXT",
+    "ALTER TABLE users ADD COLUMN oidc_subject TEXT",
+    "CREATE UNIQUE INDEX IF NOT EXISTS users_oidc_identity ON users(oidc_issuer, oidc_subject) WHERE oidc_issuer IS NOT NULL AND oidc_subject IS NOT NULL",
+  ]);
 });
