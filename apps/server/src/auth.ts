@@ -7,6 +7,7 @@ import { db } from "./db.js";
 import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness, isOidcConfigured } from "./auth-config.js";
 import { oidcCallbackUrl, oidcClientAuthentication } from "./oidc-client-auth.js";
 import { oidcIdentityFromClaims, type OidcIdentity } from "./oidc-identity.js";
+import { canAllowUnverifiedEmailForLocalOidc } from "./local-oidc-email-verification.js";
 import { sessionStorageId } from "./session-security.js";
 
 // Standard OIDC login, configured entirely via env vars so this works with
@@ -22,6 +23,7 @@ const REDIRECT_URI = process.env.OIDC_REDIRECT_URI;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 
 const OIDC_CONFIGURED = isOidcConfigured();
+const ALLOW_UNVERIFIED_EMAIL_FOR_LOCAL_OIDC = canAllowUnverifiedEmailForLocalOidc();
 // A missing production Secret or ConfigMap must never turn into an
 // authenticated local administrator. The fallback is limited to an explicit
 // development process so a misconfigured deployment fails closed.
@@ -268,7 +270,9 @@ auth.get("/callback", async (c) => {
   const email = claims?.email as string | undefined;
   const emailVerified = claims?.email_verified;
   if (!email) return c.json({ error: "the identity provider did not return an email claim" }, 400);
-  if (emailVerified !== true) return c.json({ error: "the identity provider did not verify the email claim" }, 400);
+  if (emailVerified !== true && !ALLOW_UNVERIFIED_EMAIL_FOR_LOCAL_OIDC) {
+    return c.json({ error: "the identity provider did not verify the email claim" }, 400);
+  }
   const name = (claims?.name as string | undefined) ?? null;
   const identity = oidcIdentityFromClaims(claims as Record<string, unknown> | undefined);
   if (!identity) return c.json({ error: "the identity provider did not return a stable account identity" }, 400);
