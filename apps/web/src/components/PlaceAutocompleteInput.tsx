@@ -25,11 +25,13 @@ export function PlaceAutocompleteInput({
   onChange,
   onSelect,
   placeholder,
+  autoFocus = true,
 }: {
   value: string;
   onChange: (text: string) => void;
   onSelect: (place: PlaceSelection) => void;
   placeholder?: string;
+  autoFocus?: boolean;
 }) {
   const placesLib = useMapsLibrary("places");
   const [suggestions, setSuggestions] = useState<google.maps.places.AutocompleteSuggestion[]>([]);
@@ -98,7 +100,7 @@ export function PlaceAutocompleteInput({
         type="text"
         placeholder={placeholder}
         value={value}
-        autoFocus
+        autoFocus={autoFocus}
         onChange={(e) => onChange(e.target.value)}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}

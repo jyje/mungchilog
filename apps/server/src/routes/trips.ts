@@ -44,9 +44,9 @@ function tripCoverSummary(data: TripData) {
 trips.post("/import", async (c) => {
   const user = c.get("user");
   const contentLength = Number(c.req.header("Content-Length") ?? 0);
-  // Cover images are intentionally temporary Base64 data URLs. Keep this
-  // endpoint bounded until object storage replaces them, instead of letting
-  // a single itinerary request consume unbounded server memory.
+  // Keep submitted trip data bounded until image storage moves out of the
+  // itinerary payload, instead of letting one request consume unbounded
+  // server memory.
   if (Number.isFinite(contentLength) && contentLength > 3 * 1024 * 1024) {
     return c.json({ error: "trip payload must not exceed 3 MiB" }, 413);
   }

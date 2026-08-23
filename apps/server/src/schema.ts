@@ -27,7 +27,7 @@ export const TripCoverSchema = z
     imageDataUrl: z.string().superRefine((value, ctx) => {
       const match = IMAGE_DATA_URL.exec(value);
       if (!match || !match[2]) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "cover image must be a JPEG, PNG, or WebP Base64 data URL" });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: "cover image must be a JPEG, PNG, or WebP file" });
         return;
       }
       if (decodedBase64ByteLength(match[2]) > MAX_COVER_IMAGE_BYTES) {

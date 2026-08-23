@@ -12,7 +12,7 @@ import { LegInfo } from "../components/LegInfo";
 import { SpotForm, type SpotFormValues } from "../components/SpotForm";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { TripShareButton } from "../components/TripShareButton";
-import { TripCoverEditor } from "../components/TripCoverEditor";
+import { TripCoverSettingsButton } from "../components/TripCoverSettingsButton";
 import type { Me } from "../api";
 
 function nextDate(dateStr: string): string {
@@ -354,7 +354,12 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             ←
           </a>
         }
-        headerRight={<TripShareButton tripId={id} me={me} />}
+        headerRight={
+          <div className="trip-header-actions">
+            <TripShareButton tripId={id} me={me} />
+            <TripCoverSettingsButton trip={trip} onSave={saveNow} saving={mutation.isPending} />
+          </div>
+        }
         title={trip.title}
         subtitle={
           <>
@@ -363,7 +368,6 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         }
         panel={
           <>
-            <TripCoverEditor trip={trip} onSave={saveNow} saving={mutation.isPending} />
             <div className="day-tabs-wrap">
               <div className="day-tabs">
                 {trip.days.map((d, i) => (

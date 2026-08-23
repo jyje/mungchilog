@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Trip, Spot } from "../types";
 import { MAX_COVER_IMAGE_BYTES } from "../types";
 
@@ -17,11 +17,27 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-export function TripCoverEditor({ trip, onSave, saving }: { trip: Trip; onSave: (trip: Trip) => void; saving: boolean }) {
+export function TripCoverEditor({
+  trip,
+  onSave,
+  onSaved,
+  onDirtyChange,
+  saving,
+}: {
+  trip: Trip;
+  onSave: (trip: Trip) => void;
+  onSaved: () => void;
+  onDirtyChange: (spotId: string, imageDataUrl: string) => void;
+  saving: boolean;
+}) {
   const [spotId, setSpotId] = useState(trip.cover?.spotId ?? "");
   const [imageDataUrl, setImageDataUrl] = useState(trip.cover?.imageDataUrl ?? "");
   const [imageError, setImageError] = useState<string | null>(null);
   const spots = allSpots(trip);
+
+  useEffect(() => {
+    onDirtyChange(spotId, imageDataUrl);
+  }, [imageDataUrl, onDirtyChange, spotId]);
 
   async function chooseImage(file: File | undefined) {
     if (!file) return;
@@ -45,15 +61,11 @@ export function TripCoverEditor({ trip, onSave, saving }: { trip: Trip; onSave: 
   function saveCover() {
     const cover = spotId || imageDataUrl ? { ...(spotId ? { spotId } : {}), ...(imageDataUrl ? { imageDataUrl } : {}) } : null;
     onSave({ ...trip, cover });
+    onSaved();
   }
 
   return (
-    <section className="trip-cover-editor" aria-labelledby="trip-cover-heading">
-      <div>
-        <h2 id="trip-cover-heading">대표 화면</h2>
-        <p className="meta">사진이 있으면 사진을, 없으면 대표 장소의 지도를 여행 목록에 보여줍니다.</p>
-      </div>
-
+    <div className="trip-cover-editor">
       <label className="trip-cover-field">
         대표 장소
         <select value={spotId} onChange={(event) => setSpotId(event.target.value)}>
@@ -70,7 +82,7 @@ export function TripCoverEditor({ trip, onSave, saving }: { trip: Trip; onSave: 
         대표 이미지
         <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void chooseImage(event.target.files?.[0])} />
       </label>
-      <p className="trip-cover-storage-note">이미지는 현재 2 MiB까지 Base64로 일정 데이터에 저장됩니다.</p>
+      <p className="trip-cover-file-hint">JPEG, PNG 또는 WebP 파일을 선택할 수 있습니다. 최대 2 MiB.</p>
       {imageError && <p className="error">{imageError}</p>}
 
       {imageDataUrl && (
@@ -93,12 +105,13 @@ export function TripCoverEditor({ trip, onSave, saving }: { trip: Trip; onSave: 
               setSpotId("");
               setImageDataUrl("");
               onSave({ ...trip, cover: null });
+              onSaved();
             }}
           >
             대표 화면 비우기
           </button>
         )}
       </div>
-    </section>
+    </div>
   );
 }

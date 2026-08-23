@@ -325,18 +325,6 @@ ul {
 .trip-cover-editor {
   display: grid;
   gap: 0.75rem;
-  margin: 0.2rem 0 1.15rem;
-  padding: 1rem;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-}
-.trip-cover-editor h2 {
-  margin: 0;
-  font-size: 1rem;
-}
-.trip-cover-editor .meta {
-  margin: 0.2rem 0 0;
 }
 .trip-cover-field {
   display: grid;
@@ -365,7 +353,7 @@ ul {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.trip-cover-storage-note {
+.trip-cover-file-hint {
   margin: -0.2rem 0 0;
   color: var(--text-muted);
   font-size: var(--type-label);
@@ -653,6 +641,11 @@ ul {
 .map-hero-title .meta {
   color: rgba(255, 255, 255, 0.85);
 }
+.trip-header-actions {
+  display: flex;
+  flex: none;
+  gap: 0.35rem;
+}
 
 .menu-anchor {
   position: relative;
@@ -710,6 +703,64 @@ ul {
   border-color: var(--accent);
   color: var(--accent);
   font-weight: 600;
+}
+.trip-actions-menu {
+  left: auto;
+  right: 0;
+}
+
+.trip-cover-dialog {
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: min(44rem, calc(100dvh - 2rem));
+  margin: auto;
+  padding: 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  overflow-y: auto;
+  box-shadow: 0 1.5rem 4rem var(--shadow-color);
+}
+.trip-cover-dialog::backdrop {
+  background: rgba(20, 21, 26, 0.45);
+}
+.trip-cover-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.trip-cover-dialog-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.trip-cover-dialog-header .meta {
+  margin: 0.25rem 0 0;
+}
+.trip-cover-dialog-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.trip-cover-dialog-close:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg);
+}
+.trip-cover-dialog-close:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+.trip-cover-dialog button:focus-visible,
+.trip-cover-dialog input:focus-visible,
+.trip-cover-dialog select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* resizable panel: bottom/left/right all share the same pane, only the
@@ -912,6 +963,16 @@ body.trip-panel-resizing { cursor: col-resize; }
 }
 @media (max-width: 640px) {
   .floating-panel-hint { display: none; }
+  .trip-cover-dialog {
+    width: 100%;
+    max-height: min(78dvh, 44rem);
+    margin: auto 0 0;
+    border-right: none;
+    border-bottom: none;
+    border-left: none;
+    border-radius: 20px 20px 0 0;
+    padding: 1.25rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
+  }
 }
 
 /* spot list */

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { saveTrip } from "../api";
+import { MapsScope } from "../components/MapsScope";
+import { PlaceAutocompleteInput, type PlaceSelection } from "../components/PlaceAutocompleteInput";
 
 // Full IANA list where the browser supports it (Chrome/Safari 15.4+);
 // a short curated fallback everywhere else. Not locked to any one
@@ -50,6 +52,8 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
   const [endDate, setEndDate] = useState("");
   const [timezone, setTimezone] = useState("Asia/Tokyo");
   const [currency, setCurrency] = useState("JPY");
+  const [representativePlaceName, setRepresentativePlaceName] = useState("");
+  const [representativePlace, setRepresentativePlace] = useState<PlaceSelection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -62,13 +66,30 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
     }
     setSubmitting(true);
     try {
+      const hasRepresentativePlace = representativePlaceName.trim().length > 0;
+      const representativeSpot = hasRepresentativePlace
+        ? {
+            id: crypto.randomUUID(),
+            order: 0,
+            name: representativePlaceName.trim(),
+            ...(representativePlace?.name === representativePlaceName ? {
+              placeId: representativePlace.placeId,
+              lat: representativePlace.lat,
+              lng: representativePlace.lng,
+              category: representativePlace.category,
+            } : {}),
+            bufferMinutes: 10,
+            items: [],
+          }
+        : null;
       const { id } = await saveTrip({
         title: title.trim(),
         timezone,
         currency: currency.trim() || "JPY",
         startDate,
         endDate,
-        days: [],
+        days: representativeSpot ? [{ date: startDate, spots: [representativeSpot] }] : [],
+        ...(representativeSpot ? { cover: { spotId: representativeSpot.id } } : {}),
       });
       await qc.invalidateQueries({ queryKey: ["trips"] });
       navigate(`/trips/${id}`);
@@ -80,7 +101,8 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
   }
 
   return (
-    <div className="page">
+    <MapsScope>
+      <div className="page">
       <p>
         <a
           href="/trips"
@@ -93,7 +115,7 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
         </a>
       </p>
       <h1>새 여행 만들기</h1>
-      <p className="meta">날짜와 스팟은 다음 화면에서 하나씩 추가합니다. 통째로 넣으려면 JSON 가져오기를 쓰세요.</p>
+      <p className="meta">대표 장소를 선택하면 여행 첫날 일정에 바로 추가합니다. 나머지 날짜와 스팟은 다음 화면에서 추가하세요.</p>
       <form onSubmit={handleSubmit}>
         <label className="field">
           <span className="field-label">제목</span>
@@ -127,11 +149,28 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
             maxLength={3}
           />
         </label>
+        <label className="field">
+          <span className="field-label">대표 장소 (선택)</span>
+          <PlaceAutocompleteInput
+            value={representativePlaceName}
+            autoFocus={false}
+            placeholder="여행을 대표할 장소를 검색하세요"
+            onChange={(value) => {
+              setRepresentativePlaceName(value);
+              if (representativePlace && value !== representativePlace.name) setRepresentativePlace(null);
+            }}
+            onSelect={(place) => {
+              setRepresentativePlace(place);
+              setRepresentativePlaceName(place.name);
+            }}
+          />
+        </label>
         {error && <p className="error">{error}</p>}
         <button type="submit" disabled={submitting}>
           {submitting ? "만드는 중..." : "만들기"}
         </button>
       </form>
-    </div>
+      </div>
+    </MapsScope>
   );
 }
