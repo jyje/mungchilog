@@ -29,3 +29,11 @@
 - Apply these interaction principles proactively without waiting for an explicit reminder.
 - When an interaction requirement is incomplete, conflicts with another behavior, risks data loss, or would create an accessibility or platform problem, explain the issue promptly and propose a concrete improvement before implementing the risky behavior.
 - When implementing related UI, include reasonable supporting UX such as loading, empty, error, focus, and mobile states. Report any material limitation separately from completed work.
+
+# Delivery and security work
+
+- Split multi-concern work into independently verifiable functional slices. Create a local commit after each completed slice so behavior changes can be traced and reviewed separately.
+- Validate authentication changes locally before requesting a remote deployment. When real OIDC credentials and a localhost callback registration are available, exercise the full login and logout flow rather than relying only on mocked configuration tests.
+- Keep local OIDC credentials in ignored environment files only. Never commit, print, or include secret values, session tokens, authorization codes, or callback state in logs, commit messages, issues, or pull requests.
+- Treat identity and session changes as database migrations. Preserve compatible existing records where safe, make any forced sign-out explicit, and cover the migration behavior with focused tests.
+- Report security limitations and unverified infrastructure controls separately from application-level protections. Do not imply that storage encryption, backup encryption, network policy, or ingress headers are configured unless they have been verified.
