@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { beginFreshLogin } from "../api";
+import { restartAfterProviderLogout } from "../auth/providerLogout";
 
 function LoginProgress({ message = "로그인 화면으로 이동하고 있습니다." }: { message?: string }) {
   return (
@@ -27,7 +28,7 @@ export function LoginPage() {
     setError(null);
     setIsLoggingIn(true);
     try {
-      window.location.assign(await beginFreshLogin());
+      await restartAfterProviderLogout(await beginFreshLogin());
     } catch {
       setIsLoggingIn(false);
       setError("로그인을 다시 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
@@ -46,7 +47,7 @@ export function LoginPage() {
           다른 계정으로 로그인
         </button>
       </div>
-      {isLoggingIn && <LoginProgress message="기존 로그인 세션을 확인하고 있습니다." />}
+      {isLoggingIn && <LoginProgress message="기존 로그인 세션을 종료하고 있습니다." />}
       {error && <p className="error login-error" role="alert">{error}</p>}
     </main>
   );

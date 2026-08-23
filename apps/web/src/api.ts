@@ -51,9 +51,9 @@ export async function logout(): Promise<void> {
 }
 
 export async function beginFreshLogin(): Promise<string> {
-  // The server removes the app session, then sends this browser through the
-  // OIDC provider's end-session endpoint. The completion route starts a new
-  // PKCE flow only after the provider session is gone.
+  // The server removes the app session and gives the browser the provider's
+  // end-session URL. The caller waits for that logout document before it
+  // starts the next PKCE flow.
   try {
     const response = await fetch("/auth/restart-login", { method: "POST" });
     const { logoutUrl } = await json<{ logoutUrl: string }>(response);

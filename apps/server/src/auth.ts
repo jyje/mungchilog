@@ -8,7 +8,6 @@ import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness
 import { oidcCallbackUrl, oidcClientAuthentication } from "./oidc-client-auth.js";
 import { oidcIdentityFromClaims, type OidcIdentity } from "./oidc-identity.js";
 import { oidcLoginRequest } from "./oidc-login-request.js";
-import { oidcPostLogoutRedirectUri } from "./oidc-logout-request.js";
 import { canAllowUnverifiedEmailForLocalOidc, canAuthenticateWithUnverifiedEmailClaim } from "./local-oidc-email-verification.js";
 import { sessionStorageId } from "./session-security.js";
 
@@ -255,8 +254,9 @@ auth.get("/login", async (c) => {
 });
 
 // This is intentionally a same-origin POST. It removes only Mungchilog's
-// application session, then asks the identity provider to authenticate again
-// so a shared browser can switch accounts without a cross-site logout vector.
+// application session, then sends the browser through the identity provider's
+// logout flow. The web client starts a fresh PKCE flow only after the logout
+// document has loaded in its hidden frame.
 auth.post("/restart-login", requireSameOrigin, async (c) => {
   const sessionId = getCookie(c, SESSION_COOKIE);
   if (sessionId) await deleteSession(sessionId);
@@ -265,15 +265,13 @@ auth.post("/restart-login", requireSameOrigin, async (c) => {
 
   if (!OIDC_CONFIGURED) return c.json({ error: "OIDC is not configured on this deployment" }, 503);
   const config = await getOidcConfig();
-  const logoutUrl = oidc.buildEndSessionUrl(config, {
-    post_logout_redirect_uri: oidcPostLogoutRedirectUri(REDIRECT_URI!),
-  });
+  const logoutUrl = oidc.buildEndSessionUrl(config);
   return c.json({ logoutUrl: logoutUrl.toString() });
 });
 
-// The identity provider redirects here after it has ended the browser's SSO
-// session. Only then do we create a fresh PKCE flow, so a Google source can
-// authenticate a different account without inheriting the previous IdP user.
+// The browser reaches this same-origin route only after the hidden provider
+// logout frame has finished. Starting the PKCE flow here prevents a Google
+// source from inheriting the previous IdP user.
 auth.get("/logout-complete", async (c) => {
   const url = await beginOidcLogin(c, true);
   if (url instanceof Response) return url;

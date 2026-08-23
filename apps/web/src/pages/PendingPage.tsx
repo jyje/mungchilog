@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { beginFreshLogin, logout, type Me } from "../api";
+import { restartAfterProviderLogout } from "../auth/providerLogout";
 
 export function PendingPage({ me }: { me: Me }) {
   const [isRestartingLogin, setIsRestartingLogin] = useState(false);
@@ -15,7 +16,7 @@ export function PendingPage({ me }: { me: Me }) {
     setError(null);
     setIsRestartingLogin(true);
     try {
-      window.location.assign(await beginFreshLogin());
+      await restartAfterProviderLogout(await beginFreshLogin());
     } catch {
       setIsRestartingLogin(false);
       setError("로그인을 다시 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
