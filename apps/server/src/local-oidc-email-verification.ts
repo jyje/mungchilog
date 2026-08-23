@@ -17,3 +17,10 @@ export function canAllowUnverifiedEmailForLocalOidc(env: Environment = process.e
     return false;
   }
 }
+
+export function canAuthenticateWithUnverifiedEmailClaim(options: {
+  isLocalDevelopmentCallback: boolean;
+  hasKnownIdentity: boolean;
+}): boolean {
+  return options.isLocalDevelopmentCallback || options.hasKnownIdentity;
+}

@@ -7,7 +7,7 @@ import { db } from "./db.js";
 import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness, isOidcConfigured } from "./auth-config.js";
 import { oidcCallbackUrl, oidcClientAuthentication } from "./oidc-client-auth.js";
 import { oidcIdentityFromClaims, type OidcIdentity } from "./oidc-identity.js";
-import { canAllowUnverifiedEmailForLocalOidc } from "./local-oidc-email-verification.js";
+import { canAllowUnverifiedEmailForLocalOidc, canAuthenticateWithUnverifiedEmailClaim } from "./local-oidc-email-verification.js";
 import { sessionStorageId } from "./session-security.js";
 
 // Standard OIDC login, configured entirely via env vars so this works with
@@ -110,16 +110,22 @@ async function getOidcConfig(): Promise<oidc.Configuration> {
   return oidcConfig;
 }
 
-async function findOrCreateUser(identity: OidcIdentity, email: string, name: string | null): Promise<User> {
-  const identityMatch = await db.get<UserRow>("SELECT * FROM users WHERE oidc_issuer = ? AND oidc_subject = ?", [identity.issuer, identity.subject]);
+async function findUserByIdentity(identity: OidcIdentity): Promise<UserRow | undefined> {
+  return db.get<UserRow>("SELECT * FROM users WHERE oidc_issuer = ? AND oidc_subject = ?", [identity.issuer, identity.subject]);
+}
+
+async function findOrCreateUser(identity: OidcIdentity, email: string, name: string | null, emailIsVerified: boolean): Promise<User> {
+  const identityMatch = await findUserByIdentity(identity);
   if (identityMatch) {
-    const emailOwner = await db.get<Pick<UserRow, "id">>("SELECT id FROM users WHERE email = ?", [email]);
-    if (emailOwner && emailOwner.id !== identityMatch.id) {
-      throw new Error("email is already associated with another account");
+    if (emailIsVerified && email !== identityMatch.email) {
+      const emailOwner = await db.get<Pick<UserRow, "id">>("SELECT id FROM users WHERE email = ?", [email]);
+      if (emailOwner && emailOwner.id !== identityMatch.id) {
+        throw new Error("email is already associated with another account");
+      }
     }
-    if (email !== identityMatch.email || (name && name !== identityMatch.name)) {
-      await db.run("UPDATE users SET email = ?, name = ? WHERE id = ?", [email, name, identityMatch.id]);
-      identityMatch.email = email;
+    if ((emailIsVerified && email !== identityMatch.email) || (name && name !== identityMatch.name)) {
+      await db.run("UPDATE users SET email = ?, name = ? WHERE id = ?", [emailIsVerified ? email : identityMatch.email, name, identityMatch.id]);
+      if (emailIsVerified) identityMatch.email = email;
       identityMatch.name = name;
     }
     return rowToUser(identityMatch);
@@ -270,16 +276,21 @@ auth.get("/callback", async (c) => {
   const email = claims?.email as string | undefined;
   const emailVerified = claims?.email_verified;
   if (!email) return c.json({ error: "the identity provider did not return an email claim" }, 400);
-  if (emailVerified !== true && !ALLOW_UNVERIFIED_EMAIL_FOR_LOCAL_OIDC) {
-    return c.json({ error: "the identity provider did not verify the email claim" }, 400);
-  }
   const name = (claims?.name as string | undefined) ?? null;
   const identity = oidcIdentityFromClaims(claims as Record<string, unknown> | undefined);
   if (!identity) return c.json({ error: "the identity provider did not return a stable account identity" }, 400);
+  const knownIdentity = await findUserByIdentity(identity);
+  const emailIsVerified = emailVerified === true || ALLOW_UNVERIFIED_EMAIL_FOR_LOCAL_OIDC;
+  if (!emailIsVerified && !canAuthenticateWithUnverifiedEmailClaim({
+    isLocalDevelopmentCallback: ALLOW_UNVERIFIED_EMAIL_FOR_LOCAL_OIDC,
+    hasKnownIdentity: !!knownIdentity,
+  })) {
+    return c.json({ error: "the identity provider did not verify the email claim" }, 400);
+  }
 
   let user: User;
   try {
-    user = await findOrCreateUser(identity, email, name);
+    user = await findOrCreateUser(identity, email, name, emailIsVerified);
   } catch (error) {
     console.error("OIDC user binding failed:", error);
     return c.json({ error: "login failed" }, 400);
