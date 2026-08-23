@@ -5,7 +5,7 @@ import type { Context, Next } from "hono";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { db } from "./db.js";
 import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness, isOidcConfigured } from "./auth-config.js";
-import { oidcClientAuthentication } from "./oidc-client-auth.js";
+import { oidcCallbackUrl, oidcClientAuthentication } from "./oidc-client-auth.js";
 
 // Standard OIDC login, configured entirely via env vars so this works with
 // any compliant provider (Authentik, Keycloak, Google Workspace, ...) -
@@ -206,13 +206,14 @@ auth.get("/callback", async (c) => {
   }
 
   const config = await getOidcConfig();
+  const callbackUrl = oidcCallbackUrl(REDIRECT_URI!, c.req.url);
   let tokens;
   try {
-    tokens = await oidc.authorizationCodeGrant(config, new URL(c.req.url), {
+    tokens = await oidc.authorizationCodeGrant(config, callbackUrl, {
       pkceCodeVerifier: flow.codeVerifier,
       expectedState: flow.state,
       expectedNonce: flow.nonce,
-    }, { redirect_uri: REDIRECT_URI! });
+    });
   } catch (err) {
     console.error("OIDC callback failed:", err);
     return c.json({ error: "login failed" }, 400);
