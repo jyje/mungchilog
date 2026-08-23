@@ -2,13 +2,13 @@ import { useState } from "react";
 
 import { beginFreshLogin } from "../api";
 
-function LoginProgress() {
+function LoginProgress({ message = "로그인 화면으로 이동하고 있습니다." }: { message?: string }) {
   return (
     <div className="login-progress" role="status" aria-live="polite">
       <div className="login-progress-track" aria-hidden="true">
         <span className="login-progress-cat">🐈</span>
       </div>
-      <p>로그인 화면으로 이동하고 있습니다.</p>
+      <p>{message}</p>
     </div>
   );
 }
@@ -46,7 +46,7 @@ export function LoginPage() {
           다른 계정으로 로그인
         </button>
       </div>
-      {isLoggingIn && <LoginProgress />}
+      {isLoggingIn && <LoginProgress message="기존 로그인 세션을 확인하고 있습니다." />}
       {error && <p className="error login-error" role="alert">{error}</p>}
     </main>
   );

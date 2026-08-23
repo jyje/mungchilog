@@ -8,6 +8,7 @@ import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness
 import { oidcCallbackUrl, oidcClientAuthentication } from "./oidc-client-auth.js";
 import { oidcIdentityFromClaims, type OidcIdentity } from "./oidc-identity.js";
 import { oidcLoginRequest } from "./oidc-login-request.js";
+import { oidcPostLogoutRedirectUri } from "./oidc-logout-request.js";
 import { canAllowUnverifiedEmailForLocalOidc, canAuthenticateWithUnverifiedEmailClaim } from "./local-oidc-email-verification.js";
 import { sessionStorageId } from "./session-security.js";
 
@@ -262,9 +263,21 @@ auth.post("/restart-login", requireSameOrigin, async (c) => {
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
   deleteCookie(c, FLOW_COOKIE, { path: "/" });
 
+  if (!OIDC_CONFIGURED) return c.json({ error: "OIDC is not configured on this deployment" }, 503);
+  const config = await getOidcConfig();
+  const logoutUrl = oidc.buildEndSessionUrl(config, {
+    post_logout_redirect_uri: oidcPostLogoutRedirectUri(REDIRECT_URI!),
+  });
+  return c.json({ logoutUrl: logoutUrl.toString() });
+});
+
+// The identity provider redirects here after it has ended the browser's SSO
+// session. Only then do we create a fresh PKCE flow, so a Google source can
+// authenticate a different account without inheriting the previous IdP user.
+auth.get("/logout-complete", async (c) => {
   const url = await beginOidcLogin(c, true);
   if (url instanceof Response) return url;
-  return c.json({ authorizationUrl: url.toString() });
+  return c.redirect(url.toString());
 });
 
 auth.get("/callback", async (c) => {

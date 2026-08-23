@@ -30,14 +30,14 @@ export function PendingPage({ me }: { me: Me }) {
       </p>
       <div className="account-actions">
         <button type="button" className="login-button" onClick={handleRestartLogin} disabled={isRestartingLogin}>
-          {isRestartingLogin ? "로그인 화면으로 이동 중" : "다른 계정으로 다시 로그인"}
+          {isRestartingLogin ? "기존 세션을 종료하는 중" : "다른 계정으로 다시 로그인"}
         </button>
         <button type="button" className="ghost" onClick={handleLogout} disabled={isRestartingLogin}>
           로그아웃
         </button>
       </div>
       <p className="meta account-actions-help">
-        이 기기의 뭉치로그 세션을 지우고 로그인 공급자에서 다시 인증합니다.
+        이 기기의 뭉치로그와 로그인 공급자 세션을 종료한 뒤 다시 인증합니다.
       </p>
       {error && <p className="error" role="alert">{error}</p>}
     </div>

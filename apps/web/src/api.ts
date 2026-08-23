@@ -51,13 +51,13 @@ export async function logout(): Promise<void> {
 }
 
 export async function beginFreshLogin(): Promise<string> {
-  // The server removes the app session and creates a new, short-lived PKCE
-  // flow before returning an authorization URL that asks the provider to
-  // authenticate again. Clear this browser's private cache in either case.
+  // The server removes the app session, then sends this browser through the
+  // OIDC provider's end-session endpoint. The completion route starts a new
+  // PKCE flow only after the provider session is gone.
   try {
     const response = await fetch("/auth/restart-login", { method: "POST" });
-    const { authorizationUrl } = await json<{ authorizationUrl: string }>(response);
-    return authorizationUrl;
+    const { logoutUrl } = await json<{ logoutUrl: string }>(response);
+    return logoutUrl;
   } finally {
     await clearPrivateCache();
   }
