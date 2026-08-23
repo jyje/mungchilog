@@ -18,8 +18,35 @@ test("unverified email claims are allowed only for the explicit local developmen
   assert.equal(canAllowUnverifiedEmailForLocalOidc({ NODE_ENV: "development" }), false);
 });
 
-test("an unverified email claim can only reuse an already-bound identity outside local development", () => {
-  assert.equal(canAuthenticateWithUnverifiedEmailClaim({ isLocalDevelopmentCallback: false, hasKnownIdentity: true }), true);
-  assert.equal(canAuthenticateWithUnverifiedEmailClaim({ isLocalDevelopmentCallback: true, hasKnownIdentity: false }), true);
-  assert.equal(canAuthenticateWithUnverifiedEmailClaim({ isLocalDevelopmentCallback: false, hasKnownIdentity: false }), false);
+test("an unverified email claim can create only a new pending account outside local development", () => {
+  assert.equal(canAuthenticateWithUnverifiedEmailClaim({
+    isLocalDevelopmentCallback: false,
+    hasKnownIdentity: true,
+    hasExistingEmailAccount: false,
+    isConfiguredAdminEmail: false,
+  }), true);
+  assert.equal(canAuthenticateWithUnverifiedEmailClaim({
+    isLocalDevelopmentCallback: true,
+    hasKnownIdentity: false,
+    hasExistingEmailAccount: false,
+    isConfiguredAdminEmail: false,
+  }), true);
+  assert.equal(canAuthenticateWithUnverifiedEmailClaim({
+    isLocalDevelopmentCallback: false,
+    hasKnownIdentity: false,
+    hasExistingEmailAccount: false,
+    isConfiguredAdminEmail: false,
+  }), true);
+  assert.equal(canAuthenticateWithUnverifiedEmailClaim({
+    isLocalDevelopmentCallback: false,
+    hasKnownIdentity: false,
+    hasExistingEmailAccount: true,
+    isConfiguredAdminEmail: false,
+  }), false);
+  assert.equal(canAuthenticateWithUnverifiedEmailClaim({
+    isLocalDevelopmentCallback: false,
+    hasKnownIdentity: false,
+    hasExistingEmailAccount: false,
+    isConfiguredAdminEmail: true,
+  }), false);
 });

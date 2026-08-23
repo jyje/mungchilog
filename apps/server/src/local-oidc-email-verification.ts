@@ -21,6 +21,10 @@ export function canAllowUnverifiedEmailForLocalOidc(env: Environment = process.e
 export function canAuthenticateWithUnverifiedEmailClaim(options: {
   isLocalDevelopmentCallback: boolean;
   hasKnownIdentity: boolean;
+  hasExistingEmailAccount: boolean;
+  isConfiguredAdminEmail: boolean;
 }): boolean {
-  return options.isLocalDevelopmentCallback || options.hasKnownIdentity;
+  return options.isLocalDevelopmentCallback
+    || options.hasKnownIdentity
+    || (!options.hasExistingEmailAccount && !options.isConfiguredAdminEmail);
 }

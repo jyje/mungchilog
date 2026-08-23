@@ -133,6 +133,9 @@ async function findOrCreateUser(identity: OidcIdentity, email: string, name: str
 
   const emailMatch = await db.get<UserRow>("SELECT * FROM users WHERE email = ?", [email]);
   if (emailMatch) {
+    if (!emailIsVerified) {
+      throw new Error("an unverified email cannot claim an existing account");
+    }
     if (emailMatch.oidc_issuer || emailMatch.oidc_subject) {
       throw new Error("email is already associated with a different identity provider account");
     }
@@ -146,7 +149,7 @@ async function findOrCreateUser(identity: OidcIdentity, email: string, name: str
     return rowToUser(emailMatch);
   }
 
-  const isAdmin = !!ADMIN_EMAIL && email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+  const isAdmin = emailIsVerified && !!ADMIN_EMAIL && email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
   const id = randomUUID();
   const now = new Date().toISOString();
   await db.run("INSERT INTO users (id, email, name, oidc_issuer, oidc_subject, status, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
@@ -280,10 +283,13 @@ auth.get("/callback", async (c) => {
   const identity = oidcIdentityFromClaims(claims as Record<string, unknown> | undefined);
   if (!identity) return c.json({ error: "the identity provider did not return a stable account identity" }, 400);
   const knownIdentity = await findUserByIdentity(identity);
+  const existingEmailAccount = await db.get<Pick<UserRow, "id">>("SELECT id FROM users WHERE email = ?", [email]);
   const emailIsVerified = emailVerified === true || ALLOW_UNVERIFIED_EMAIL_FOR_LOCAL_OIDC;
   if (!emailIsVerified && !canAuthenticateWithUnverifiedEmailClaim({
     isLocalDevelopmentCallback: ALLOW_UNVERIFIED_EMAIL_FOR_LOCAL_OIDC,
     hasKnownIdentity: !!knownIdentity,
+    hasExistingEmailAccount: !!existingEmailAccount,
+    isConfiguredAdminEmail: !!ADMIN_EMAIL && email.toLowerCase() === ADMIN_EMAIL.toLowerCase(),
   })) {
     return c.json({ error: "the identity provider did not verify the email claim" }, 400);
   }
