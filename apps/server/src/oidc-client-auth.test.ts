@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import * as oidc from "openid-client";
 
-import { oidcClientAuthentication } from "./oidc-client-auth.js";
+import { oidcCallbackUrl, oidcClientAuthentication } from "./oidc-client-auth.js";
 
 test("confidential OIDC clients authenticate at the token endpoint with HTTP Basic", async () => {
   let authorizationHeader: string | null = null;
@@ -31,4 +31,16 @@ test("confidential OIDC clients authenticate at the token endpoint with HTTP Bas
 
   assert.equal(authorizationHeader, `Basic ${Buffer.from("mungchilog:testsecret").toString("base64")}`);
   assert.doesNotMatch(requestBody, /client_secret/);
+});
+
+test("OIDC token exchange keeps the configured HTTPS callback URI behind an ingress", () => {
+  const callbackUrl = oidcCallbackUrl(
+    "https://mungchilog.example/auth/callback",
+    "http://mungchilog.example/auth/callback?code=provider-code&state=provider-state",
+  );
+
+  assert.equal(
+    callbackUrl.toString(),
+    "https://mungchilog.example/auth/callback?code=provider-code&state=provider-state",
+  );
 });
