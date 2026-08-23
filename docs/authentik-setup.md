@@ -27,13 +27,13 @@ Authentik 관리자 화면 → Applications → Create with Provider (지금 열
   - (선택) 로컬에서 전체 로그인 플로우까지 테스트하고 싶으면 `http://localhost:3000/auth/callback`도 추가
 - Signing Key: 기본값 그대로
 - Scopes: 기본 매핑에 `openid`, `email`, `profile`이 포함돼 있으면 그대로 (보통 기본값에 다 있습니다)
-- Subject mode: 기본값 그대로 (이 앱은 `sub`이 아니라 `email` 클레임으로 사용자를 식별합니다)
+- Subject mode: 기본값 그대로. Mungchilog는 표준 OIDC의 `iss`와 `sub` 조합으로 사용자를 식별하고, `email`은 초대와 표시 용도로만 사용합니다.
 
 **4단계 — Configure Bindings (Policy)**: 필요 없으면 건너뛰기(Skip)
 
 **5단계 — Submit**: 완료되면 Provider 상세 화면에서 발급된 **Client ID**/**Client Secret**을 볼 수 있습니다.
 
-## 2. 로컬 테스트 계정 만들기 (`test` / `test1234`)
+## 2. 로컬 OIDC 테스트 계정 만들기 (`test` / `test1234`)
 
 구글 계정 없이도 OIDC 로그인 흐름 자체를 테스트할 수 있도록, Authentik 자체 로컬 계정을 하나 만듭니다 (Google 소셜 로그인과 무관):
 
@@ -43,14 +43,22 @@ Authentik 관리자 화면 → Applications → Create with Provider (지금 열
 4. 비밀번호: `test1234`
 5. 이 계정은 Google 로그인이 아니라 Authentik 자체 로그인 화면(아이디/비밀번호 입력)으로 로그인하게 됩니다 — mungchilog 로그인 버튼을 누르면 Authentik이 "Google로 계속하기" 버튼과 "사용자명/비밀번호" 입력 폼을 같이 보여줄 텐데, 테스트 계정은 후자로 로그인하시면 됩니다.
 
-## 3. 서버에 안전하게 전달
+이 계정의 이메일은 Authentik에서 검증된 이메일로 취급하지 않습니다. `npm --prefix apps/server run dev:oidc`로 실행한 `http://localhost:3000/auth/callback`에서만 전체 로그인 플로우를 시험할 수 있습니다. 운영 콜백은 항상 `email_verified: true`를 요구하므로 이 테스트 계정으로 운영 서비스에 로그인할 수 없습니다.
+
+## 3. 이메일 검증 클레임
+
+Authentik 2025.10 이후 기본 `email` 스코프는 `email_verified: false`를 반환합니다. Mungchilog Provider에는 Google Source에서 생성된 사용자만 검증된 이메일로 내보내는 전용 `email` 스코프 매핑이 연결되어 있습니다. 이 규칙은 초대 대상 이메일과 OIDC 계정을 안전하게 연결하기 위한 것이므로, 운영에서 이 값을 무조건 `true`로 바꾸지 마세요.
+
+새로운 신원 공급자를 추가할 때는 해당 공급자가 이메일을 검증했다는 근거를 Authentik 사용자 속성 또는 전용 Source 경로로 보존한 뒤, Provider의 `email_verified` 매핑도 그 근거에 맞춰 확장해야 합니다.
+
+## 4. 서버에 안전하게 전달
 
 - **Client ID**: 평문으로 채팅에 알려주셔도 됩니다.
 - **Client Secret**: 절대 채팅에 평문으로 붙여넣지 마세요. 대신:
   - 직접 `kubeseal`로 암호화해서 SealedSecret을 만들어 PR로 올려주시거나
   - 저한테 "Authentik 클라이언트 시크릿 발급했어요"라고만 말씀하시면, Google Maps 서버 키 때 했던 것과 동일한 절차(`kubectl create secret ... --dry-run=client -o yaml | kubeseal ...`)로 SealedSecret을 만들어 `jyje/cluster`에 PR을 올립니다. 평문은 로컬에서만 잠깐 존재하고 커밋되지 않습니다.
 
-## 4. 최종적으로 이 값들이 설정됩니다 (제가 배포 설정에 반영)
+## 5. 최종적으로 이 값들이 설정됩니다 (제가 배포 설정에 반영)
 
 | 환경변수 | 값 |
 |---|---|
