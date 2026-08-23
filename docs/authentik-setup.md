@@ -43,13 +43,15 @@ Authentik 관리자 화면 → Applications → Create with Provider (지금 열
 4. 비밀번호: `test1234`
 5. 이 계정은 Google 로그인이 아니라 Authentik 자체 로그인 화면(아이디/비밀번호 입력)으로 로그인하게 됩니다 — mungchilog 로그인 버튼을 누르면 Authentik이 "Google로 계속하기" 버튼과 "사용자명/비밀번호" 입력 폼을 같이 보여줄 텐데, 테스트 계정은 후자로 로그인하시면 됩니다.
 
-이 계정의 이메일은 Authentik에서 검증된 이메일로 취급하지 않습니다. `npm --prefix apps/server run dev:oidc`로 실행한 `http://localhost:3000/auth/callback`에서만 전체 로그인 플로우를 시험할 수 있습니다. 운영 콜백은 항상 `email_verified: true`를 요구하므로 이 테스트 계정으로 운영 서비스에 로그인할 수 없습니다.
+이 계정의 이메일은 Authentik에서 검증된 이메일로 취급하지 않습니다. `npm --prefix apps/server run dev:oidc`로 실행한 `http://localhost:3000/auth/callback`에서만 전체 로그인 플로우를 시험할 수 있습니다. 운영에서 처음 로그인하거나 이메일 주소를 변경할 때는 항상 `email_verified: true`를 요구하므로 이 테스트 계정으로 운영 서비스의 신규 계정을 만들 수 없습니다.
 
 ## 3. 이메일 검증 클레임
 
 Authentik 2025.10 이후 기본 `email` 스코프는 `email_verified: false`를 반환합니다. Mungchilog Provider에는 Google Source에서 생성된 사용자만 검증된 이메일로 내보내는 전용 `email` 스코프 매핑이 연결되어 있습니다. 이 규칙은 초대 대상 이메일과 OIDC 계정을 안전하게 연결하기 위한 것이므로, 운영에서 이 값을 무조건 `true`로 바꾸지 마세요.
 
 새로운 신원 공급자를 추가할 때는 해당 공급자가 이메일을 검증했다는 근거를 Authentik 사용자 속성 또는 전용 Source 경로로 보존한 뒤, Provider의 `email_verified` 매핑도 그 근거에 맞춰 확장해야 합니다.
+
+이미 검증된 로그인으로 연결된 `iss`와 `sub` 조합은 이후 Provider가 `email_verified`를 누락하거나 `false`로 발급해도 운영에서 다시 로그인할 수 있습니다. 이 경우 Mungchilog는 새 이메일 값을 저장하지 않으므로, 미검증 이메일로 초대나 관리자 부트스트랩의 대상이 바뀌지 않습니다.
 
 ## 4. 서버에 안전하게 전달
 
