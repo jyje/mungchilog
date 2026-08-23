@@ -1610,20 +1610,125 @@ input[type="text"]::placeholder {
 
 /* M6: login/pending */
 .login-page {
+  min-block-size: calc(100dvh - 5.5rem);
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 0.5rem;
   text-align: center;
-  padding-top: 20vh;
 }
 .login-button {
-  display: inline-block;
-  margin-top: 1.5rem;
+  min-height: 44px;
+  border: 1px solid var(--accent);
   background: var(--accent);
   color: var(--accent-contrast);
   border-radius: 999px;
-  padding: 0.7rem 1.6rem;
+  padding: 0.6rem 1.2rem;
   font-weight: 600;
+  cursor: pointer;
 }
 .login-button:hover {
   text-decoration: none;
+}
+.login-button:disabled,
+.login-secondary:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+.login-actions {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  margin-top: 1.5rem;
+}
+.login-secondary {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  padding: 0.55rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.login-secondary:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.login-progress {
+  width: min(100%, 19rem);
+  margin-top: 0.9rem;
+}
+.login-progress-track {
+  position: relative;
+  block-size: 1.75rem;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.login-progress-track::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0.9rem;
+  inset-block-start: 50%;
+  block-size: 1px;
+  background: var(--border);
+}
+.login-progress-cat {
+  position: absolute;
+  inset-block-start: 0.08rem;
+  inset-inline-start: 0.65rem;
+  z-index: 1;
+  font-size: 1.25rem;
+  line-height: 1;
+  will-change: transform;
+}
+.login-progress p {
+  margin: 0.45rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-small);
+}
+.login-error {
+  margin: 0.75rem 0 0;
+}
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 1.25rem;
+}
+.account-actions .ghost {
+  min-height: 44px;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.account-actions-help {
+  margin: 0.65rem 0 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .login-progress-cat {
+    animation: login-cat-walk 1.35s ease-in-out infinite alternate;
+  }
+  .login-button,
+  .login-secondary {
+    transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  }
+}
+@keyframes login-cat-walk {
+  from { transform: translateX(0) rotate(-3deg); }
+  to { transform: translateX(15rem) rotate(3deg); }
+}
+@media (max-width: 30rem) {
+  .login-progress {
+    width: min(100%, 16.5rem);
+  }
+  @keyframes login-cat-walk {
+    from { transform: translateX(0) rotate(-3deg); }
+    to { transform: translateX(12.5rem) rotate(3deg); }
+  }
 }
 
 /* M6: admin */

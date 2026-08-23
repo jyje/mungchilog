@@ -50,6 +50,19 @@ export async function logout(): Promise<void> {
   }
 }
 
+export async function beginFreshLogin(): Promise<string> {
+  // The server removes the app session and creates a new, short-lived PKCE
+  // flow before returning an authorization URL that asks the provider to
+  // authenticate again. Clear this browser's private cache in either case.
+  try {
+    const response = await fetch("/auth/restart-login", { method: "POST" });
+    const { authorizationUrl } = await json<{ authorizationUrl: string }>(response);
+    return authorizationUrl;
+  } finally {
+    await clearPrivateCache();
+  }
+}
+
 export function adminListUsers(): Promise<Me[]> {
   return fetch("/api/admin/users").then((r) => json(r));
 }
