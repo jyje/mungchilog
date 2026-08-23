@@ -9,6 +9,7 @@ import { admin } from "./routes/admin.js";
 import { auth, isAuthenticationReady, requireApproved, requireAuth, requireSameOrigin } from "./auth.js";
 
 const app = new Hono();
+const publicRoot = process.env.WEB_PUBLIC_DIR ?? "./public";
 
 app.get("/healthz", (c) => c.json({ status: "ok", service: "mungchilog-server" }));
 app.get("/readyz", (c) =>
@@ -32,8 +33,8 @@ app.route("/api/admin", admin);
 // matched above, including /trips and /trips/:id, falls through to
 // index.html, and the client-side router in apps/web/src/App.tsx takes it
 // from there.
-app.use("/*", serveStatic({ root: "./public" }));
-app.get("*", serveStatic({ path: "./public/index.html" }));
+app.use("/*", serveStatic({ root: publicRoot }));
+app.get("*", serveStatic({ path: `${publicRoot}/index.html` }));
 
 const port = Number(process.env.PORT ?? 3000);
 console.log(`mungchilog server listening on :${port}`);

@@ -60,4 +60,10 @@ Authentik 관리자 화면 → Applications → Create with Provider (지금 열
 | `OIDC_REDIRECT_URI` | `https://mungchilog.app.jyje.online/auth/callback` |
 | `ADMIN_EMAIL` | `jyjeon@outlook.com` |
 
-로컬 개발에서는 이 값들을 안 넣으면(즉 `.env`에 아무것도 안 적으면) 로그인 없이 관리자 권한으로 자동 로그인된 것처럼 동작합니다 (Google Maps 키 없을 때 placeholder로 대체되는 것과 같은 패턴) — 로컬 개발 편의를 위한 것이고, 배포 환경에서는 항상 실제 로그인이 강제됩니다.
+로컬 개발에서는 이 값들을 안 넣으면(즉 `.env`에 아무것도 안 적으면) 로그인 없이 관리자 권한으로 자동 로그인된 것처럼 동작합니다 (Google Maps 키 없을 때 placeholder로 대체되는 것과 같은 패턴) - 로컬 개발 편의를 위한 것이고, 배포 환경에서는 항상 실제 로그인이 강제됩니다.
+
+실제 OIDC 로그인까지 로컬에서 확인할 때는 `.env`에 위 값을 두고 다음 명령을 실행합니다. 이 모드는 웹을 빌드한 뒤 서버가 함께 제공하므로 callback 후에도 같은 `localhost:3000` 앱으로 돌아옵니다.
+
+```bash
+npm --prefix apps/server run dev:oidc
+```
