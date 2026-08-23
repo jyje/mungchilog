@@ -6,6 +6,7 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { db } from "./db.js";
 import { canUseLocalDevAuth, isAuthenticationReady as getAuthenticationReadiness, isOidcConfigured } from "./auth-config.js";
 import { oidcCallbackUrl, oidcClientAuthentication } from "./oidc-client-auth.js";
+import { sessionStorageId } from "./session-security.js";
 
 // Standard OIDC login, configured entirely via env vars so this works with
 // any compliant provider (Authentik, Keycloak, Google Workspace, ...) -
@@ -138,24 +139,40 @@ async function findOrCreateUser(email: string, name: string | null): Promise<Use
 }
 
 async function createSession(userId: string): Promise<string> {
-  const id = randomBytes(32).toString("hex");
+  const token = randomBytes(32).toString("hex");
   const now = new Date();
   const expires = new Date(now.getTime() + SESSION_TTL_MS);
   await db.run("INSERT INTO sessions (id, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)", [
-    id,
+    sessionStorageId(token),
     userId,
     now.toISOString(),
     expires.toISOString(),
   ]);
-  return id;
+  return token;
 }
 
-async function getUserBySession(sessionId: string): Promise<User | null> {
-  const row = await db.get<UserRow>(
+async function deleteSession(token: string) {
+  // The raw token branch keeps logout and session rotation compatible with
+  // sessions created before database-side hashing was introduced.
+  await db.run("DELETE FROM sessions WHERE id IN (?, ?)", [sessionStorageId(token), token]);
+}
+
+async function getUserBySession(token: string): Promise<User | null> {
+  type SessionUserRow = UserRow & { session_id: string };
+  const storedId = sessionStorageId(token);
+  let row = await db.get<SessionUserRow>(
       `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id = ? AND s.expires_at > ?`,
-    [sessionId, new Date().toISOString()],
+    [storedId, new Date().toISOString()],
   );
+  if (!row) {
+    row = await db.get<SessionUserRow>(
+      `SELECT u.*, s.id AS session_id FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.id = ? AND s.expires_at > ?`,
+      [token, new Date().toISOString()],
+    );
+    if (row) await db.run("UPDATE sessions SET id = ? WHERE id = ?", [storedId, token]);
+  }
   return row ? rowToUser(row) : null;
 }
 
@@ -230,7 +247,7 @@ auth.get("/callback", async (c) => {
   // Rotate any session that was already present before this login so a
   // pre-login cookie cannot remain valid after authentication.
   const priorSessionId = getCookie(c, SESSION_COOKIE);
-  if (priorSessionId) await db.run("DELETE FROM sessions WHERE id = ?", [priorSessionId]);
+  if (priorSessionId) await deleteSession(priorSessionId);
   const sessionId = await createSession(user.id);
   setCookie(c, SESSION_COOKIE, sessionId, {
     httpOnly: true,
@@ -245,7 +262,7 @@ auth.get("/callback", async (c) => {
 
 auth.post("/logout", requireSameOrigin, async (c) => {
   const sessionId = getCookie(c, SESSION_COOKIE);
-  if (sessionId) await db.run("DELETE FROM sessions WHERE id = ?", [sessionId]);
+  if (sessionId) await deleteSession(sessionId);
   deleteCookie(c, SESSION_COOKIE, { path: "/" });
   return c.json({ loggedOut: true });
 });
@@ -292,9 +309,7 @@ export async function requireAuth(c: Context, next: Next) {
 }
 
 // Blocks anyone still in the post-signup "pending" queue from touching
-// trip data, even though they do have a valid session (see M6 in
-// TASK.md: a stranger who somehow gets past the Ingress's Basic Auth
-// still can't see anyone's itinerary until the admin approves them).
+// trip data, even though they have a valid identity-provider session.
 export async function requireApproved(c: Context, next: Next) {
   const user = c.get("user") as User | undefined;
   if (!user) return c.json({ error: "login required" }, 401);
