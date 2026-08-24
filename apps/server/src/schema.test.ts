@@ -47,6 +47,19 @@ test("leg preferences are optional for existing trips and validate their spot pa
   assert.equal(legacy.success, true);
   if (legacy.success) assert.deepEqual(legacy.data.days[0].legPreferences, []);
 
+  const drivingWithTraffic = TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{
+      date: "2026-09-07",
+      spots: [
+        { id: "station", order: 0, name: "역", items: [] },
+        { id: "hotel", order: 1, name: "호텔", items: [] },
+      ],
+      legPreferences: [{ fromSpotId: "station", toSpotId: "hotel", mode: "DRIVE", routeIndex: 2, trafficAware: true }],
+    }],
+  });
+  assert.equal(drivingWithTraffic.success, true);
+
   const invalid = TripImportSchema.safeParse({
     ...tripWithCover(undefined),
     days: [{
@@ -56,4 +69,17 @@ test("leg preferences are optional for existing trips and validate their spot pa
     }],
   });
   assert.equal(invalid.success, false);
+
+  const invalidTraffic = TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{
+      date: "2026-09-07",
+      spots: [
+        { id: "station", order: 0, name: "역", items: [] },
+        { id: "hotel", order: 1, name: "호텔", items: [] },
+      ],
+      legPreferences: [{ fromSpotId: "station", toSpotId: "hotel", mode: "TRANSIT", trafficAware: true }],
+    }],
+  });
+  assert.equal(invalidTraffic.success, false);
 });

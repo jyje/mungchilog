@@ -49,6 +49,7 @@ https://console.cloud.google.com/apis/credentials → "사용자 인증 정보 �
 
 https://console.cloud.google.com/apis/api/routes.googleapis.com/quotas 에서:
 - Routes API 일일 쿼터를 500 정도로 낮춰두기 (기본값은 훨씬 높음)
+- 일반 경로와 대중교통 대안 경로는 Essentials SKU의 월간 무료 호출 한도 안에서 시작할 수 있습니다. 다만 실시간 교통을 반영하는 운전 경로는 Pro SKU이므로, 5분 캐시가 있어도 일일 쿼터와 예산 알림을 꼭 설정하세요.
 
 https://console.cloud.google.com/billing/budgets 에서:
 - 예산 알림 $1 설정 (초과해도 과금은 막지 못하지만 알림은 받음)

@@ -13,7 +13,7 @@ import { SpotForm, type SpotFormValues } from "../components/SpotForm";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { TripShareButton } from "../components/TripShareButton";
 import { TripCoverSettingsButton } from "../components/TripCoverSettingsButton";
-import { legModeFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
+import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
 import type { PersistedLegMode } from "../types";
 import type { Me } from "../api";
 
@@ -320,13 +320,13 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     scheduleSave({ ...trip, days });
   }
 
-  function setLegMode(fromSpotId: string, toSpotId: string, mode: PersistedLegMode) {
+  function saveLegPreference(fromSpotId: string, toSpotId: string, mode: PersistedLegMode, routeIndex = 0, trafficAware = false) {
     if (!trip || !day) return;
     const previous = trip;
     const days = trip.days.map((candidate, index) => (
       index !== dayIndex
         ? candidate
-        : { ...candidate, legPreferences: replaceLegPreference(candidate.legPreferences, fromSpotId, toSpotId, mode) }
+        : { ...candidate, legPreferences: replaceLegPreference(candidate.legPreferences, fromSpotId, toSpotId, mode, { routeIndex, trafficAware }) }
     ));
     const next = { ...trip, days };
     qc.setQueryData(queryKey, next);
@@ -339,6 +339,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         setLegSaveError("동선 선택을 저장하지 못했습니다. 이전 선택으로 되돌렸습니다.");
       },
     });
+  }
+
+  function setLegMode(fromSpotId: string, toSpotId: string, mode: PersistedLegMode) {
+    saveLegPreference(fromSpotId, toSpotId, mode);
   }
 
   function toggleItem(spotId: string, itemId: string) {
@@ -521,16 +525,23 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                           return [
                             card,
                             <li key={`${spot.id}-leg`} className="leg-row">
-                              <LegInfo
-                                from={spot}
-                                to={sorted[i + 1]}
-                                date={day.date}
-                                timezone={trip.timezone}
-                                mode={legModeFor(day.legPreferences, spot.id, sorted[i + 1].id)}
-                                selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
-                                onSelect={() => selectItinerary({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
-                                onModeChange={(mode) => setLegMode(spot.id, sorted[i + 1].id, mode)}
-                              />
+                              {(() => {
+                                const preference = legPreferenceFor(day.legPreferences, spot.id, sorted[i + 1].id);
+                                return <LegInfo
+                                  from={spot}
+                                  to={sorted[i + 1]}
+                                  date={day.date}
+                                  timezone={trip.timezone}
+                                  mode={preference.mode}
+                                  routeIndex={preference.routeIndex}
+                                  trafficAware={preference.trafficAware}
+                                  selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
+                                  onSelect={() => selectItinerary({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
+                                  onModeChange={(mode) => setLegMode(spot.id, sorted[i + 1].id, mode)}
+                                  onRouteIndexChange={(routeIndex) => saveLegPreference(spot.id, sorted[i + 1].id, preference.mode, routeIndex, preference.trafficAware)}
+                                  onTrafficAwareChange={(trafficAware) => saveLegPreference(spot.id, sorted[i + 1].id, preference.mode, preference.routeIndex, trafficAware)}
+                                />;
+                              })()}
                             </li>,
                           ];
                         })}

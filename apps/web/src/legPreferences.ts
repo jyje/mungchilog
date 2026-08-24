@@ -13,6 +13,11 @@ export function legModeFor(preferences: LegPreference[] | undefined, fromSpotId:
   return preferences?.find((preference) => preference.fromSpotId === fromSpotId && preference.toSpotId === toSpotId)?.mode ?? DEFAULT_LEG_MODE;
 }
 
+export function legPreferenceFor(preferences: LegPreference[] | undefined, fromSpotId: string, toSpotId: string): LegPreference {
+  return preferences?.find((preference) => preference.fromSpotId === fromSpotId && preference.toSpotId === toSpotId)
+    ?? { fromSpotId, toSpotId, mode: DEFAULT_LEG_MODE, routeIndex: 0, trafficAware: false };
+}
+
 // TRANSIT is the legacy/default behavior, so omit it from persisted data.
 // This keeps imports from before the feature equivalent to an explicit reset.
 export function replaceLegPreference(
@@ -20,11 +25,16 @@ export function replaceLegPreference(
   fromSpotId: string,
   toSpotId: string,
   mode: PersistedLegMode,
+  options: Partial<Pick<LegPreference, "routeIndex" | "trafficAware">> = {},
 ): LegPreference[] {
   const withoutCurrent = (preferences ?? []).filter(
     (preference) => preference.fromSpotId !== fromSpotId || preference.toSpotId !== toSpotId,
   );
-  return mode === DEFAULT_LEG_MODE ? withoutCurrent : [...withoutCurrent, { fromSpotId, toSpotId, mode }];
+  const routeIndex = options.routeIndex ?? 0;
+  const trafficAware = mode === "DRIVE" && (options.trafficAware ?? false);
+  return mode === DEFAULT_LEG_MODE && routeIndex === 0 && !trafficAware
+    ? withoutCurrent
+    : [...withoutCurrent, { fromSpotId, toSpotId, mode, routeIndex, trafficAware }];
 }
 
 export function removeSpotLegPreferences(preferences: LegPreference[] | undefined, spotId: string): LegPreference[] {

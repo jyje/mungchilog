@@ -61,6 +61,8 @@ export const LegPreferenceSchema = z.object({
   fromSpotId: z.string().min(1),
   toSpotId: z.string().min(1),
   mode: PersistedLegModeSchema,
+  routeIndex: z.number().int().min(0).max(3).default(0),
+  trafficAware: z.boolean().default(false),
 });
 
 export const DaySchema = z
@@ -77,6 +79,9 @@ export const DaySchema = z
       const path = ["legPreferences", index];
       if (preference.fromSpotId === preference.toSpotId) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "동선은 서로 다른 두 스팟을 연결해야 합니다." });
+      }
+      if (preference.trafficAware && preference.mode !== "DRIVE") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "실시간 교통 정보는 운전 동선에서만 사용할 수 있습니다." });
       }
       if (!spotIds.has(preference.fromSpotId) || !spotIds.has(preference.toSpotId)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "동선의 스팟은 같은 날짜 일정에 있어야 합니다." });

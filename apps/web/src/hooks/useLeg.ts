@@ -46,7 +46,7 @@ function zonedIso(date: string, time: string | undefined, timeZone: string): str
 // Shared by LegInfo (text summary) and RouteOverlay (map polyline) so
 // both read from the same TanStack Query cache entry instead of firing
 // the request twice.
-export function useLeg(from: Spot, to: Spot, mode: PersistedLegMode, date: string, timezone: string) {
+export function useLeg(from: Spot, to: Spot, mode: PersistedLegMode, trafficAware: boolean, date: string, timezone: string) {
   const enabled = mode !== "DIRECT" && !!from.placeId && !!to.placeId;
   // day.date + the departing spot's plannedArrival, in the trip's own
   // timezone - not the browser's, not the test runner's. Falls back to
@@ -56,8 +56,8 @@ export function useLeg(from: Spot, to: Spot, mode: PersistedLegMode, date: strin
   const when = zonedIso(date, from.plannedArrival, timezone);
 
   return useQuery({
-    queryKey: ["leg", from.placeId, to.placeId, mode, when, ROUTE_GEOMETRY_VERSION],
-    queryFn: () => computeLeg(from.placeId!, to.placeId!, mode as Exclude<PersistedLegMode, "DIRECT">, when, timezone),
+    queryKey: ["leg", from.placeId, to.placeId, mode, trafficAware, when, ROUTE_GEOMETRY_VERSION],
+    queryFn: () => computeLeg(from.placeId!, to.placeId!, mode as Exclude<PersistedLegMode, "DIRECT">, when, timezone, trafficAware),
     enabled,
     staleTime: 1000 * 60 * 60 * 24 * 30, // matches the server's 30-day leg cache
   });
