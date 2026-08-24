@@ -50,7 +50,8 @@ export function LegInfo({
   const parts: string[] = [];
   const directDistance = mode === "DIRECT" ? directDistanceMeters(from, to) : null;
   if (mode === "DIRECT" && directDistance != null) parts.push(`직선 ${(directDistance / 1000).toFixed(1)}km`);
-  const selectedRoute = leg?.routes[Math.min(routeIndex, Math.max(0, (leg?.routes.length ?? 1) - 1))];
+  const effectiveRouteIndex = Math.min(routeIndex, Math.max(0, (leg?.routes.length ?? 1) - 1));
+  const selectedRoute = leg?.routes[effectiveRouteIndex];
   if (selectedRoute?.durationS != null) parts.push(formatDuration(selectedRoute.durationS));
   if (selectedRoute?.distanceM != null) parts.push(`${(selectedRoute.distanceM / 1000).toFixed(1)}km`);
   if (selectedRoute?.fareAmount != null) parts.push(`${selectedRoute.fareCurrency ?? ""}${selectedRoute.fareAmount.toLocaleString()}`);
@@ -95,7 +96,7 @@ export function LegInfo({
                 <input
                   type="radio"
                   name={`leg-route-${from.id}-${to.id}`}
-                  checked={routeIndex === index}
+                  checked={effectiveRouteIndex === index}
                   onChange={() => onRouteIndexChange(index)}
                 />
                 {index === 0 ? "추천 경로" : `대안 ${index}`} {routeParts.length > 0 && `(${routeParts.join(" · ")})`}
