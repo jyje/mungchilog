@@ -58,8 +58,8 @@ function bucketFor(when: Date, timezone: string): string {
   return `${weekday}-${Math.floor(hour / 4)}`;
 }
 
-function cacheKey(fromPlaceId: string, toPlaceId: string, mode: string, bucket: string, trafficAware: boolean): string {
-  return `${fromPlaceId}:${toPlaceId}:${mode}:${bucket}:${trafficAware ? "traffic" : "standard"}:${ROUTE_GEOMETRY_VERSION}`;
+function cacheKey(fromPlaceId: string, toPlaceId: string, mode: string, bucket: string, alternatives: boolean, trafficAware: boolean): string {
+  return `${fromPlaceId}:${toPlaceId}:${mode}:${bucket}:${alternatives ? "alternatives" : "primary"}:${trafficAware ? "traffic" : "standard"}:${ROUTE_GEOMETRY_VERSION}`;
 }
 
 legs.post("/compute", async (c) => {
@@ -73,7 +73,7 @@ legs.post("/compute", async (c) => {
   if (trafficAware && mode !== "DRIVE") return c.json({ error: "traffic-aware routing is only available for driving legs" }, 400);
   const when = parsed.data.when ? new Date(parsed.data.when) : new Date();
   const bucket = bucketFor(when, timezone);
-  const id = cacheKey(fromPlaceId, toPlaceId, mode, bucket, trafficAware);
+  const id = cacheKey(fromPlaceId, toPlaceId, mode, bucket, alternatives, trafficAware);
   const ttl = trafficAware ? TRAFFIC_TTL_MS : TTL_MS;
 
   const cached = await db.get<LegRow>("SELECT * FROM legs WHERE id = ?", [id]);
