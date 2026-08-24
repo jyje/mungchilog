@@ -1,6 +1,6 @@
 import { Component, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Map, AdvancedMarker, Pin, useMap, useApiLoadingStatus, APILoadingStatus } from "@vis.gl/react-google-maps";
-import type { Spot } from "../types";
+import type { LegPreference, Spot } from "../types";
 import { RouteOverlay } from "./RouteOverlay";
 import { CurrentLocation, CurrentLocationControl } from "./CurrentLocation";
 import { ItineraryFollowControl } from "./ItineraryFollowControl";
@@ -134,6 +134,7 @@ export function TripMap({
   spots,
   date,
   timezone,
+  legPreferences,
   selection,
   onSelect,
   sharedLocations = [],
@@ -143,6 +144,7 @@ export function TripMap({
   spots: Spot[];
   date: string;
   timezone: string;
+  legPreferences: LegPreference[];
   selection: ItinerarySelection;
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
   sharedLocations?: SharedMapLocation[];
@@ -183,7 +185,7 @@ export function TripMap({
           disableDefaultUI={false}
           fullscreenControl={false}
         >
-          <MapContent spots={spots} located={located} date={date} timezone={timezone} selection={selection} onSelect={onSelect} sharedLocations={sharedLocations} focusedSharedUserId={focusedSharedUserId} onFocusSharedLocation={onFocusSharedLocation} />
+          <MapContent spots={spots} located={located} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} sharedLocations={sharedLocations} focusedSharedUserId={focusedSharedUserId} onFocusSharedLocation={onFocusSharedLocation} />
         </Map>
       </MapFailureBoundary>
     </div>
@@ -199,6 +201,7 @@ function MapContent({
   located,
   date,
   timezone,
+  legPreferences,
   selection,
   onSelect,
   sharedLocations,
@@ -209,6 +212,7 @@ function MapContent({
   located: LocatedSpot[];
   date: string;
   timezone: string;
+  legPreferences: LegPreference[];
   selection: ItinerarySelection;
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
   sharedLocations: SharedMapLocation[];
@@ -244,7 +248,7 @@ function MapContent({
           </AdvancedMarker>
         );
       })}
-      <RouteOverlay spots={spots} date={date} timezone={timezone} selection={selection} onSelect={onSelect} />
+      <RouteOverlay spots={spots} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} />
       <FitToSpots spots={located} />
       <FocusSelection selection={selection} spots={located} />
       <PreserveVisibleCenter />
