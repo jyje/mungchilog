@@ -141,6 +141,8 @@ function RouteLeg({
   date,
   timezone,
   mode,
+  routeIndex,
+  trafficAware,
   selected,
   hasSelection,
   onSelect,
@@ -150,22 +152,25 @@ function RouteLeg({
   date: string;
   timezone: string;
   mode: PersistedLegMode;
+  routeIndex: number;
+  trafficAware: boolean;
   selected: boolean;
   hasSelection: boolean;
   onSelect: () => void;
 }) {
-  const { data: leg } = useLeg(from, to, mode, date, timezone);
+  const { data: leg } = useLeg(from, to, mode, trafficAware, date, timezone);
+  const selectedRoute = leg?.routes[Math.min(routeIndex, Math.max(0, (leg?.routes.length ?? 1) - 1))];
   const strokeColor = selected ? "#f59e0b" : "#7dd3fc";
   const strokeOpacity = selected ? 1 : hasSelection ? 0.28 : 0.85;
   const strokeWeight = selected ? 7 : 4;
 
-  if (mode !== "DIRECT" && leg?.polyline) {
+  if (mode !== "DIRECT" && selectedRoute?.polyline) {
     // Real road/rail-following route from the Routes API - what "the
     // route between stops" actually means once a server key exists.
     return (
       <>
         <Polyline
-          encodedPath={leg.polyline}
+          encodedPath={selectedRoute.polyline}
           strokeColor={strokeColor}
           strokeOpacity={strokeOpacity}
           strokeWeight={strokeWeight}
@@ -173,7 +178,7 @@ function RouteLeg({
           onClick={onSelect}
         />
         <RouteAccessConnectors
-          encodedPath={leg.polyline}
+          encodedPath={selectedRoute.polyline}
           from={from}
           to={to}
           selected={selected}
@@ -233,6 +238,8 @@ export function RouteOverlay({
           date={date}
           timezone={timezone}
           mode={legPreferences.find((preference) => preference.fromSpotId === spot.id && preference.toSpotId === sorted[i + 1].id)?.mode ?? "TRANSIT"}
+          routeIndex={legPreferences.find((preference) => preference.fromSpotId === spot.id && preference.toSpotId === sorted[i + 1].id)?.routeIndex ?? 0}
+          trafficAware={legPreferences.find((preference) => preference.fromSpotId === spot.id && preference.toSpotId === sorted[i + 1].id)?.trafficAware ?? false}
           selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
           hasSelection={selection !== null}
           onSelect={() => onSelect({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}

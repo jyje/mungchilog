@@ -87,6 +87,10 @@ export const LegPreferenceSchema = z.object({
   fromSpotId: z.string().min(1),
   toSpotId: z.string().min(1),
   mode: PersistedLegModeSchema,
+  routeIndex: z.number().int().min(0).max(3).default(0),
+  // Traffic-aware Routes requests use the higher Pro SKU. Keep this opt-in
+  // and meaningful only for road routes.
+  trafficAware: z.boolean().default(false),
 });
 
 export const DaySchema = z
@@ -108,6 +112,9 @@ export const DaySchema = z
       const path = ["legPreferences", index];
       if (preference.fromSpotId === preference.toSpotId) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "leg preference must connect two different spots" });
+      }
+      if (preference.trafficAware && preference.mode !== "DRIVE") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "traffic-aware routing is only available for driving legs" });
       }
       if (!spotIds.has(preference.fromSpotId) || !spotIds.has(preference.toSpotId)) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "leg preference spots must belong to the same day" });

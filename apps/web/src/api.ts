@@ -151,12 +151,17 @@ export function stopLocationSharing(tripId: string, sharingSessionId: string) {
 
 export type LegMode = "DRIVE" | "WALK" | "BICYCLE" | "TRANSIT" | "TWO_WHEELER";
 
-export type Leg = {
+export type LegRoute = {
   distanceM: number | null;
   durationS: number | null;
   fareAmount: number | null;
   fareCurrency: string | null;
   polyline: string | null;
+  label: "DEFAULT_ROUTE" | "DEFAULT_ROUTE_ALTERNATE";
+};
+
+export type Leg = {
+  routes: LegRoute[];
   fetchedAt: string;
 };
 
@@ -174,11 +179,12 @@ export async function computeLeg(
   mode: LegMode,
   when: string | undefined,
   timezone: string,
+  trafficAware: boolean,
 ): Promise<Leg | null> {
   const res = await fetch("/api/legs/compute", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fromPlaceId, toPlaceId, mode, when, timezone }),
+    body: JSON.stringify({ fromPlaceId, toPlaceId, mode, when, timezone, alternatives: true, trafficAware }),
   });
   if (res.status === 501) {
     const body = await res.json().catch(() => ({}));
