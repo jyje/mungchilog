@@ -41,3 +41,19 @@ test("a trip cover rejects unsupported and oversized Base64 images", () => {
   const oversized = TripImportSchema.safeParse(tripWithCover({ imageDataUrl: `data:image/jpeg;base64,${encodedTooLarge}` }));
   assert.equal(oversized.success, false);
 });
+
+test("leg preferences are optional for existing trips and validate their spot pairs", () => {
+  const legacy = TripImportSchema.safeParse(tripWithCover(undefined));
+  assert.equal(legacy.success, true);
+  if (legacy.success) assert.deepEqual(legacy.data.days[0].legPreferences, []);
+
+  const invalid = TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{
+      date: "2026-09-07",
+      spots: [{ id: "station", order: 0, name: "역", items: [] }],
+      legPreferences: [{ fromSpotId: "station", toSpotId: "missing", mode: "WALK" }],
+    }],
+  });
+  assert.equal(invalid.success, false);
+});
