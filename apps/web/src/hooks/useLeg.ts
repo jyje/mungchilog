@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { computeLeg } from "../api";
-import type { Spot } from "../types";
+import type { PersistedLegMode, Spot } from "../types";
 
 // Keep browser-persisted route data aligned with the server cache whenever
 // route geometry changes. The same version is used by the server's cache key.
@@ -46,8 +46,8 @@ function zonedIso(date: string, time: string | undefined, timeZone: string): str
 // Shared by LegInfo (text summary) and RouteOverlay (map polyline) so
 // both read from the same TanStack Query cache entry instead of firing
 // the request twice.
-export function useLeg(from: Spot, to: Spot, date: string, timezone: string) {
-  const enabled = !!from.placeId && !!to.placeId;
+export function useLeg(from: Spot, to: Spot, mode: PersistedLegMode, date: string, timezone: string) {
+  const enabled = mode !== "DIRECT" && !!from.placeId && !!to.placeId;
   // day.date + the departing spot's plannedArrival, in the trip's own
   // timezone - not the browser's, not the test runner's. Falls back to
   // noon when no arrival time is set, which still gets the weekday
@@ -56,8 +56,8 @@ export function useLeg(from: Spot, to: Spot, date: string, timezone: string) {
   const when = zonedIso(date, from.plannedArrival, timezone);
 
   return useQuery({
-    queryKey: ["leg", from.placeId, to.placeId, "TRANSIT", when, ROUTE_GEOMETRY_VERSION],
-    queryFn: () => computeLeg(from.placeId!, to.placeId!, "TRANSIT", when, timezone),
+    queryKey: ["leg", from.placeId, to.placeId, mode, when, ROUTE_GEOMETRY_VERSION],
+    queryFn: () => computeLeg(from.placeId!, to.placeId!, mode as Exclude<PersistedLegMode, "DIRECT">, when, timezone),
     enabled,
     staleTime: 1000 * 60 * 60 * 24 * 30, // matches the server's 30-day leg cache
   });

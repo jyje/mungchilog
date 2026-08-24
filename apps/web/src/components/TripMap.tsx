@@ -1,6 +1,6 @@
 import { Component, useEffect, useMemo, type ReactNode } from "react";
 import { Map, AdvancedMarker, Pin, useMap, useApiLoadingStatus, APILoadingStatus } from "@vis.gl/react-google-maps";
-import type { Spot } from "../types";
+import type { LegPreference, Spot } from "../types";
 import { RouteOverlay } from "./RouteOverlay";
 
 const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 }; // Tokyo Station, fallback only
@@ -84,12 +84,14 @@ export function TripMap({
   spots,
   date,
   timezone,
+  legPreferences,
   selection,
   onSelect,
 }: {
   spots: Spot[];
   date: string;
   timezone: string;
+  legPreferences: LegPreference[];
   selection: ItinerarySelection;
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
 }) {
@@ -135,7 +137,7 @@ export function TripMap({
           disableDefaultUI={false}
           fullscreenControl={false}
         >
-          <MapContent spots={spots} located={located} date={date} timezone={timezone} selection={selection} onSelect={onSelect} />
+          <MapContent spots={spots} located={located} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} />
         </Map>
       </MapFailureBoundary>
     </div>
@@ -153,6 +155,7 @@ function MapContent({
   located,
   date,
   timezone,
+  legPreferences,
   selection,
   onSelect,
 }: {
@@ -160,6 +163,7 @@ function MapContent({
   located: LocatedSpot[];
   date: string;
   timezone: string;
+  legPreferences: LegPreference[];
   selection: ItinerarySelection;
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
 }) {
@@ -201,7 +205,7 @@ function MapContent({
           </AdvancedMarker>
         );
       })}
-      <RouteOverlay spots={spots} date={date} timezone={timezone} selection={selection} onSelect={onSelect} />
+      <RouteOverlay spots={spots} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} />
       <FitToSpots spots={located} />
       <FocusSelection selection={selection} spots={located} />
     </>

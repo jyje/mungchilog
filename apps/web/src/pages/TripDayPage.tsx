@@ -13,6 +13,8 @@ import { SpotForm, type SpotFormValues } from "../components/SpotForm";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { TripShareButton } from "../components/TripShareButton";
 import { TripCoverSettingsButton } from "../components/TripCoverSettingsButton";
+import { legModeFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
+import type { PersistedLegMode } from "../types";
 import type { Me } from "../api";
 
 function nextDate(dateStr: string): string {
@@ -46,6 +48,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [dateEditValue, setDateEditValue] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
   const [selection, setSelection] = useState<ItinerarySelection>(null);
+  const [legSaveError, setLegSaveError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreNextDayClick = useRef(false);
@@ -269,7 +272,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   function deleteSpot(spotId: string) {
     if (!trip) return;
-    const days = trip.days.map((d, i) => (i !== dayIndex ? d : { ...d, spots: d.spots.filter((s) => s.id !== spotId) }));
+    const days = trip.days.map((d, i) => (
+      i !== dayIndex
+        ? d
+        : { ...d, spots: d.spots.filter((s) => s.id !== spotId), legPreferences: removeSpotLegPreferences(d.legPreferences, spotId) }
+    ));
     const cover = trip.cover?.spotId === spotId
       ? (trip.cover.imageDataUrl ? { imageDataUrl: trip.cover.imageDataUrl } : null)
       : trip.cover;
@@ -313,6 +320,27 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     scheduleSave({ ...trip, days });
   }
 
+  function setLegMode(fromSpotId: string, toSpotId: string, mode: PersistedLegMode) {
+    if (!trip || !day) return;
+    const previous = trip;
+    const days = trip.days.map((candidate, index) => (
+      index !== dayIndex
+        ? candidate
+        : { ...candidate, legPreferences: replaceLegPreference(candidate.legPreferences, fromSpotId, toSpotId, mode) }
+    ));
+    const next = { ...trip, days };
+    qc.setQueryData(queryKey, next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setLegSaveError(null);
+    setSelection({ kind: "leg", fromId: fromSpotId, toId: toSpotId });
+    mutation.mutate(next, {
+      onError: () => {
+        qc.setQueryData(queryKey, previous);
+        setLegSaveError("동선 선택을 저장하지 못했습니다. 이전 선택으로 되돌렸습니다.");
+      },
+    });
+  }
+
   function toggleItem(spotId: string, itemId: string) {
     if (!trip) return;
     const days = trip.days.map((d, i) => {
@@ -337,6 +365,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             spots={day?.spots ?? []}
             date={day?.date ?? trip.startDate}
             timezone={trip.timezone}
+            legPreferences={day?.legPreferences ?? []}
             selection={selection}
             onSelect={selectItinerary}
           />
@@ -445,6 +474,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
             {day ? (
               <>
+                {legSaveError && <p className="error leg-save-error" role="alert">{legSaveError}</p>}
                 {day.note || dayNoteOpen ? (
                   <div className="day-note">
                     <p className="field-label">📝 이 날 메모</p>
@@ -496,8 +526,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                                 to={sorted[i + 1]}
                                 date={day.date}
                                 timezone={trip.timezone}
+                                mode={legModeFor(day.legPreferences, spot.id, sorted[i + 1].id)}
                                 selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
                                 onSelect={() => selectItinerary({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
+                                onModeChange={(mode) => setLegMode(spot.id, sorted[i + 1].id, mode)}
                               />
                             </li>,
                           ];
