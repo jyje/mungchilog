@@ -49,3 +49,19 @@ test("a blank or omitted trip timezone defaults to Seoul", () => {
   assert.equal(blank.timezone, DEFAULT_TIMEZONE);
   assert.equal(omitted.timezone, DEFAULT_TIMEZONE);
 });
+
+test("leg preferences are optional for existing trips and validate their spot pairs", () => {
+  const legacy = TripImportSchema.safeParse(tripWithCover(undefined));
+  assert.equal(legacy.success, true);
+  if (legacy.success) assert.deepEqual(legacy.data.days[0].legPreferences, []);
+
+  const invalid = TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{
+      date: "2026-09-07",
+      spots: [{ id: "station", order: 0, name: "역", items: [] }],
+      legPreferences: [{ fromSpotId: "station", toSpotId: "missing", mode: "WALK" }],
+    }],
+  });
+  assert.equal(invalid.success, false);
+});

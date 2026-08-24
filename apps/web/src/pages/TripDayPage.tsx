@@ -159,7 +159,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return false;
     }
 
-    const days = sortDays([...trip.days, { date, spots: [] }]);
+    const days = sortDays([...trip.days, { date, spots: [], legPreferences: [] }]);
     const startDate = date < trip.startDate ? date : trip.startDate;
     const endDate = date > trip.endDate ? date : trip.endDate;
     saveNow({ ...trip, startDate, endDate, days });
