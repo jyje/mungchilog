@@ -15,6 +15,7 @@ import {
 } from "./initial-admin.js";
 import { canAllowUnverifiedEmailForLocalOidc, canAuthenticateWithUnverifiedEmailClaim } from "./local-oidc-email-verification.js";
 import { sessionStorageId } from "./session-security.js";
+import { locationSharingStore } from "./location-sharing-store.js";
 
 // Standard OIDC login, configured entirely via env vars so this works with
 // any compliant provider (Authentik, Keycloak, Google Workspace, ...) -
@@ -263,7 +264,10 @@ async function createSession(userId: string): Promise<string> {
 async function deleteSession(token: string) {
   // The raw token branch keeps logout and session rotation compatible with
   // sessions created before database-side hashing was introduced.
-  await db.run("DELETE FROM sessions WHERE id IN (?, ?)", [sessionStorageId(token), token]);
+  await locationSharingStore.lock(async () => {
+    locationSharingStore.revokeAuthSession(sessionStorageId(token));
+    await db.run("DELETE FROM sessions WHERE id IN (?, ?)", [sessionStorageId(token), token]);
+  });
 }
 
 async function getUserBySession(token: string): Promise<User | null> {
@@ -444,7 +448,21 @@ export async function listUsers(): Promise<User[]> {
 }
 
 export async function setUserStatus(id: string, status: "pending" | "approved") {
-  await db.run("UPDATE users SET status = ? WHERE id = ?", [status, id]);
+  await locationSharingStore.lock(async () => {
+    locationSharingStore.revokeUser(id);
+    const memberships = await db.all<{ trip_id: string }>("SELECT trip_id FROM trip_members WHERE user_id = ?", [id]);
+    for (const membership of memberships) locationSharingStore.revokeTrip(membership.trip_id);
+    await db.run("UPDATE users SET status = ? WHERE id = ?", [status, id]);
+  });
+}
+
+// Sharing requires a real authenticated browser session, even when the rest
+// of the app uses its local-only pseudo-user. This identifier never leaves
+// the server and cannot be supplied through a request body.
+export function getCurrentSessionStorageId(c: Context): string | null {
+  if (LOCAL_DEV_AUTH) return null;
+  const token = getCookie(c, SESSION_COOKIE);
+  return token ? sessionStorageId(token) : null;
 }
 
 export async function getCurrentUser(c: Context): Promise<User | null> {

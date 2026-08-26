@@ -553,6 +553,7 @@ ul {
   display: flex;
   overflow: hidden;
   background: var(--bg);
+  height: 100dvh;
 }
 .trip-shell[data-panel-position="bottom"] {
   flex-direction: column;
@@ -593,16 +594,20 @@ ul {
 
 .map-hero-header {
   position: absolute;
-  inset: 0 0 auto 0;
+  top: max(0.5rem, env(safe-area-inset-top));
+  right: max(0.5rem, env(safe-area-inset-right));
+  left: max(0.5rem, env(safe-area-inset-left));
   z-index: 6;
-  padding: max(0.75rem, env(safe-area-inset-top)) 0.9rem 2rem;
-  display: flex;
-  align-items: flex-start;
+  padding: 0.5rem;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
   gap: 0.5rem;
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0) 85%);
-  /* Lets clicks reach the map underneath everywhere except the actual
-     back/menu/title controls. */
-  pointer-events: none;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  box-shadow: 0 0.25rem 1rem var(--shadow-color);
 }
 .map-hero-header > * {
   pointer-events: auto;
@@ -613,20 +618,19 @@ ul {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 3rem;
+  height: 3rem;
   border-radius: 999px;
   border: none;
-  background: rgba(20, 20, 24, 0.55);
-  color: #fff;
+  background: var(--bg);
+  color: var(--text);
   font-size: 1rem;
   cursor: pointer;
-  backdrop-filter: blur(6px);
 }
 .map-hero-back:hover,
 .menu-button:hover {
   text-decoration: none;
-  background: rgba(20, 20, 24, 0.7);
+  background: var(--border);
 }
 .map-hero-title {
   flex: 1;
@@ -634,17 +638,28 @@ ul {
 }
 .map-hero-title h1 {
   margin: 0.15rem 0;
-  color: #fff;
-  font-size: 1.375rem;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .map-hero-title .meta {
-  color: rgba(255, 255, 255, 0.85);
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-label);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 .trip-header-actions {
   display: flex;
   flex: none;
   gap: 0.35rem;
+}
+.trip-header-actions .layout-menu {
+  left: auto;
+  right: 0;
 }
 
 .menu-anchor {
@@ -665,6 +680,9 @@ ul {
   top: calc(100% + 8px);
   left: 0;
   min-width: 180px;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100dvh - 7rem);
+  overflow-y: auto;
   padding: 0.4rem;
   display: flex;
   flex-direction: column;
@@ -680,7 +698,7 @@ ul {
   border: none;
   color: var(--text);
   text-align: left;
-  min-height: 44px;
+  min-height: 3rem;
   padding: 0.55rem 0.7rem;
   border-radius: 8px;
   font-size: var(--type-label);
@@ -773,8 +791,11 @@ ul {
   background: var(--bg);
   overflow: hidden;
 }
+.trip-panel-pane[hidden],
+.trip-panel-pane .panel-content[hidden] { display: none; }
 .trip-shell[data-panel-position="bottom"] .trip-panel-pane {
-  max-height: 92vh;
+  max-height: calc(100% - 12rem);
+  min-height: 3rem;
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -8px 20px var(--shadow-color);
 }
@@ -792,15 +813,19 @@ ul {
 }
 
 .panel-drag-handle {
-  position: absolute;
-  z-index: 3;
+  position: relative;
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: none;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--surface);
+  color: var(--text);
   border: none;
-  padding: 0;
+  padding: 0 1rem;
+  min-height: 3rem;
+  font: inherit;
+  font-weight: 600;
   touch-action: none;
 }
 .panel-drag-handle .handle-bar {
@@ -808,34 +833,54 @@ ul {
   background: var(--border);
 }
 .trip-shell[data-panel-position="bottom"] .panel-drag-handle {
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 20px;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
   cursor: row-resize;
 }
 .trip-shell[data-panel-position="bottom"] .panel-drag-handle .handle-bar {
-  width: 40px;
-  height: 4px;
+  width: 2.5rem;
+  height: 0.25rem;
 }
-.trip-shell[data-panel-position="left"] .panel-drag-handle {
-  top: 0;
-  bottom: 0;
-  right: 0;
-  width: 18px;
-  cursor: col-resize;
-}
+.trip-shell[data-panel-position="left"] .panel-drag-handle,
 .trip-shell[data-panel-position="right"] .panel-drag-handle {
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 18px;
+  width: 100%;
+  border-bottom: 1px solid var(--border);
   cursor: col-resize;
 }
-.trip-shell[data-panel-position="left"] .panel-drag-handle .handle-bar,
-.trip-shell[data-panel-position="right"] .panel-drag-handle .handle-bar {
-  width: 4px;
-  height: 40px;
+.panel-sheet-toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  padding-right: max(0.5rem, env(safe-area-inset-right));
+  padding-left: env(safe-area-inset-left);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.panel-sheet-states { display: flex; }
+.panel-sheet-states button {
+  min-width: 3rem;
+  min-height: 3rem;
+  padding: 0.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--type-label);
+  cursor: pointer;
+}
+.panel-sheet-states button[aria-pressed="true"] {
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: inset 0 -0.2rem var(--accent);
+}
+.panel-sheet-states button:hover { background: var(--bg); }
+.panel-sheet-states button:active { background: var(--border); }
+.panel-sheet-states button:focus-visible { outline-offset: -0.25rem; }
+.trip-shell[data-sheet-state="collapsed"] .trip-panel-pane {
+  background: var(--surface);
 }
 
 body.panel-resizing {
@@ -848,10 +893,11 @@ body.panel-resizing {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 1.1rem 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
 }
 .trip-shell[data-panel-position="bottom"] .panel-content {
-  padding-top: 1.3rem;
+  padding: 1rem max(1rem, env(safe-area-inset-right)) calc(1.25rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 }
 .trip-shell[data-panel-position="left"] .panel-content {
   padding-right: 1.5rem;
@@ -877,7 +923,7 @@ body.panel-resizing {
   position: absolute;
   z-index: 5;
   max-width: calc(100vw - 24px);
-  max-height: calc(100vh - 24px);
+  max-height: calc(100dvh - 24px);
   overflow: visible;
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -893,7 +939,7 @@ body.panel-resizing {
   align-items: center;
   gap: 0.45rem;
   width: 100%;
-  min-height: 42px;
+  min-height: 3rem;
   padding: 0 0.8rem;
   border: none;
   border-bottom: 1px solid var(--border);
@@ -949,6 +995,13 @@ body.panel-resizing {
 .floating-resize-bottom-right { right: -8px; bottom: -8px; cursor: nwse-resize; }
 .floating-resize-top-right { top: -8px; right: -8px; cursor: nesw-resize; }
 .floating-resize-bottom-left { bottom: -8px; left: -8px; cursor: nesw-resize; }
+.floating-resize-bottom-right {
+  width: 3rem;
+  height: 3rem;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, transparent 68%, var(--border) 69%, var(--border) 74%, transparent 75%);
+}
 body.trip-panel-dragging,
 body.trip-panel-resizing {
   user-select: none;
@@ -973,6 +1026,16 @@ body.trip-panel-resizing { cursor: col-resize; }
     border-radius: 20px 20px 0 0;
     padding: 1.25rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
   }
+}
+@media (max-width: 56.249rem) {
+  .map-hero-header { gap: 0.25rem 0.5rem; }
+  .map-hero-title { grid-column: 1 / -1; grid-row: 2; padding: 0.1rem 0.5rem 0.35rem; }
+  .trip-header-actions { grid-column: 4; grid-row: 1; }
+  .map-hero-title h1 { font-size: 1.125rem; }
+  .map-hero-title .meta { font-size: var(--type-label); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trip-shell *, .trip-shell *::before, .trip-shell *::after { scroll-behavior: auto; }
 }
 
 /* spot list */
@@ -1023,8 +1086,9 @@ body.trip-panel-resizing { cursor: col-resize; }
 }
 .spot-select {
   display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
   flex: 1 1 auto;
   min-width: 0;
   min-height: 44px;
@@ -1050,10 +1114,12 @@ body.trip-panel-resizing { cursor: col-resize; }
 .spot-name {
   font-weight: 600;
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 .spot-local {
   color: var(--text-muted);
   font-size: var(--type-small);
+  overflow-wrap: anywhere;
 }
 .spot-actions {
   position: relative;

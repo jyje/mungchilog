@@ -1,0 +1,91 @@
+.device-location-controls {
+  position: absolute;
+  right: calc(var(--map-control-right, 0px) + 4.5rem);
+  bottom: calc(var(--map-control-bottom, 0px) + 3rem);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  max-width: min(22rem, calc(100% - var(--map-control-left, 0px) - var(--map-control-right, 0px) - 5.5rem));
+  pointer-events: none;
+}
+.device-location-action { position: relative; pointer-events: auto; }
+.device-location-button {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  min-width: 3rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 2px 8px var(--shadow-color);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.device-location-button svg { width: 1.5rem; height: 1.5rem; }
+.device-location-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.device-location-button[aria-busy="true"] { color: var(--text-muted); cursor: progress; }
+.device-location-tooltip {
+  position: absolute;
+  right: calc(100% + 0.5rem);
+  top: 50%;
+  transform: translateY(-50%);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.65rem;
+  background: var(--surface);
+  color: var(--text);
+  white-space: nowrap;
+  font-size: 0.875rem;
+  opacity: 0;
+  pointer-events: none;
+}
+.device-location-action:hover .device-location-tooltip,
+.device-location-action:focus-within .device-location-tooltip,
+.device-location-action.show-touch-tooltip .device-location-tooltip { opacity: 1; }
+.device-location-status {
+  max-height: 6rem;
+  overflow-y: auto;
+  pointer-events: auto;
+  margin: 0;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  box-shadow: 0 2px 8px var(--shadow-color);
+}
+.device-location-marker {
+  display: block;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: #2563eb;
+  box-shadow: 0 0 0 2px #1e40af, 0 2px 4px #0004;
+}
+.trip-shell[data-compact-map="true"] .device-location-status {
+  position: absolute;
+  right: calc(100% + 0.5rem);
+  bottom: 0;
+  width: min(14rem, 50vw);
+  max-height: 3rem;
+}
+.device-location-marker.is-stale { background: #64748b; box-shadow: 0 0 0 2px #475569; border-style: dashed; }
+.device-location-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

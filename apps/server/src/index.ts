@@ -6,6 +6,8 @@ import { trips } from "./routes/trips.js";
 import { legs } from "./routes/legs.js";
 import { places } from "./routes/places.js";
 import { admin } from "./routes/admin.js";
+import { locationSharing } from "./routes/location-sharing.js";
+import { startLocationSharingCleanup } from "./location-sharing-store.js";
 import { auth, isAuthenticationReady, requireApproved, requireAuth, requireSameOrigin } from "./auth.js";
 
 const app = new Hono();
@@ -19,6 +21,10 @@ app.get("/readyz", (c) =>
 );
 
 app.route("/auth", auth);
+// This router applies its own authentication, approval, CSRF and no-store
+// boundary, including error responses, before the generic API middleware.
+app.route("/api/trips", locationSharing);
+startLocationSharingCleanup();
 // Authentication is an application boundary, not just a trips-route
 // concern. In particular, a newly created but unapproved account must not
 // be able to call the Places or Routes endpoints directly, even though the

@@ -1,7 +1,10 @@
-import { Component, useEffect, useMemo, type ReactNode } from "react";
+import { Component, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Map, AdvancedMarker, Pin, useMap, useApiLoadingStatus, APILoadingStatus } from "@vis.gl/react-google-maps";
 import type { Spot } from "../types";
 import { RouteOverlay } from "./RouteOverlay";
+import { CurrentLocation } from "./CurrentLocation";
+import { useMapViewportInsets } from "./MapViewportContext";
+import { cameraOffset, framePadding, panToVisibleCenter } from "./mapCamera";
 
 const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 }; // Tokyo Station, fallback only
 
@@ -12,6 +15,16 @@ export type ItinerarySelection =
   | { kind: "leg"; fromId: string; toId: string }
   | null;
 
+function MapUnavailable({ overlay = false }: { overlay?: boolean }) {
+  const insets = useMapViewportInsets();
+  return (
+    <div className={`map-placeholder${overlay ? " map-placeholder-overlay" : ""}`} style={{ paddingTop: insets.top + 16, paddingRight: insets.right + 16, paddingLeft: insets.left + 16, paddingBottom: insets.bottom + 16, justifyContent: "flex-start", overflowY: "auto" }}>
+      <p>지도를 불러오지 못했습니다.</p>
+      <p className="meta">일정 목록은 계속 이용할 수 있습니다. 잠시 후 다시 열어주세요.</p>
+    </div>
+  );
+}
+
 class MapFailureBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
 
@@ -21,12 +34,7 @@ class MapFailureBoundary extends Component<{ children: ReactNode }, { failed: bo
 
   render() {
     if (this.state.failed) {
-      return (
-        <div className="map-placeholder map-placeholder-overlay">
-          <p>지도를 불러오지 못했습니다.</p>
-          <p className="meta">지도 키 또는 네트워크 문제로 지도 상호작용을 사용할 수 없습니다. 일정 목록은 계속 사용할 수 있습니다.</p>
-        </div>
-      );
+      return <MapUnavailable overlay />;
     }
     return this.props.children;
   }
@@ -36,33 +44,45 @@ class MapFailureBoundary extends Component<{ children: ReactNode }, { failed: bo
 // the map re-fits every time spots are added/reordered/removed.
 function FitToSpots({ spots }: { spots: LocatedSpot[] }) {
   const map = useMap();
+  const insets = useMapViewportInsets();
+  const lastFrame = useRef<{ map: google.maps.Map; key: string } | null>(null);
+  const key = spots.map((spot) => `${spot.id}:${spot.lat}:${spot.lng}`).join("|");
 
   useEffect(() => {
-    if (!map || spots.length === 0) return;
+    if (!map || spots.length === 0) { lastFrame.current = null; return; }
+    // A refetch or a note/name edit can recreate the spots array. Only an
+    // actual route change should undo personal camera exploration/recentering.
+    if (lastFrame.current?.map === map && lastFrame.current.key === key) return;
+    lastFrame.current = { map, key };
     if (spots.length === 1) {
-      map.setCenter({ lat: spots[0].lat, lng: spots[0].lng });
       map.setZoom(15);
+      panToVisibleCenter(map, { lat: spots[0].lat, lng: spots[0].lng }, insets);
       return;
     }
     const bounds = new google.maps.LatLngBounds();
     spots.forEach((s) => bounds.extend({ lat: s.lat, lng: s.lng }));
-    map.fitBounds(bounds, 48);
-  }, [map, spots]);
+    map.fitBounds(bounds, framePadding(insets));
+  }, [map, spots, key, insets]);
 
   return null;
 }
 
 function FocusSelection({ selection, spots }: { selection: ItinerarySelection; spots: LocatedSpot[] }) {
   const map = useMap();
+  const insets = useMapViewportInsets();
+  const lastFocus = useRef<{ map: google.maps.Map; key: string } | null>(null);
+  const key = JSON.stringify([selection, spots.map(({ id, lat, lng }) => [id, lat, lng])]);
 
   useEffect(() => {
-    if (!map || !selection) return;
+    if (!map || !selection) { lastFocus.current = null; return; }
+    if (lastFocus.current?.map === map && lastFocus.current.key === key) return;
+    lastFocus.current = { map, key };
 
     if (selection.kind === "spot") {
       const spot = spots.find((candidate) => candidate.id === selection.spotId);
       if (!spot) return;
-      map.panTo({ lat: spot.lat, lng: spot.lng });
       map.setZoom(Math.max(map.getZoom() ?? 13, 16));
+      panToVisibleCenter(map, { lat: spot.lat, lng: spot.lng }, insets);
       return;
     }
 
@@ -72,9 +92,27 @@ function FocusSelection({ selection, spots }: { selection: ItinerarySelection; s
     const bounds = new google.maps.LatLngBounds();
     bounds.extend({ lat: from.lat, lng: from.lng });
     bounds.extend({ lat: to.lat, lng: to.lng });
-    map.fitBounds(bounds, 96);
-  }, [map, selection, spots]);
+    map.fitBounds(bounds, framePadding(insets, 48));
+  }, [map, selection, spots, key, insets]);
 
+  return null;
+}
+
+// Layout changes preserve the existing focal point, including a manually
+// explored location. They must not reselect or rezoom the itinerary.
+function PreserveVisibleCenter() {
+  const map = useMap();
+  const insets = useMapViewportInsets();
+  const previous = useRef<{ map: google.maps.Map; x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!map) return;
+    const next = cameraOffset(insets);
+    const old = previous.current;
+    previous.current = { map, ...next };
+    if (old?.map === map && (old.x !== next.x || old.y !== next.y)) {
+      map.panBy(next.x - old.x, next.y - old.y);
+    }
+  }, [map, insets]);
   return null;
 }
 
@@ -105,15 +143,7 @@ export function TripMap({
   );
 
   if (!apiKey) {
-    return (
-      <div className="map-placeholder">
-        <p>지도 API 키가 아직 설정되지 않았습니다.</p>
-        <p className="meta">
-          <code>VITE_GOOGLE_MAPS_API_KEY</code>가 배포되면 여기에 실제 지도가 뜹니다.
-          그동안 아래 스팟 목록으로 동선을 확인하세요.
-        </p>
-      </div>
-    );
+    return <MapUnavailable />;
   }
 
   const center = located[0] ?? DEFAULT_CENTER;
@@ -166,16 +196,7 @@ function MapContent({
   const status = useApiLoadingStatus();
 
   if (status === APILoadingStatus.FAILED || status === APILoadingStatus.AUTH_FAILURE) {
-    return (
-      <div className="map-placeholder map-placeholder-overlay">
-        <p>지도를 불러오지 못했습니다.</p>
-        <p className="meta">
-          이 지도 키는 배포 도메인에서만 쓰도록 리퍼러가 제한돼 있어서, 로컬(<code>localhost</code>)에서는 원래
-          이렇게 뜹니다 (배포된 사이트에서는 정상 동작). 로컬에서도 실제 지도를 보고 싶다면 Google Cloud
-          Console → 이 키의 애플리케이션 제한사항에 <code>http://localhost:5173/*</code>를 추가해주세요.
-        </p>
-      </div>
-    );
+    return <MapUnavailable overlay />;
   }
 
   return (
@@ -204,6 +225,8 @@ function MapContent({
       <RouteOverlay spots={spots} date={date} timezone={timezone} selection={selection} onSelect={onSelect} />
       <FitToSpots spots={located} />
       <FocusSelection selection={selection} spots={located} />
+      <PreserveVisibleCenter />
+      {status === APILoadingStatus.LOADED && <CurrentLocation />}
     </>
   );
 }

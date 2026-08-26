@@ -33,8 +33,15 @@ export default defineConfig({
         // this exclusion Workbox returns the SPA shell for /auth/login and
         // /auth/callback, preventing the server from issuing or consuming
         // the OIDC session cookies.
-        navigateFallbackDenylist: [/^\/auth(?:\/|$)/],
+        navigateFallbackDenylist: [/^\/auth(?:\/|$)/, /^\/api(?:\/|$)/],
         runtimeCaching: [
+          {
+            // Location sharing is ephemeral. Workbox can cache responses
+            // despite HTTP no-store headers, so this must precede trips-api.
+            urlPattern: ({ url }) => /^\/api\/trips\/[^/]+\/location-sharing(?:\/|$)/.test(url.pathname),
+            handler: "NetworkOnly",
+            method: "GET",
+          },
           {
             urlPattern: /^\/api\/trips(\/.*)?$/,
             handler: "NetworkFirst",
