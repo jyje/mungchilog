@@ -46,7 +46,7 @@ jobs:
       # OCI manifest to stg and prd without rebuilding it.
       - name: Decide whether this run may publish
         id: publish
-        run: echo "value=${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' }}" >> "$GITHUB_OUTPUT"
+        run: echo "value=${{ github.ref == 'refs/heads/dev' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}" >> "$GITHUB_OUTPUT"
 
   validate:
     needs: metadata
