@@ -3,6 +3,7 @@ import { Map, AdvancedMarker, Pin, useMap, useApiLoadingStatus, APILoadingStatus
 import type { Spot } from "../types";
 import { RouteOverlay } from "./RouteOverlay";
 import { CurrentLocation } from "./CurrentLocation";
+import { ItineraryFollowControl } from "./ItineraryFollowControl";
 import { useMapViewportInsets } from "./MapViewportContext";
 import { cameraOffset, framePadding, panToVisibleCenter } from "./mapCamera";
 
@@ -14,6 +15,15 @@ export type ItinerarySelection =
   | { kind: "spot"; spotId: string }
   | { kind: "leg"; fromId: string; toId: string }
   | null;
+
+export type SharedMapLocation = {
+  userId: string;
+  name: string | null;
+  lat: number;
+  lng: number;
+  accuracy: number;
+  measuredAt: number;
+};
 
 function MapUnavailable({ overlay = false }: { overlay?: boolean }) {
   const insets = useMapViewportInsets();
@@ -124,12 +134,18 @@ export function TripMap({
   timezone,
   selection,
   onSelect,
+  sharedLocations = [],
+  focusedSharedUserId = null,
+  onFocusSharedLocation,
 }: {
   spots: Spot[];
   date: string;
   timezone: string;
   selection: ItinerarySelection;
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
+  sharedLocations?: SharedMapLocation[];
+  focusedSharedUserId?: string | null;
+  onFocusSharedLocation?: (userId: string) => void;
 }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
   // Numbered in visiting order (spot.order), not raw array order, so the
@@ -165,7 +181,7 @@ export function TripMap({
           disableDefaultUI={false}
           fullscreenControl={false}
         >
-          <MapContent spots={spots} located={located} date={date} timezone={timezone} selection={selection} onSelect={onSelect} />
+          <MapContent spots={spots} located={located} date={date} timezone={timezone} selection={selection} onSelect={onSelect} sharedLocations={sharedLocations} focusedSharedUserId={focusedSharedUserId} onFocusSharedLocation={onFocusSharedLocation} />
         </Map>
       </MapFailureBoundary>
     </div>
@@ -185,6 +201,9 @@ function MapContent({
   timezone,
   selection,
   onSelect,
+  sharedLocations,
+  focusedSharedUserId,
+  onFocusSharedLocation,
 }: {
   spots: Spot[];
   located: LocatedSpot[];
@@ -192,6 +211,9 @@ function MapContent({
   timezone: string;
   selection: ItinerarySelection;
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
+  sharedLocations: SharedMapLocation[];
+  focusedSharedUserId: string | null;
+  onFocusSharedLocation?: (userId: string) => void;
 }) {
   const status = useApiLoadingStatus();
 
@@ -226,7 +248,39 @@ function MapContent({
       <FitToSpots spots={located} />
       <FocusSelection selection={selection} spots={located} />
       <PreserveVisibleCenter />
-      {status === APILoadingStatus.LOADED && <CurrentLocation />}
+      {status === APILoadingStatus.LOADED && <>
+        <SharedLocationMarkers locations={sharedLocations} focusedUserId={focusedSharedUserId} onFocus={onFocusSharedLocation} />
+        <CurrentLocation />
+        <ItineraryFollowControl spots={spots} selection={selection} onSelect={onSelect} />
+      </>}
     </>
   );
+}
+
+function SharedLocationMarkers({ locations, focusedUserId, onFocus }: {
+  locations: SharedMapLocation[];
+  focusedUserId: string | null;
+  onFocus?: (userId: string) => void;
+}) {
+  const map = useMap();
+  const insets = useMapViewportInsets();
+  const focused = locations.find((location) => location.userId === focusedUserId);
+  const focusedKey = focused ? `${focused.userId}:${focused.measuredAt}` : "";
+  const lastFocused = useRef("");
+  useEffect(() => {
+    if (!map || !focused || lastFocused.current === focusedKey) return;
+    lastFocused.current = focusedKey;
+    panToVisibleCenter(map, { lat: focused.lat, lng: focused.lng }, insets);
+  }, [map, focused, focusedKey, insets]);
+  return <>
+    {locations.map((location) => {
+      const selected = location.userId === focusedUserId;
+      const initials = (location.name?.trim().slice(0, 1) || "동").toUpperCase();
+      return <AdvancedMarker key={location.userId} position={{ lat: location.lat, lng: location.lng }}
+        title={`${location.name ?? "동행자"} · 오차 약 ${Math.ceil(location.accuracy)}m`}
+        onClick={() => onFocus?.(location.userId)}>
+        <button type="button" className={`shared-location-marker${selected ? " selected" : ""}`} aria-label={`${location.name ?? "동행자"} 위치 보기`} aria-pressed={selected} onClick={() => onFocus?.(location.userId)}>{initials}</button>
+      </AdvancedMarker>;
+    })}
+  </>;
 }

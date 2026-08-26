@@ -1,12 +1,25 @@
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { listTripMembers, inviteToTrip, removeTripMember, type Me } from "../api";
+import { LocationSharingControl, type SharedLocationWithName } from "./LocationSharingControl";
 
 // Floating share icon in the map header, mirroring the layout menu's own
 // popover pattern (menu-anchor/menu-backdrop). Anyone on the trip can see
 // who else is on it; only the owner (or a global admin) gets the invite
 // form and remove buttons.
-export function TripShareButton({ tripId, me }: { tripId: string; me: Me }) {
+export function TripShareButton({
+  tripId,
+  me,
+  sharedLocations,
+  onLocationsChange,
+  onFocusLocation,
+}: {
+  tripId: string;
+  me: Me;
+  sharedLocations: SharedLocationWithName[];
+  onLocationsChange: (locations: SharedLocationWithName[]) => void;
+  onFocusLocation: (userId: string | null) => void;
+}) {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const { data: members } = useQuery({
@@ -45,18 +58,20 @@ export function TripShareButton({ tripId, me }: { tripId: string; me: Me }) {
           <div className="layout-menu share-panel" role="dialog">
             <p className="field-label">이 여행을 같이 보는 사람</p>
             <ul className="share-member-list">
-              {members?.map((m) => (
-                <li key={m.id}>
+              {members?.map((m) => {
+                const shared = sharedLocations.find((location) => location.userId === m.id);
+                return <li key={m.id}>
                   <span>
                     {m.name ?? m.email} <span className="meta">{m.role === "owner" ? "소유자" : "편집자"}</span>
+                    {shared && <button type="button" className="shared-location-link" onClick={() => onFocusLocation(shared.userId)} aria-label={`${m.name ?? m.email} 위치 보기`}>위치 보기</button>}
                   </span>
                   {canManage && m.role !== "owner" && (
                     <button type="button" className="item-delete" aria-label="제거" onClick={() => remove.mutate(m.id)}>
                       ✕
                     </button>
                   )}
-                </li>
-              ))}
+                </li>;
+              })}
               {members?.length === 0 && <li className="meta">아직 소유자만 있습니다.</li>}
             </ul>
             {canManage && (
@@ -77,6 +92,12 @@ export function TripShareButton({ tripId, me }: { tripId: string; me: Me }) {
               </div>
             )}
             {error && <p className="error">{error}</p>}
+            <LocationSharingControl
+              tripId={tripId}
+              open={open}
+              onLocationsChange={onLocationsChange}
+              onFocus={onFocusLocation}
+            />
           </div>
         </>
       )}

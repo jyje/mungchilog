@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -12,6 +12,7 @@ import { LegInfo } from "../components/LegInfo";
 import { SpotForm, type SpotFormValues } from "../components/SpotForm";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { TripShareButton } from "../components/TripShareButton";
+import type { SharedLocationWithName } from "../components/LocationSharingControl";
 import { TripCoverSettingsButton } from "../components/TripCoverSettingsButton";
 import type { Me } from "../api";
 
@@ -46,6 +47,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [dateEditValue, setDateEditValue] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
   const [selection, setSelection] = useState<ItinerarySelection>(null);
+  const [sharedLocations, setSharedLocations] = useState<SharedLocationWithName[]>([]);
+  const [focusedSharedUserId, setFocusedSharedUserId] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreNextDayClick = useRef(false);
@@ -75,6 +78,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     }
     setSelection(next);
   }
+
+  const handleSharedLocations = useCallback((locations: SharedLocationWithName[]) => {
+    setSharedLocations(locations);
+    setFocusedSharedUserId((current) => (current && !locations.some((location) => location.userId === current) ? null : current));
+  }, []);
 
   useEffect(() => {
     if (!selection) return;
@@ -339,6 +347,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             timezone={trip.timezone}
             selection={selection}
             onSelect={selectItinerary}
+            sharedLocations={sharedLocations}
+            focusedSharedUserId={focusedSharedUserId}
+            onFocusSharedLocation={setFocusedSharedUserId}
           />
         }
         headerLeft={
@@ -356,7 +367,13 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         }
         headerRight={
           <div className="trip-header-actions">
-            <TripShareButton tripId={id} me={me} />
+            <TripShareButton
+              tripId={id}
+              me={me}
+              sharedLocations={sharedLocations}
+              onLocationsChange={handleSharedLocations}
+              onFocusLocation={setFocusedSharedUserId}
+            />
             <TripCoverSettingsButton trip={trip} onSave={saveNow} saving={mutation.isPending} />
           </div>
         }
