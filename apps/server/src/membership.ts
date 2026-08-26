@@ -1,4 +1,5 @@
 import { db } from "./db.js";
+import { locationSharingStore } from "./location-sharing-store.js";
 
 // Per-trip sharing (M6). "owner" created the trip (or adopted it via the
 // admin-bootstrap backfill in auth.ts); "editor" was invited. Both can
@@ -12,15 +13,21 @@ export async function getMembership(tripId: string, userId: string): Promise<Tri
 }
 
 export async function addMember(tripId: string, userId: string, role: TripRole) {
-  await db.run(
-    `INSERT INTO trip_members (trip_id, user_id, role, created_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT(trip_id, user_id) DO UPDATE SET role = excluded.role`,
-    [tripId, userId, role, new Date().toISOString()],
-  );
+  await locationSharingStore.lock(async () => {
+    locationSharingStore.revokeTrip(tripId);
+    await db.run(
+      `INSERT INTO trip_members (trip_id, user_id, role, created_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(trip_id, user_id) DO UPDATE SET role = excluded.role`,
+      [tripId, userId, role, new Date().toISOString()],
+    );
+  });
 }
 
 export async function removeMember(tripId: string, userId: string) {
-  await db.run("DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?", [tripId, userId]);
+  await locationSharingStore.lock(async () => {
+    locationSharingStore.revokeTrip(tripId);
+    await db.run("DELETE FROM trip_members WHERE trip_id = ? AND user_id = ?", [tripId, userId]);
+  });
 }
 
 export async function listMembers(tripId: string) {

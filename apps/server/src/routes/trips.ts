@@ -4,6 +4,7 @@ import { db } from "../db.js";
 import { TripImportSchema, type TripData } from "../schema.js";
 import { requireAuth, requireApproved, findUserByEmail, type AuthEnv } from "../auth.js";
 import { getMembership, addMember, removeMember, listMembers, listMemberTripIds } from "../membership.js";
+import { locationSharingStore } from "../location-sharing-store.js";
 
 export const trips = new Hono<AuthEnv>();
 
@@ -135,8 +136,12 @@ trips.delete("/:id", async (c) => {
   const role = await getMembership(id, user.id);
   if (!role) return c.json({ error: "not found" }, 404);
   if (role !== "owner" && user.role !== "admin") return c.json({ error: "only the owner can delete this trip" }, 403);
-  const result = await db.run("DELETE FROM trips WHERE id = ?", [id]);
-  await db.run("DELETE FROM trip_members WHERE trip_id = ?", [id]);
+  const result = await locationSharingStore.lock(async () => {
+    locationSharingStore.revokeTrip(id);
+    // Remove referencing rows first with foreign-key enforcement enabled.
+    await db.run("DELETE FROM trip_members WHERE trip_id = ?", [id]);
+    return db.run("DELETE FROM trips WHERE id = ?", [id]);
+  });
   if (result.changes === 0) return c.json({ error: "not found" }, 404);
   return c.json({ deleted: true });
 });
