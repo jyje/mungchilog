@@ -32,8 +32,10 @@ export function ItineraryFollowControl({ spots, selection, onSelect }: {
   const [leg, setLeg] = useState<FollowLeg>(null);
   const stateRef = useRef(state);
   const sorted = useMemo(() => [...spots].sort((a, b) => a.order - b.order), [spots]);
+  const hasValidLeg = Boolean(leg && sorted.some((spot) => spot.id === leg.fromId) && sorted.some((spot) => spot.id === leg.toId));
+  const visibleState: FollowState = state !== "idle" && !hasValidLeg ? "idle" : state;
   const activeIndex = leg ? sorted.findIndex((spot) => spot.id === leg.toId) : -1;
-  const label = state === "following" ? "따라가기 중지" : state === "paused" ? "따라가기 재개" : "따라가기";
+  const label = visibleState === "following" ? "따라가기 중지" : visibleState === "paused" ? "따라가기 재개" : "따라가기";
 
   useEffect(() => {
     stateRef.current = state;
@@ -50,12 +52,6 @@ export function ItineraryFollowControl({ spots, selection, onSelect }: {
     panToVisibleCenter(map, { lat: fix.lat, lng: fix.lng }, insets);
   }, [state, fix, map, insets]);
   useEffect(() => {
-    if (state !== "idle" && (!leg || !sorted.some((spot) => spot.id === leg.fromId) || !sorted.some((spot) => spot.id === leg.toId))) {
-      setState("idle");
-      setLeg(null);
-    }
-  }, [leg, sorted, state]);
-  useEffect(() => {
     function dismiss() {
       setState((current) => current === "idle" ? current : "idle");
       setLeg(null);
@@ -71,19 +67,19 @@ export function ItineraryFollowControl({ spots, selection, onSelect }: {
     };
   }, []);
   useEffect(() => {
-    if (state !== "following" || !leg) return;
+    if (visibleState !== "following" || !leg) return;
     if (selection && (selection.kind !== "leg" || selection.fromId !== leg.fromId || selection.toId !== leg.toId)) {
       setState("paused");
     }
-  }, [leg, selection, state]);
+  }, [leg, selection, visibleState]);
 
   function toggle() {
-    if (state === "following") {
+    if (visibleState === "following") {
       setState("idle");
       setLeg(null);
       return;
     }
-    const next = leg ?? chooseLeg(sorted, selection);
+    const next = hasValidLeg ? leg : chooseLeg(sorted, selection);
     if (!next) return;
     setLeg(next);
     onSelect({ kind: "leg", fromId: next.fromId, toId: next.toId });
@@ -104,12 +100,12 @@ export function ItineraryFollowControl({ spots, selection, onSelect }: {
   }
   const style = { "--map-control-right": insets.right + "px", "--map-control-bottom": insets.bottom + "px" } as CSSProperties;
   return <div className="itinerary-follow-controls" style={style}>
-    <button type="button" className={"itinerary-follow-button " + state} aria-label={label} title={label}
-      aria-pressed={state === "following"} disabled={spots.length < 2 || phase === "acquiring"} onClick={toggle}>
+    <button type="button" className={"itinerary-follow-button " + visibleState} aria-label={label} title={label}
+      aria-pressed={visibleState === "following"} disabled={spots.length < 2 || phase === "acquiring"} onClick={toggle}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" aria-hidden="true"><path d="M5 4v11a3 3 0 0 0 3 3h11"/><path d="m14 14 5 4-5 4"/><path d="M19 4h-7a3 3 0 0 0-3 3v2"/></svg>
     </button>
-    {state !== "idle" && <div className="itinerary-follow-status" role="status" aria-live="polite">
-      <span>{state === "paused" ? "따라가기 일시 정지" : Math.max(1, activeIndex + 1) + "번째 동선 따라가기"}</span>
+    {visibleState !== "idle" && <div className="itinerary-follow-status" role="status" aria-live="polite">
+      <span>{visibleState === "paused" ? "따라가기 일시 정지" : Math.max(1, activeIndex + 1) + "번째 동선 따라가기"}</span>
       <button type="button" onClick={nextStop}>{activeIndex >= sorted.length - 1 ? "완료" : "다음 스팟"}</button>
     </div>}
   </div>;
