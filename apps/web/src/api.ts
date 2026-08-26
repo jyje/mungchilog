@@ -93,6 +93,57 @@ export function removeTripMember(tripId: string, userId: string): Promise<{ remo
   return fetch(`/api/trips/${tripId}/members/${userId}`, { method: "DELETE" }).then((r) => json(r));
 }
 
+export type SharedLocation = {
+  userId: string;
+  lat: number;
+  lng: number;
+  accuracy: number;
+  measuredAt: number;
+  receivedAt: number;
+  expiresAt: number;
+  sharingExpiresAt: number;
+};
+export type LocationSharingConsent = {
+  consentToken: string;
+  consentExpiresAt: number;
+  audienceVersion: string;
+  recipients: Pick<TripMember, "id" | "name">[];
+  durationOptions: number[];
+  defaultDurationSeconds: number;
+  viewersNeedNotShare: boolean;
+};
+export type LocationSharingPoll = {
+  serverTime: number;
+  recipients: Pick<TripMember, "id" | "name">[];
+  locations: SharedLocation[];
+  ownSharing: { tripId: string; expiresAt: number; sameLoginSession: boolean } | null;
+};
+
+const locationSharingUrl = (tripId: string) => `/api/trips/${tripId}/location-sharing`;
+
+export function getLocationSharingConsent(tripId: string): Promise<LocationSharingConsent> {
+  return fetch(`${locationSharingUrl(tripId)}/consent`, { cache: "no-store" }).then((r) => json(r));
+}
+export function startLocationSharing(tripId: string, input: { consentToken: string; audienceVersion: string; durationSeconds: number; takeover: boolean }) {
+  return fetch(locationSharingUrl(tripId), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...input, consent: true }),
+  }).then((r) => json<{ sharingSessionId: string; expiresAt: number }>(r));
+}
+export function updateLocationSharing(tripId: string, input: { sharingSessionId: string; lat: number; lng: number; accuracy: number; measuredAt: number }) {
+  return fetch(locationSharingUrl(tripId), {
+    method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+  }).then((r) => json<{ expiresAt: number }>(r));
+}
+export function getLocationSharing(tripId: string): Promise<LocationSharingPoll> {
+  return fetch(locationSharingUrl(tripId), { cache: "no-store" }).then((r) => json(r));
+}
+export function stopLocationSharing(tripId: string, sharingSessionId: string) {
+  return fetch(locationSharingUrl(tripId), {
+    method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sharingSessionId }),
+  }).then((r) => json<{ stopped: boolean }>(r));
+}
+
 export type LegMode = "DRIVE" | "WALK" | "BICYCLE" | "TRANSIT" | "TWO_WHEELER";
 
 export type Leg = {

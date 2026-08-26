@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CurrentLocation } from "../src/components/CurrentLocation";
+import { ItineraryFollowControl } from "../src/components/ItineraryFollowControl";
 import { TripMap } from "../src/components/TripMap";
 import { MapViewportProvider } from "../src/components/MapViewportContext";
 
@@ -47,6 +48,30 @@ beforeEach(() => {
 });
 
 describe("current location control", () => {
+  it("starts itinerary follow only after an explicit tap and Escape stops it", () => {
+    const onSelect = vi.fn();
+    render(
+      <MapViewportProvider value={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+        <ItineraryFollowControl
+          spots={[
+            { id: "one", name: "One", lat: 37, lng: 127, order: 0, items: [], bufferMinutes: 10 },
+            { id: "two", name: "Two", lat: 37.1, lng: 127.1, order: 1, items: [], bufferMinutes: 10 },
+          ]}
+          selection={null}
+          onSelect={onSelect}
+        />
+      </MapViewportProvider>,
+    );
+    const button = screen.getByRole("button", { name: "따라가기" });
+    expect(watchPosition).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    expect(onSelect).toHaveBeenCalledWith({ kind: "leg", fromId: "one", toId: "two" });
+    expect(watchPosition).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "따라가기 중지" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "따라가기" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("long-press previews the tooltip without requesting GPS and a later tap still works", () => {
     vi.stubGlobal("PointerEvent", class extends MouseEvent {
       pointerType: string;
