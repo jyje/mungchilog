@@ -2,18 +2,24 @@ name: Build and push app image
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
+    paths:
+      - "apps/**"
+      - ".dockerignore"
+      - ".github/workflows/build.yml"
+  pull_request:
+    branches: [dev, stg, prd]
     paths:
       - "apps/**"
       - ".dockerignore"
       - ".github/workflows/build.yml"
   workflow_dispatch: {}
 
-# A later build must not finish after a newer main commit and become Image
+# A later dev build must not finish after a newer dev commit and become Image
 # Updater's newest-build candidate. Cancel superseded work so the newest
-# completed run represents the newest main revision.
+# completed run represents the newest development revision.
 concurrency:
-  group: build-main
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -33,13 +39,14 @@ jobs:
         shell: bash
         run: |
           short_sha="$(git rev-parse --short=7 "$GITHUB_SHA")"
-          echo "value=${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "value=dev-${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_OUTPUT"
 
-      # workflow_dispatch can run from a feature branch for build validation,
-      # but only main may publish a tag that Image Updater could deploy.
+      # Pull requests and manual dispatches only validate. New deployable
+      # images originate exclusively from dev, then promotion copies the same
+      # OCI manifest to stg and prd without rebuilding it.
       - name: Decide whether this run may publish
         id: publish
-        run: echo "value=${{ github.ref == 'refs/heads/main' }}" >> "$GITHUB_OUTPUT"
+        run: echo "value=${{ github.event_name == 'push' && github.ref == 'refs/heads/dev' }}" >> "$GITHUB_OUTPUT"
 
   validate:
     needs: metadata
