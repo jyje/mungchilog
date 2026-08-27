@@ -2,7 +2,7 @@
 
 # jyje/mungchilog
 
-<img width="120" src="https://raw.githubusercontent.com/jyje/mungchilog/main/apps/web/public/pwa-512.png" alt="mungchilog" title="mungchilog"/>
+<img width="120" src="https://raw.githubusercontent.com/jyje/mungchilog/dev/apps/web/public/pwa-512.png" alt="mungchilog" title="mungchilog"/>
 
 **뭉치 + log**: a personal travel itinerary app with live Google Maps routing, for any destination
 
