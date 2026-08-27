@@ -1749,33 +1749,216 @@ input[type="text"]::placeholder {
   flex: none;
 }
 
-/* M6: trip sharing popover (reuses .layout-menu's own look) */
-.share-panel {
-  min-width: 240px;
+/* Trip sharing uses an app-level sheet instead of a map-header popover. The
+   fixed layer prevents narrow viewports from clipping controls off-screen. */
+.share-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: color-mix(in srgb, #111214 46%, transparent);
+  backdrop-filter: blur(2px);
+}
+.share-sheet {
+  position: fixed;
+  z-index: 21;
+  inset: auto 0 0;
+  width: min(100%, 34rem);
+  max-height: min(42rem, calc(100dvh - env(safe-area-inset-top) - 1rem));
+  margin: 0 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0.75rem 1.25rem calc(1.4rem + env(safe-area-inset-bottom));
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 1.5rem 1.5rem 0 0;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 -0.75rem 2.5rem color-mix(in srgb, var(--shadow-color) 78%, transparent);
+}
+.share-sheet-handle {
+  width: 2.25rem;
+  height: 0.25rem;
+  margin: 0.25rem auto 1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 35%, transparent);
+}
+.share-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+.share-sheet-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.35;
+}
+.share-sheet-count {
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-small);
+}
+.share-sheet-close {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 1.7rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.share-sheet-close:hover {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  color: var(--text);
 }
 .share-member-list {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  margin: 0 0 0.5rem;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0.45rem 0 0.8rem;
+  border-bottom: 1px solid var(--border);
 }
-.share-member-list li {
+.share-member-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.2rem 0.3rem;
+  gap: 0.75rem;
+  min-height: 3.75rem;
+  padding: 0.45rem 0.25rem;
+}
+.share-member-avatar {
+  display: grid;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast);
   font-size: var(--type-label);
+  font-weight: 700;
 }
-.share-invite-row {
+.share-member-identity {
   display: flex;
-  gap: 0.4rem;
-  padding-top: 0.4rem;
-  border-top: 1px solid var(--border);
-}
-.share-invite-row input {
   flex: 1;
   min-width: 0;
+  flex-direction: column;
+}
+.share-member-name {
+  overflow: hidden;
+  font-size: var(--type-small);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.share-member-role {
+  color: var(--text-muted);
   font-size: var(--type-label);
-  min-height: 44px;
+}
+.share-member-badge {
+  flex: none;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+.share-member-remove {
+  margin-left: -0.35rem;
+}
+.share-members-status {
+  padding: 0.75rem 0.25rem;
+  color: var(--text-muted);
+  font-size: var(--type-small);
+}
+.share-invite-form {
+  display: grid;
+  gap: 0.6rem;
+  padding-top: 1rem;
+}
+.share-invite-form label {
+  font-size: var(--type-small);
+  font-weight: 700;
+}
+.share-invite-form input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.share-invite-form input:focus-visible,
+.share-sheet-close:focus-visible,
+.share-member-remove:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  outline-offset: 2px;
+}
+.share-invite-form button {
+  min-height: 48px;
+  border: none;
+  border-radius: 0.75rem;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 700;
+  cursor: pointer;
+}
+.share-invite-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+.share-invite-help,
+.share-status {
+  margin: 0;
+  font-size: var(--type-label);
+  line-height: 1.5;
+}
+.share-invite-help {
+  color: var(--text-muted);
+}
+.share-status {
+  margin-top: 0.75rem;
+  color: var(--text-muted);
+}
+@media (min-width: 48rem) {
+  .share-sheet {
+    inset: 50% auto auto 50%;
+    width: min(32rem, calc(100vw - 2rem));
+    max-height: min(38rem, calc(100dvh - 2rem));
+    margin: 0;
+    transform: translate(-50%, -50%);
+    border-bottom: 1px solid var(--border);
+    border-radius: 1.25rem;
+    padding-bottom: 1.25rem;
+    box-shadow: 0 1.25rem 3.5rem color-mix(in srgb, var(--shadow-color) 80%, transparent);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .share-sheet-backdrop {
+    animation: share-backdrop-in 0.16s ease-out;
+  }
+  .share-sheet {
+    animation: share-sheet-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+}
+@keyframes share-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes share-sheet-in {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (min-width: 48rem) and (prefers-reduced-motion: no-preference) {
+  @keyframes share-sheet-in {
+    from { opacity: 0; transform: translate(-50%, calc(-50% + 1rem)); }
+    to { opacity: 1; transform: translate(-50%, -50%); }
+  }
 }
