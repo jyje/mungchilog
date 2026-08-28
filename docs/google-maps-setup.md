@@ -25,6 +25,8 @@ https://console.cloud.google.com/apis/credentials → "사용자 인증 정보 �
 
 - 이름: `mungchilog-web`
 - **애플리케이션 제한사항** → HTTP 리퍼러(웹사이트) → 다음 항목 추가:
+  - `https://mungchilog.dev.jyje.online/*`
+  - `https://mungchilog.stg.jyje.online/*`
   - `https://mungchilog.app.jyje.online/*`
   - (선택) `http://localhost:5173/*` — 로컬 개발 서버에서도 실제 지도·장소 검색을 보고 싶으면 추가하세요. 안 넣어도 배포된 사이트는 영향 없고, 로컬에서만 "지도를 불러오지 못했습니다" 안내가 대신 뜹니다 (정상)
 - **API 제한사항** → 키 제한 → **Maps JavaScript API**, **Places API (New)** 둘 다 체크

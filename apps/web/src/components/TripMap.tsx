@@ -188,12 +188,10 @@ export function TripMap({
   );
 }
 
-// Split out so useApiLoadingStatus can gate marker/pin rendering: the key
-// is scoped to the production referrer (docs/google-maps-setup.md), so
-// local dev legitimately hits AUTH_FAILURE/FAILED here - Google's own
-// marker internals throw an uncaught error if AdvancedMarker/Pin still
-// try to mount against a script that failed to load, so skip them and
-// show what's wrong instead.
+// Split out so useApiLoadingStatus can gate marker/pin rendering. A missing
+// or disallowed Maps JavaScript key can produce AUTH_FAILURE/FAILED. Google's
+// marker internals throw an uncaught error if AdvancedMarker/Pin still try to
+// mount against that failed script, so skip them and show a safe fallback.
 function MapContent({
   spots,
   located,
