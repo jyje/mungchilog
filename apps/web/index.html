@@ -16,6 +16,7 @@
           var v = localStorage.getItem("mungchilog-theme");
           if (v === "light" || v === "dark") document.documentElement.setAttribute("data-theme", v);
           var dark = v === "dark" || (v !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
           var meta = document.querySelector('meta[name="theme-color"]');
           if (meta) meta.setAttribute("content", dark ? "#111214" : "#f5f6f8");
         } catch (e) {}

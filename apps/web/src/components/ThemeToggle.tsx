@@ -21,6 +21,7 @@ function apply(pref: ThemePref) {
   else root.setAttribute("data-theme", pref);
 
   const dark = pref === "dark" || (pref === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  root.classList.toggle("dark", dark);
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#111214" : "#f5f6f8");
 }
 

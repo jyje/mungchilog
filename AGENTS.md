@@ -37,3 +37,10 @@
 - Keep local OIDC credentials in ignored environment files only. Never commit, print, or include secret values, session tokens, authorization codes, or callback state in logs, commit messages, issues, or pull requests.
 - Treat identity and session changes as database migrations. Preserve compatible existing records where safe, make any forced sign-out explicit, and cover the migration behavior with focused tests.
 - Report security limitations and unverified infrastructure controls separately from application-level protections. Do not imply that storage encryption, backup encryption, network policy, or ingress headers are configured unless they have been verified.
+
+# Component system ownership
+
+- Treat `apps/web/src/components/ui/` as read-only shadcn CLI output. Do not make product-specific changes in generated files.
+- Put application wrappers, composition helpers, and all product-specific classes in `apps/web/src/components/system/`, a sibling of `ui/`.
+- Application screens must import wrappers from `components/system/` when a product-styled component exists. Add or update wrappers instead of forking a generated primitive.
+- Keep the existing product tokens in `apps/web/src/index.css` authoritative. shadcn tokens must map to them without silently changing existing light, dark, map, or accessibility behavior.
