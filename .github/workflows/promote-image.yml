@@ -28,7 +28,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }}
+  DEV_IMAGE: ghcr.io/${{ github.repository }}-dev
+  STG_IMAGE: ghcr.io/${{ github.repository }}-stg
+  PRD_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
   promote:
@@ -47,11 +49,14 @@ jobs:
           SOURCE_TAG: ${{ inputs.source_tag }}
           TARGET: ${{ inputs.target }}
           RELEASE_VERSION: ${{ inputs.release_version }}
+          DEV_IMAGE: ${{ env.DEV_IMAGE }}
+          STG_IMAGE: ${{ env.STG_IMAGE }}
+          PRD_IMAGE: ${{ env.PRD_IMAGE }}
         run: |
           case "$TARGET" in
             stg)
-              if [[ ! "$SOURCE_TAG" =~ ^dev-r[0-9]+-[0-9a-f]{7}$ ]]; then
-                echo "stg promotion requires a dev-r<run>-<sha> source tag" >&2
+              if [[ ! "$SOURCE_TAG" =~ ^r[0-9]+-[0-9a-f]{7}$ ]]; then
+                echo "stg promotion requires an r<run>-<sha> development tag" >&2
                 exit 1
               fi
 
@@ -61,12 +66,14 @@ jobs:
               fi
 
               source_revision="${SOURCE_TAG##*-}"
-              echo "target_tag=stg-r${GITHUB_RUN_NUMBER}-${source_revision}" >> "$GITHUB_OUTPUT"
+              echo "source_image=${DEV_IMAGE}" >> "$GITHUB_OUTPUT"
+              echo "target_image=${STG_IMAGE}" >> "$GITHUB_OUTPUT"
+              echo "target_tag=r${GITHUB_RUN_NUMBER}-${source_revision}" >> "$GITHUB_OUTPUT"
               echo "alias_tag=" >> "$GITHUB_OUTPUT"
               ;;
             prd)
-              if [[ ! "$SOURCE_TAG" =~ ^stg-r[0-9]+-[0-9a-f]{7}$ ]]; then
-                echo "production promotion requires a stg-r<run>-<sha> source tag" >&2
+              if [[ ! "$SOURCE_TAG" =~ ^r[0-9]+-[0-9a-f]{7}$ ]]; then
+                echo "production promotion requires an r<run>-<sha> staging tag" >&2
                 exit 1
               fi
 
@@ -76,6 +83,8 @@ jobs:
               fi
 
               source_revision="${SOURCE_TAG##*-}"
+              echo "source_image=${STG_IMAGE}" >> "$GITHUB_OUTPUT"
+              echo "target_image=${PRD_IMAGE}" >> "$GITHUB_OUTPUT"
               echo "target_tag=${RELEASE_VERSION}-r${GITHUB_RUN_NUMBER}-${source_revision}" >> "$GITHUB_OUTPUT"
               echo "alias_tag=${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
               ;;
@@ -98,10 +107,12 @@ jobs:
       - name: Copy the multi-architecture OCI manifest
         env:
           SOURCE_TAG: ${{ inputs.source_tag }}
+          SOURCE_IMAGE: ${{ steps.metadata.outputs.source_image }}
+          TARGET_IMAGE: ${{ steps.metadata.outputs.target_image }}
           TARGET_TAG: ${{ steps.metadata.outputs.target_tag }}
           ALIAS_TAG: ${{ steps.metadata.outputs.alias_tag }}
         run: |
-          source_ref="${IMAGE}:${SOURCE_TAG}"
+          source_ref="${SOURCE_IMAGE}:${SOURCE_TAG}"
           source_digest="$(
             docker buildx imagetools inspect "$source_ref" \
               | awk '$1 == "Digest:" { print $2; exit }'
@@ -115,7 +126,7 @@ jobs:
 
           tag_args=()
           for tag in "${target_tags[@]}"; do
-            target_ref="${IMAGE}:${tag}"
+            target_ref="${TARGET_IMAGE}:${tag}"
             existing_digest="$(
               docker buildx imagetools inspect "$target_ref" 2>/dev/null \
                 | awk '$1 == "Digest:" { print $2; exit }' \
@@ -135,10 +146,12 @@ jobs:
       - name: Verify manifest identity and platform variants
         env:
           SOURCE_TAG: ${{ inputs.source_tag }}
+          SOURCE_IMAGE: ${{ steps.metadata.outputs.source_image }}
+          TARGET_IMAGE: ${{ steps.metadata.outputs.target_image }}
           TARGET_TAG: ${{ steps.metadata.outputs.target_tag }}
           ALIAS_TAG: ${{ steps.metadata.outputs.alias_tag }}
         run: |
-          docker buildx imagetools inspect "${IMAGE}:${SOURCE_TAG}" --raw > /tmp/source-manifest.json
+          docker buildx imagetools inspect "${SOURCE_IMAGE}:${SOURCE_TAG}" --raw > /tmp/source-manifest.json
 
           target_tags=("$TARGET_TAG")
           if [[ -n "$ALIAS_TAG" ]]; then
@@ -147,7 +160,7 @@ jobs:
 
           for tag in "${target_tags[@]}"; do
             target_manifest="/tmp/target-${tag//[^a-zA-Z0-9._-]/_}.json"
-            docker buildx imagetools inspect "${IMAGE}:${tag}" --raw > "$target_manifest"
+            docker buildx imagetools inspect "${TARGET_IMAGE}:${tag}" --raw > "$target_manifest"
             cmp /tmp/source-manifest.json "$target_manifest"
             jq -e '
               [.manifests[].platform

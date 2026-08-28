@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }}
+  IMAGE: ghcr.io/${{ github.repository }}-dev
 
 jobs:
   metadata:
@@ -39,11 +39,11 @@ jobs:
         shell: bash
         run: |
           short_sha="$(git rev-parse --short=7 "$GITHUB_SHA")"
-          echo "value=dev-r${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "value=r${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_OUTPUT"
 
       # Pull requests and manual dispatches only validate. New deployable
-      # images originate exclusively from dev, then promotion copies the same
-      # OCI manifest to stg and prd without rebuilding it.
+      # images originate exclusively from the development package. Promotion
+      # copies the same OCI manifest to staging and production without rebuilding it.
       - name: Decide whether this run may publish
         id: publish
         run: echo "value=${{ github.ref == 'refs/heads/dev' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}" >> "$GITHUB_OUTPUT"
