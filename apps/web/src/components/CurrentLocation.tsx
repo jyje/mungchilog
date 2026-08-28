@@ -45,6 +45,11 @@ export function CurrentLocation() {
     if (holdTimer.current !== null) clearTimeout(holdTimer.current);
   }, []);
   const status = locationStatusText(location);
+  // A normal, accurate fix is already announced accessibly. Keeping its full
+  // timestamp and privacy explanation visible on the map turns a compact
+  // control into a persistent, oversized callout. Reserve visible guidance
+  // for a state that needs a decision or caution.
+  const showStatus = Boolean(status) && (phase !== "ready" || (fix?.accuracy ?? 0) > LOW_ACCURACY_METERS);
   const muted = phase !== "ready";
   // Announce meaningful changes, not each GPS timestamp or accuracy fluctuation.
   const announcement = GUIDANCE[phase] ?? (fix ? fix.accuracy > LOW_ACCURACY_METERS ? "대략적인 현재 위치를 확인했습니다. 오차 범위를 확인해주세요." : "현재 위치를 확인했습니다." : "");
@@ -72,7 +77,7 @@ export function CurrentLocation() {
       </>}
       <div className="device-location-controls" style={{ "--map-control-right": `${insets.right}px`, "--map-control-bottom": `${insets.bottom}px`, "--map-control-left": `${insets.left}px` } as CSSProperties}>
         <div className={`device-location-action${touchTooltip ? " show-touch-tooltip" : ""}`}>
-          <button type="button" className="device-location-button" aria-label="현재 위치" aria-describedby={status ? "device-location-status" : undefined}
+          <button type="button" className="device-location-button" aria-label="현재 위치" aria-describedby={showStatus ? "device-location-status" : undefined}
             title="현재 위치" aria-busy={phase === "acquiring"} disabled={phase === "acquiring"}
             onPointerDown={(event) => {
               cancelHold();
@@ -107,7 +112,7 @@ export function CurrentLocation() {
           </button>
           <span className="device-location-tooltip" aria-hidden="true">현재 위치</span>
         </div>
-        {status && <p className="device-location-status" id="device-location-status" aria-live="off">{status}</p>}
+        {showStatus && <p className="device-location-status" id="device-location-status" aria-live="off">{status}</p>}
         <span className="device-location-announcement" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
       </div>
     </>

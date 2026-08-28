@@ -51,6 +51,10 @@
 .device-location-action:focus-within .device-location-tooltip,
 .device-location-action.show-touch-tooltip .device-location-tooltip { opacity: 1; }
 .device-location-status {
+  position: absolute;
+  right: calc(100% + 0.6rem);
+  bottom: 0;
+  width: min(18rem, calc(100vw - var(--map-control-left, 0px) - var(--map-control-right, 0px) - 7.5rem));
   max-height: 6rem;
   overflow-y: auto;
   pointer-events: auto;
@@ -75,9 +79,6 @@
   box-shadow: 0 0 0 2px #1e40af, 0 2px 4px #0004;
 }
 .trip-shell[data-compact-map="true"] .device-location-status {
-  position: absolute;
-  right: calc(100% + 0.5rem);
-  bottom: 0;
   width: min(14rem, 50vw);
   max-height: 3rem;
 }

@@ -141,6 +141,7 @@ describe("current location control", () => {
     expect(fetch).not.toHaveBeenCalled();
     expect(storage).not.toHaveBeenCalled();
     expect(indexedDB.open).not.toHaveBeenCalled();
+    expect(document.querySelector(".device-location-status")).not.toBeInTheDocument();
     unmount();
     expect(clearWatch).toHaveBeenCalledWith(1);
     expect(vi.getTimerCount()).toBe(0);
