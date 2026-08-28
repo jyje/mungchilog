@@ -14,7 +14,7 @@
 
 mungchilog plans a trip's day-by-day route and shows it live on Google Maps while traveling: distance, transit time, and what to buy or eat at each stop. Not locked to one destination or timezone; the first trip it was built for happens to be Japan, but any IANA timezone works.
 
-Live at `https://mungchilog.app.jyje.online` (personal itinerary data, gated behind Basic Auth).
+Live at `https://mungchilog.app.jyje.online` through OIDC sign-in.
 
 ## Features
 
@@ -96,8 +96,22 @@ come from an existing Kubernetes Secret and are never chart values.
 
 Chart releases are OCI artifacts published to
 `oci://ghcr.io/jyje/charts/mungchilog`. Every chart source change must bump
-`charts/mungchilog/Chart.yaml` before merge. The main-branch release workflow
+`charts/mungchilog/Chart.yaml` before merge. The `prd` branch release workflow
 then packages and publishes that immutable version. Cluster GitOps
 configuration should consume the version rather than copying chart source.
+
+### Environment image packages
+
+Each environment has a separate GHCR package so release candidates and
+production releases remain easy to identify and retain independently:
+
+- Development: `ghcr.io/jyje/mungchilog-dev:r<run>-<sha>`
+- Staging: `ghcr.io/jyje/mungchilog-stg:r<run>-<sha>`
+- Production: `ghcr.io/jyje/mungchilog:v<major>.<minor>.<patch>` and
+  `ghcr.io/jyje/mungchilog:v<major>.<minor>.<patch>-r<run>-<sha>`
+
+Promotion copies the verified multi-architecture OCI manifest from development
+to staging and then production. It does not rebuild the image. GitOps must pin
+an explicit production version or immutable digest and never use `latest`.
 
 See [`PLAN.md`](PLAN.md) for architecture decisions and [`TASK.md`](TASK.md) for the milestone checklist.
