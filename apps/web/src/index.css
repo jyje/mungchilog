@@ -2094,8 +2094,10 @@ input[type="text"]::placeholder {
 .itinerary-follow-controls {
   position: absolute;
   z-index: 4;
-  right: max(0.75rem, var(--map-control-right, 0px));
-  bottom: max(5rem, calc(var(--map-control-bottom, 0px) + 0.75rem));
+  /* This is the upper button in the app-control column. Current-location
+     occupies the lower button position on the same rail. */
+  right: max(0.75rem, calc(var(--map-control-right, 0px) + 4.5rem));
+  bottom: max(4.25rem, calc(var(--map-control-bottom, 0px) + 4.25rem));
   display: grid;
   justify-items: end;
   gap: 0.45rem;
@@ -2117,6 +2119,9 @@ input[type="text"]::placeholder {
 .itinerary-follow-button.paused { border-color: var(--accent); color: var(--accent); }
 .itinerary-follow-button:disabled { cursor: not-allowed; opacity: 0.55; }
 .itinerary-follow-status {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.45rem);
   display: flex;
   align-items: center;
   gap: 0.35rem;

@@ -1,7 +1,10 @@
 .device-location-controls {
   position: absolute;
-  right: calc(var(--map-control-right, 0px) + 4.5rem);
-  bottom: calc(var(--map-control-bottom, 0px) + 3rem);
+  /* Keep app controls to the left of the Google Maps control rail. The
+     follow control uses this same column, so the two never form a diagonal
+     pair or overlap the native map controls. */
+  right: max(0.75rem, calc(var(--map-control-right, 0px) + 4.5rem));
+  bottom: max(0.75rem, calc(var(--map-control-bottom, 0px) + 0.75rem));
   z-index: 3;
   display: flex;
   flex-direction: column;
