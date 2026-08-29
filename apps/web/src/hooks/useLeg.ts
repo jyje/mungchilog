@@ -4,7 +4,9 @@ import type { PersistedLegMode, Spot } from "../types";
 
 // Keep browser-persisted route data aligned with the server cache whenever
 // route geometry changes. The same version is used by the server's cache key.
-const ROUTE_GEOMETRY_VERSION = "high-quality-v1";
+// Keep this in sync with apps/server/src/routes/legs.ts so a geometry/schema
+// change invalidates both the browser query cache and the server cache.
+const ROUTE_GEOMETRY_VERSION = "alternatives-v1";
 
 // Converts a "wall-clock time in an arbitrary IANA timezone" into a UTC
 // ISO string, without a date library. Standard single-correction trick:
