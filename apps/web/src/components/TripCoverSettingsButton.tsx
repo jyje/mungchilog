@@ -1,6 +1,22 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { MoreVertical, X } from "lucide-react";
 import type { Trip } from "../types";
 import { TripCoverEditor } from "./TripCoverEditor";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 function hasUnsavedChanges(trip: Trip, spotId: string, imageDataUrl: string) {
   return (trip.cover?.spotId ?? "") !== spotId || (trip.cover?.imageDataUrl ?? "") !== imageDataUrl;
@@ -10,14 +26,6 @@ export function TripCoverSettingsButton({ trip, onSave, saving }: { trip: Trip; 
   const [menuOpen, setMenuOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [unsaved, setUnsaved] = useState(false);
-  const dialogRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    if (!editorOpen) return;
-    const dialog = dialogRef.current;
-    dialog?.showModal();
-    return () => dialog?.close();
-  }, [editorOpen]);
 
   function requestClose() {
     if (saving) return;
@@ -27,57 +35,34 @@ export function TripCoverSettingsButton({ trip, onSave, saving }: { trip: Trip; 
 
   return (
     <>
-      <div className="menu-anchor">
-        <button
-          type="button"
-          className="menu-button"
-          aria-label="여행 더보기"
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          ⋮
-        </button>
-        {menuOpen && (
-          <>
-            <button type="button" className="menu-backdrop" aria-label="더보기 닫기" onClick={() => setMenuOpen(false)} />
-            <div className="layout-menu trip-actions-menu" role="menu" aria-label="여행 더보기">
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setMenuOpen(false);
-                  setEditorOpen(true);
-                }}
-              >
-                대표 화면 설정
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="여행 더보기">
+            <MoreVertical aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="trip-actions-menu">
+          <DropdownMenuItem onSelect={() => setEditorOpen(true)}>대표 화면 설정</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
-      {editorOpen && (
-        <dialog
-          ref={dialogRef}
-          className="trip-cover-dialog"
-          aria-labelledby="trip-cover-heading"
-          onCancel={(event) => {
-            event.preventDefault();
-            requestClose();
-          }}
-          onClick={(event) => {
-            if (event.target === event.currentTarget) requestClose();
-          }}
-        >
-          <div className="trip-cover-dialog-header">
-            <div>
-              <h2 id="trip-cover-heading">대표 화면 설정</h2>
-              <p className="meta">사진을 우선 표시하고, 사진이 없으면 대표 장소 지도를 보여줍니다.</p>
-            </div>
-            <button type="button" className="trip-cover-dialog-close" aria-label="대표 화면 설정 닫기" disabled={saving} onClick={requestClose}>
-              ✕
-            </button>
-          </div>
+      <Dialog
+        open={editorOpen}
+        onOpenChange={(open) => {
+          if (open) setEditorOpen(true);
+          else requestClose();
+        }}
+      >
+        <DialogContent className="trip-cover-dialog" showCloseButton={false}>
+          <DialogHeader className="trip-cover-dialog-header">
+            <DialogTitle>대표 화면 설정</DialogTitle>
+            <DialogDescription className="meta">사진을 우선 표시하고, 사진이 없으면 대표 장소 지도를 보여줍니다.</DialogDescription>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost" size="icon-lg" className="trip-cover-dialog-close" aria-label="대표 화면 설정 닫기" disabled={saving} onClick={(event) => { event.preventDefault(); requestClose(); }}>
+                <X aria-hidden="true" />
+              </Button>
+            </DialogClose>
+          </DialogHeader>
           <TripCoverEditor
             trip={trip}
             saving={saving}
@@ -85,8 +70,8 @@ export function TripCoverSettingsButton({ trip, onSave, saving }: { trip: Trip; 
             onSaved={() => setEditorOpen(false)}
             onDirtyChange={(spotId, imageDataUrl) => setUnsaved(hasUnsavedChanges(trip, spotId, imageDataUrl))}
           />
-        </dialog>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
