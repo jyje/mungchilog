@@ -419,7 +419,7 @@ ul {
 .trip-cover-actions button {
   cursor: pointer;
 }
-.trip-cover-actions button:not(.ghost) {
+.trip-cover-actions button[data-variant="default"] {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--accent-contrast);
@@ -2043,7 +2043,7 @@ input[type="text"]::placeholder {
   cursor: pointer;
 }
 .location-sharing-heading .location-stop,
-.location-sharing-consent .ghost {
+.location-sharing-consent button[data-variant="ghost"] {
   border-color: var(--border);
   background: transparent;
   color: var(--text);
