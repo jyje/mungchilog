@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { BuildIdentity } from "../src/components/system/BuildIdentity";
 import type { BuildInfo } from "../src/buildInfo";
@@ -20,5 +20,15 @@ describe("BuildIdentity", () => {
     expect(screen.getByText("r54-cb8a672")).toBeInTheDocument();
     expect(screen.getByText("cb8a672")).toBeInTheDocument();
     expect(screen.getByText("dev")).toBeInTheDocument();
+  });
+
+  it("opens details from the keyboard and pointer-compatible summary control", () => {
+    render(<BuildIdentity info={info} />);
+    const summary = screen.getByText("DEV · Build 54");
+    const details = summary.closest("details");
+
+    expect(details).not.toHaveAttribute("open");
+    fireEvent.click(summary);
+    expect(details).toHaveAttribute("open", "");
   });
 });

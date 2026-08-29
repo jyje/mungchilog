@@ -24,4 +24,9 @@ describe("build identity", () => {
   it("falls back cleanly for local builds without CI variables", () => {
     expect(buildInfoFromEnv({})).toMatchObject({ environmentLabel: "Local", buildNumber: "Unbuilt", imageTag: "Unbuilt", branch: "local" });
   });
+
+  it("normalizes staging and production environment labels", () => {
+    expect(buildInfoFromEnv({ VITE_BUILD_ENV: "stg" }).environmentLabel).toBe("STG");
+    expect(buildInfoFromEnv({ VITE_BUILD_ENV: "prd" }).environmentLabel).toBe("Production");
+  });
 });
