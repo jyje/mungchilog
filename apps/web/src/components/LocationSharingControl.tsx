@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { getLocationSharing, getLocationSharingConsent, startLocationSharing, stopLocationSharing, updateLocationSharing, type LocationSharingConsent, type SharedLocation } from "../api";
 import { useDeviceLocation } from "../hooks/useDeviceLocation";
+import { Button } from "./ui/button";
 
 export type SharedLocationWithName = SharedLocation & { name: string | null };
 
@@ -96,8 +97,8 @@ export function LocationSharingControl({ tripId, open, onLocationsChange, onFocu
     <div className="location-sharing-heading">
       <div><strong>내 위치 공유</strong><p className="meta">동행자는 위치를 공유하지 않아도 볼 수 있습니다.</p></div>
       {sharingSessionId
-        ? <button type="button" className="location-stop" onClick={() => void stopSharing()} disabled={pending}>중지</button>
-        : <button type="button" onClick={() => void requestConsent()} disabled={pending || unavailable} aria-expanded={Boolean(consent)}>{unavailable ? "준비 중" : pending ? "확인 중" : "공유"}</button>}
+        ? <Button type="button" variant="outline" className="location-stop" onClick={() => void stopSharing()} disabled={pending}>중지</Button>
+        : <Button type="button" onClick={() => void requestConsent()} disabled={pending || unavailable} aria-expanded={Boolean(consent)}>{unavailable ? "준비 중" : pending ? "확인 중" : "공유"}</Button>}
     </div>
     {sharingSessionId && <p className="location-sharing-live" role="status">공유 중{expiresAt ? " · 종료 시간이 설정됨" : ""}{phase !== "ready" ? " · 위치 갱신 대기" : ""}</p>}
     {consent && <div className="location-sharing-consent" role="dialog" aria-label="위치 공유 확인">
@@ -105,7 +106,7 @@ export function LocationSharingControl({ tripId, open, onLocationsChange, onFocu
       <ul>{consent.recipients.map((recipient) => <li key={recipient.id}>{recipient.name ?? "이름 없는 참여자"}</li>)}</ul>
       <label>공유 시간 <select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{consent.durationOptions.map((seconds) => <option key={seconds} value={seconds}>{seconds === 900 ? "15분" : seconds / 3600 + "시간"}</option>)}</select></label>
       {error?.includes("takeover") && <label className="location-takeover"><input type="checkbox" checked={takeover} onChange={(event) => setTakeover(event.target.checked)} />기존 공유를 종료하고 이 기기에서 시작</label>}
-      <div><button type="button" onClick={() => void beginSharing()} disabled={pending || (error?.includes("takeover") && !takeover)}>공유 시작</button><button type="button" className="ghost" onClick={() => setConsent(null)}>취소</button></div>
+      <div><Button type="button" onClick={() => void beginSharing()} disabled={pending || (error?.includes("takeover") && !takeover)}>공유 시작</Button><Button type="button" variant="ghost" onClick={() => setConsent(null)}>취소</Button></div>
     </div>}
     {unavailable && <p className="meta">위치 공유는 안전한 운영 설정이 준비되면 사용할 수 있습니다.</p>}
     {error && <p className="error">{error}</p>}

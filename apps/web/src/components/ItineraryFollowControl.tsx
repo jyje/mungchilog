@@ -6,6 +6,7 @@ import { useDeviceLocation } from "../hooks/useDeviceLocation";
 import { useMapViewportInsets } from "./MapViewportContext";
 import { panToVisibleCenter } from "./mapCamera";
 import { MapIconButton } from "./system/MapIconButton";
+import { Button } from "./ui/button";
 import type { ItinerarySelection } from "./TripMap";
 
 type FollowState = "idle" | "following" | "paused";
@@ -112,7 +113,7 @@ export function ItineraryFollowControl({ spots, selection, onSelect }: {
     />
     {visibleState !== "idle" && <div className="itinerary-follow-status" role="status" aria-live="polite">
       <span>{visibleState === "paused" ? "따라가기 일시 정지" : Math.max(1, activeIndex + 1) + "번째 동선 따라가기"}</span>
-      <button type="button" onClick={nextStop}>{activeIndex >= sorted.length - 1 ? "완료" : "다음 스팟"}</button>
+      <Button type="button" variant="ghost" onClick={nextStop}>{activeIndex >= sorted.length - 1 ? "완료" : "다음 스팟"}</Button>
     </div>}
   </div>;
 }

@@ -1,5 +1,6 @@
 import { useLeg } from "../hooks/useLeg";
 import type { Spot } from "../types";
+import { Button } from "./ui/button";
 
 function formatDuration(seconds: number): string {
   const mins = Math.round(seconds / 60);
@@ -35,9 +36,9 @@ export function LegInfo({
   if (!hasMapLeg) return null;
   if (!leg) {
     return (
-      <button type="button" className={`leg-info meta${selected ? " selected" : ""}`} onClick={onSelect} aria-pressed={selected}>
+      <Button type="button" variant={selected ? "secondary" : "ghost"} className={`leg-info meta${selected ? " selected" : ""}`} onClick={onSelect} aria-pressed={selected}>
         🧭 동선 선택
-      </button>
+      </Button>
     );
   }
 
@@ -47,8 +48,8 @@ export function LegInfo({
   if (leg.fareAmount != null) parts.push(`${leg.fareCurrency ?? ""}${leg.fareAmount.toLocaleString()}`);
 
   return (
-    <button type="button" className={`leg-info meta${selected ? " selected" : ""}`} onClick={onSelect} aria-pressed={selected}>
+    <Button type="button" variant={selected ? "secondary" : "ghost"} className={`leg-info meta${selected ? " selected" : ""}`} onClick={onSelect} aria-pressed={selected}>
       🚃 {parts.join(" · ") || "동선 선택"}
-    </button>
+    </Button>
   );
 }

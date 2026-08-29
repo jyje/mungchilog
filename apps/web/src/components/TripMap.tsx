@@ -7,6 +7,7 @@ import { ItineraryFollowControl } from "./ItineraryFollowControl";
 import { useMapViewportInsets } from "./MapViewportContext";
 import { cameraOffset, framePadding, panToVisibleCenter } from "./mapCamera";
 import { MapControlRail } from "./system/MapControlRail";
+import { Button } from "./ui/button";
 
 const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 }; // Tokyo Station, fallback only
 
@@ -281,7 +282,7 @@ function SharedLocationMarkers({ locations, focusedUserId, onFocus }: {
       return <AdvancedMarker key={location.userId} position={{ lat: location.lat, lng: location.lng }}
         title={`${location.name ?? "동행자"} · 오차 약 ${Math.ceil(location.accuracy)}m`}
         onClick={() => onFocus?.(location.userId)}>
-        <button type="button" className={`shared-location-marker${selected ? " selected" : ""}`} aria-label={`${location.name ?? "동행자"} 위치 보기`} aria-pressed={selected} onClick={() => onFocus?.(location.userId)}>{initials}</button>
+        <Button type="button" variant={selected ? "secondary" : "ghost"} size="icon-lg" className={`shared-location-marker${selected ? " selected" : ""}`} aria-label={`${location.name ?? "동행자"} 위치 보기`} aria-pressed={selected} onClick={() => onFocus?.(location.userId)}>{initials}</Button>
       </AdvancedMarker>;
     })}
   </>;
