@@ -291,33 +291,41 @@ Each completed slice is locally verified and committed separately. Remote push, 
 
 ### 10.3 Remaining execution order
 
-The first three slices are complete. The remaining work is intentionally ordered so that map behavior is measured before it is restyled.
+The first four slices are complete locally. The remaining work is intentionally ordered so that map behavior is measured before it is restyled. The current local `dev` branch now contains the geometry contract, the runtime native-control measurement, the screen-by-screen shadcn migration, and the development-gallery specimen. Remote push and deployment remain separate approval steps.
 
-1. **Inventory fixture and geometry contract**
+Local progress (2026-08-29):
+
+- Completed: geometry helpers and supported viewport fixtures.
+- Completed: a single collision-safe app-control rail for current location and itinerary following.
+- Completed: contextual location/follow status and dismissal regression coverage.
+- Completed: trip header, participant sheet, day actions, cover settings, itinerary cards, opening-hours tooltip, editor actions, and gallery migration.
+- Remaining: live screenshots and device checks for every viewport, including permission-denied, unavailable-location, following, paused, selected-route, light, and dark states.
+
+1. **Inventory fixture and geometry contract (completed locally)**
    - Add a development-only representative itinerary fixture that has a header, a populated itinerary panel, and visible route markers.
    - Record app-owned and native-control rectangles in a test harness. Native Google Maps DOM is not a public integration contract, so production placement must use conservative exclusion zones derived from the inventory rather than brittle selectors.
    - Define pure rectangle helpers and fixed viewport fixtures for 360 by 800, 390 by 844, 412 by 915, 768 by 1024, 1024 by 768, 1142 by 1119, and 1440 by 900.
    - Commit boundary: geometry helpers and deterministic tests only. No production control movement in this slice.
 
-2. **Single app-control rail**
+2. **Single app-control rail (completed locally)**
    - Introduce one map-control rail that owns the positions of `현재 위치` and `따라가기`. The rail receives the map viewport insets, the native-control exclusion zone, and safe-area padding.
    - Replace the two independent absolute-position calculations. The app controls remain vertically aligned, have 44 by 44 minimum targets, and never form a diagonal pair.
    - Use `MapIconButton` for the icon, tooltip, pressed state, disabled state, and keyboard focus. Do not modify the generated shadcn Button or Tooltip source.
    - Commit boundary: rail wiring plus the two buttons. Existing route selection and device-location behavior must remain unchanged.
 
-3. **Contextual status and selection feedback**
+3. **Contextual status and selection feedback (completed locally)**
    - Move location accuracy, permission, and follow-progress information out of the native-control area. Compact messages appear in an app-owned safe region, while screen-reader announcements remain non-visual.
    - Use a direct shadcn primitive where standard behavior is enough. Create a system component only if the status placement or dismissal behavior becomes a reused map contract.
    - Verify Escape clears follow state and active map or itinerary selection without moving the map, reordering spots, or losing edits.
    - Commit boundary: status placement and dismissal regression tests.
 
-4. **Screen-by-screen map UI migration**
+4. **Screen-by-screen map UI migration (completed locally)**
    - Migrate the trip header actions, participant actions, date actions, and narrow-screen itinerary panel one surface at a time.
    - For each surface, retain existing labels, routes, data mutations, keyboard behavior, and analytics-relevant controls. Standard shadcn props are applied directly. Only repeated map-specific behavior goes into `components/system`.
    - Confirm each screen in light and dark mode before proceeding to the next surface.
    - Commit boundary: one user-visible surface per commit.
 
-5. **Live map and device verification**
+5. **Live map and device verification (remaining)**
    - Use a real dated itinerary with a permitted Maps key to capture the native controls at every supported viewport. Confirm the app rail avoids the visible zoom, map type, Street View, attribution, keyboard shortcut, and conditional controls.
    - Test pointer, keyboard, touch, location denied, location unavailable, route absent, following, paused, and selected-route states.
    - Add screenshots to the development gallery or test artifact flow only. Do not expose diagnostic routes on staging or production.
