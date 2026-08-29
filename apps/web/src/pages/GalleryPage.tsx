@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MapIconButton } from "@/components/system/MapIconButton";
+import { MapControlRail } from "@/components/system/MapControlRail";
 
 function GallerySection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
@@ -121,22 +122,23 @@ export function GalleryPage() {
         </GallerySection>
       </div>
 
-      <GallerySection title="Map control composition" description="The gray controls simulate Google Maps-owned UI. App controls occupy their own lower-left rail and do not overlap it.">
-        <div className="relative min-h-96 overflow-hidden rounded-xl border bg-[linear-gradient(30deg,#e8eef1_25%,transparent_25%,transparent_75%,#e8eef1_75%),linear-gradient(30deg,#e8eef1_25%,transparent_25%,transparent_75%,#e8eef1_75%)] bg-[size:40px_40px] bg-[position:0_0,20px_20px]">
+      <GallerySection title="Map control composition" description="The gray controls simulate Google Maps-owned UI. App controls measure that area and move as a single non-overlapping rail.">
+        <div className="map-container relative min-h-96 overflow-hidden rounded-xl border bg-[linear-gradient(30deg,#e8eef1_25%,transparent_25%,transparent_75%,#e8eef1_75%),linear-gradient(30deg,#e8eef1_25%,transparent_25%,transparent_75%,#e8eef1_75%)] bg-[size:40px_40px] bg-[position:0_0,20px_20px]">
           <div className="absolute left-4 top-4 rounded-lg bg-background/95 p-3 text-sm shadow-sm">
             <p className="font-medium">안양 1일</p>
             <p className="text-muted-foreground">8월 29일 (토)</p>
           </div>
           <div className="absolute right-4 top-4 flex flex-col gap-2" aria-label="Google Maps controls mock">
-            <Button variant="secondary" size="icon-lg" aria-label="확대">+</Button>
-            <Button variant="secondary" size="icon-lg" aria-label="축소">−</Button>
-            <Button variant="secondary" size="icon-lg" aria-label="지도 유형"><MapPinned /></Button>
+            <Button variant="secondary" size="icon-lg" className="gm-control-active" aria-label="확대">+</Button>
+            <Button variant="secondary" size="icon-lg" className="gm-svpc" aria-label="스트리트 뷰">−</Button>
+            <Button variant="secondary" size="icon-lg" className="gm-style-mtc" aria-label="지도 유형"><MapPinned /></Button>
           </div>
-          <div className="absolute bottom-4 left-4 flex flex-col gap-3" aria-label="Mungchilog map controls mock">
+          <div className="absolute bottom-2 right-2 rounded bg-background/80 px-2 py-1 text-xs text-muted-foreground gm-style-cc" aria-label="Google 지도 저작권 영역">지도 데이터 ©2026 · 약관</div>
+          <MapControlRail className="gallery-map-control-rail">
             <MapIconButton icon={<Crosshair />} label="현재 위치" />
             <MapIconButton icon={<Route />} label="따라가기" selected />
             <MapIconButton icon={<Navigation />} label="선택한 장소로 이동" />
-          </div>
+          </MapControlRail>
         </div>
       </GallerySection>
     </main>
