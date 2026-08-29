@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MapIconButton } from "@/components/system/MapIconButton";
 import { MapControlRail } from "@/components/system/MapControlRail";
+import { GalleryStoryboard } from "./gallery/GalleryStoryboard";
 
 function GallerySection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
@@ -121,6 +122,10 @@ export function GalleryPage() {
           </Sheet>
         </GallerySection>
       </div>
+
+      <GallerySection title="UI storyboard" description="Review the full travel flow in live component compositions before changing a production screen. Each scene uses deterministic sample content only.">
+        <GalleryStoryboard />
+      </GallerySection>
 
       <GallerySection title="Map control composition" description="The gray controls simulate Google Maps-owned UI. App controls measure that area and move as a single non-overlapping rail.">
         <div className="map-container relative min-h-96 overflow-hidden rounded-xl border bg-[linear-gradient(30deg,#e8eef1_25%,transparent_25%,transparent_75%,#e8eef1_75%),linear-gradient(30deg,#e8eef1_25%,transparent_25%,transparent_75%,#e8eef1_75%)] bg-[size:40px_40px] bg-[position:0_0,20px_20px]">
