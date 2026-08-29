@@ -14,6 +14,8 @@
 
 mungchilog plans a trip's day-by-day route and shows it live on Google Maps while traveling: distance, transit time, and what to buy or eat at each stop. Not locked to one destination or timezone; the first trip it was built for happens to be Japan, but any IANA timezone works.
 
+For offline trip sharing, see [the portable trip JSON format](docs/trip-exchange.md).
+
 Live at `https://mungchilog.app.jyje.online` through OIDC sign-in.
 
 ## Features

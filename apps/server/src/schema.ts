@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const MAX_COVER_IMAGE_BYTES = 2 * 1024 * 1024;
+export const DEFAULT_TIMEZONE = "Asia/Seoul";
 
 const IMAGE_DATA_URL = /^data:(image\/(?:jpeg|png|webp));base64,((?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?)$/;
 
@@ -93,7 +94,9 @@ export const TripDataSchema = z
     // Any IANA timezone name (e.g. "Asia/Tokyo", "Europe/Paris",
     // "America/New_York"). Not locked to one destination - see
     // routes/legs.ts for how this drives route-time calculations.
-    timezone: z.string().default("Asia/Tokyo"),
+    // Empty legacy/offline values use Seoul rather than the server or
+    // browser timezone, which would make an imported itinerary ambiguous.
+    timezone: z.string().trim().default(DEFAULT_TIMEZONE).transform((value) => value || DEFAULT_TIMEZONE),
     currency: z.string().default("JPY"),
     startDate: z.string(),
     endDate: z.string(),

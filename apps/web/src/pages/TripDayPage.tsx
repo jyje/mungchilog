@@ -17,6 +17,7 @@ import type { SharedLocationWithName } from "../components/LocationSharingContro
 import { TripCoverSettingsButton } from "../components/TripCoverSettingsButton";
 import { Button } from "../components/ui/button";
 import type { Me } from "../api";
+import { downloadTripExchange } from "../tripExchange";
 
 function nextDate(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -363,6 +364,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         }
         headerRight={
           <div className="trip-header-actions">
+            <Button type="button" variant="secondary" onClick={() => downloadTripExchange(trip)}>
+              내보내기
+            </Button>
             <TripShareButton
               tripId={id}
               me={me}

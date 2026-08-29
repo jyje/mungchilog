@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const MAX_COVER_IMAGE_BYTES = 2 * 1024 * 1024;
+export const DEFAULT_TIMEZONE = "Asia/Seoul";
 
 const IMAGE_DATA_URL = /^data:(image\/(?:jpeg|png|webp));base64,((?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?)$/;
 
@@ -64,7 +65,10 @@ export const TripDataSchema = z
   .object({
     title: z.string().min(1),
     // Any IANA timezone name - not locked to one destination.
-    timezone: z.string().default("Asia/Tokyo"),
+    // An omitted or blank value is deliberately Seoul time. This gives
+    // pasted/offline itineraries a stable default without guessing from the
+    // browser's local timezone.
+    timezone: z.string().trim().default(DEFAULT_TIMEZONE).transform((value) => value || DEFAULT_TIMEZONE),
     currency: z.string().default("JPY"),
     startDate: z.string(),
     endDate: z.string(),
