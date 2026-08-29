@@ -14,7 +14,7 @@ import {
   shouldSeedInitialAdminCandidates,
 } from "./initial-admin.js";
 import { canAllowUnverifiedEmailForLocalOidc, canAuthenticateWithUnverifiedEmailClaim } from "./local-oidc-email-verification.js";
-import { localWebRedirect } from "./local-web-origin.js";
+import { allowedSameOrigins, localWebRedirect } from "./local-web-origin.js";
 import { sessionStorageId } from "./session-security.js";
 import { locationSharingStore } from "./location-sharing-store.js";
 
@@ -500,19 +500,14 @@ export async function requireAdmin(c: Context, next: Next) {
 }
 
 // SameSite=Lax cookies can still be sent by a same-site subdomain. Protect
-// every state-changing production request with the configured public origin.
+// every state-changing request with the OIDC callback origin, plus an explicit
+// loopback Vite origin during local development.
 export async function requireSameOrigin(c: Context, next: Next) {
   if (LOCAL_DEV_AUTH || !["POST", "PUT", "PATCH", "DELETE"].includes(c.req.method)) {
     await next();
     return;
   }
-  let expectedOrigin: string | null = null;
-  try {
-    expectedOrigin = REDIRECT_URI ? new URL(REDIRECT_URI).origin : null;
-  } catch {
-    expectedOrigin = null;
-  }
-  if (!expectedOrigin || c.req.header("origin") !== expectedOrigin) {
+  if (!allowedSameOrigins().includes(c.req.header("origin") ?? "")) {
     return c.json({ error: "same-origin request required" }, 403);
   }
   await next();

@@ -21,6 +21,26 @@ export function localWebOrigin(env: Environment = process.env): string | null {
   }
 }
 
+/**
+ * Origins permitted to mutate an authenticated session. The configured OIDC
+ * callback remains the primary origin. During local development, the Vite
+ * origin is added only when it is an explicit HTTP loopback address.
+ */
+export function allowedSameOrigins(env: Environment = process.env): string[] {
+  let callbackOrigin: string | null = null;
+  try {
+    callbackOrigin = env.OIDC_REDIRECT_URI ? new URL(env.OIDC_REDIRECT_URI).origin : null;
+  } catch {
+    callbackOrigin = null;
+  }
+  if (!callbackOrigin) return [];
+
+  const origins = [callbackOrigin];
+  const viteOrigin = localWebOrigin(env);
+  if (viteOrigin && viteOrigin !== callbackOrigin) origins.push(viteOrigin);
+  return origins;
+}
+
 export function localWebRedirect(path: "/pending" | "/trips", env: Environment = process.env): string {
   const origin = localWebOrigin(env);
   return origin ? new URL(path, origin).toString() : path;
