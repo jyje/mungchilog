@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MAX_COVER_IMAGE_BYTES, TripImportSchema } from "./schema.js";
+import { DEFAULT_TIMEZONE, MAX_COVER_IMAGE_BYTES, TripImportSchema } from "./schema.js";
 
 function tripWithCover(cover: unknown) {
   return {
@@ -40,4 +40,12 @@ test("a trip cover rejects unsupported and oversized Base64 images", () => {
   const encodedTooLarge = "A".repeat(Math.ceil(((MAX_COVER_IMAGE_BYTES + 1) * 4) / 3));
   const oversized = TripImportSchema.safeParse(tripWithCover({ imageDataUrl: `data:image/jpeg;base64,${encodedTooLarge}` }));
   assert.equal(oversized.success, false);
+});
+
+test("a blank or omitted trip timezone defaults to Seoul", () => {
+  const blank = TripImportSchema.parse({ ...tripWithCover({ spotId: "tokyo-station" }), timezone: "" });
+  const omitted = TripImportSchema.parse(tripWithCover({ spotId: "tokyo-station" }));
+
+  assert.equal(blank.timezone, DEFAULT_TIMEZONE);
+  assert.equal(omitted.timezone, DEFAULT_TIMEZONE);
 });

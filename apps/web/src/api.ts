@@ -31,6 +31,11 @@ export function deleteTrip(id: string): Promise<{ deleted: boolean }> {
   return fetch(`/api/trips/${id}`, { method: "DELETE" }).then((r) => json(r));
 }
 
+export function lookupTimezone(lat: number, lng: number, date: string): Promise<{ timezone: string | null }> {
+  const params = new URLSearchParams({ lat: String(lat), lng: String(lng), date });
+  return fetch(`/api/timezones?${params}`).then((r) => json(r));
+}
+
 // --- auth / M6 ---
 
 export type Me = { id: string; email: string; name: string | null; status: "pending" | "approved"; role: "admin" | "member" };

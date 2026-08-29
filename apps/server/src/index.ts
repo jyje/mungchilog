@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { trips } from "./routes/trips.js";
 import { legs } from "./routes/legs.js";
 import { places } from "./routes/places.js";
+import { timezones } from "./routes/timezones.js";
 import { admin } from "./routes/admin.js";
 import { locationSharing } from "./routes/location-sharing.js";
 import { startLocationSharingCleanup } from "./location-sharing-store.js";
@@ -33,6 +34,7 @@ app.use("/api/*", requireSameOrigin, requireAuth, requireApproved);
 app.route("/api/trips", trips);
 app.route("/api/legs", legs);
 app.route("/api/places", places);
+app.route("/api/timezones", timezones);
 app.route("/api/admin", admin);
 
 // apps/web's build lands in ./public (see Dockerfile). Everything not
