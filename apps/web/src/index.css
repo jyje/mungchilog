@@ -1857,16 +1857,9 @@ input[type="text"]::placeholder {
 
 /* Trip sharing uses an app-level sheet instead of a map-header popover. The
    fixed layer prevents narrow viewports from clipping controls off-screen. */
-.share-sheet-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  background: color-mix(in srgb, #111214 46%, transparent);
-  backdrop-filter: blur(2px);
-}
 .share-sheet {
   position: fixed;
-  z-index: 21;
+  z-index: 50;
   inset: auto 0 0;
   width: min(100%, 34rem);
   max-height: min(42rem, calc(100dvh - env(safe-area-inset-top) - 1rem));
@@ -1893,6 +1886,7 @@ input[type="text"]::placeholder {
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+  padding: 0;
   margin-bottom: 0.8rem;
 }
 .share-sheet-header h2 {
@@ -1920,6 +1914,10 @@ input[type="text"]::placeholder {
 .share-sheet-close:hover {
   background: color-mix(in srgb, var(--accent) 12%, var(--bg));
   color: var(--text);
+}
+.share-sheet-close svg {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 .share-member-list {
   display: flex;
@@ -1976,6 +1974,9 @@ input[type="text"]::placeholder {
 }
 .share-member-remove {
   margin-left: -0.35rem;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
 }
 .share-members-status {
   padding: 0.75rem 0.25rem;
@@ -2007,12 +2008,10 @@ input[type="text"]::placeholder {
   outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent);
   outline-offset: 2px;
 }
-.share-invite-form button {
+.share-invite-form > button {
+  width: 100%;
   min-height: 48px;
-  border: none;
   border-radius: 0.75rem;
-  background: var(--accent);
-  color: var(--accent-contrast);
   font-weight: 700;
   cursor: pointer;
 }
@@ -2044,28 +2043,6 @@ input[type="text"]::placeholder {
     border-radius: 1.25rem;
     padding-bottom: 1.25rem;
     box-shadow: 0 1.25rem 3.5rem color-mix(in srgb, var(--shadow-color) 80%, transparent);
-  }
-}
-@media (prefers-reduced-motion: no-preference) {
-  .share-sheet-backdrop {
-    animation: share-backdrop-in 0.16s ease-out;
-  }
-  .share-sheet {
-    animation: share-sheet-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-}
-@keyframes share-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes share-sheet-in {
-  from { opacity: 0; transform: translateY(1rem); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@media (min-width: 48rem) and (prefers-reduced-motion: no-preference) {
-  @keyframes share-sheet-in {
-    from { opacity: 0; transform: translate(-50%, calc(-50% + 1rem)); }
-    to { opacity: 1; transform: translate(-50%, -50%); }
   }
 }
 .shared-location-link {
