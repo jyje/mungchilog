@@ -140,6 +140,11 @@ body {
   padding: 1.5rem 1.25rem 4rem;
 }
 
+#root.gallery-root {
+  max-width: none;
+  padding: 0 1.25rem 4rem;
+}
+
 a {
   color: var(--accent);
   text-decoration: none;
@@ -2192,6 +2197,7 @@ input[type="text"]::placeholder {
   cursor: pointer;
 }
 .shared-location-marker.selected { outline: 3px solid #facc15; outline-offset: 2px; }
+
 /*
  ---break---
  */

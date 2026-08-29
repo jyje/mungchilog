@@ -42,5 +42,5 @@
 
 - Treat `apps/web/src/components/ui/` as read-only shadcn CLI output. Do not make product-specific changes in generated files.
 - Put application wrappers, composition helpers, and all product-specific classes in `apps/web/src/components/system/`, a sibling of `ui/`.
-- Application screens must import wrappers from `components/system/` when a product-styled component exists. Add or update wrappers instead of forking a generated primitive.
+- Use a `components/system/` wrapper only when it carries a reusable product contract. Screens may import a generated primitive directly for its documented props and ordinary layout values. Do not create pass-through wrappers around shadcn primitives.
 - Keep the existing product tokens in `apps/web/src/index.css` authoritative. shadcn tokens must map to them without silently changing existing light, dark, map, or accessibility behavior.
