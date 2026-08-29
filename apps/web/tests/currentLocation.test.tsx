@@ -73,6 +73,8 @@ describe("current location control", () => {
       </MapViewportProvider>,
     );
     const button = screen.getByRole("button", { name: "따라가기" });
+    expect(button).toHaveClass("map-icon-button");
+    expect(button).toHaveAttribute("data-variant", "ghost");
     expect(watchPosition).not.toHaveBeenCalled();
     fireEvent.click(button);
     expect(onSelect).toHaveBeenCalledWith({ kind: "leg", fromId: "one", toId: "two" });
@@ -105,6 +107,8 @@ describe("current location control", () => {
   it("uses the shared accessible tooltip without a custom touch timer", () => {
     const { unmount } = renderWithTooltips(<CurrentLocation />);
     const button = screen.getByRole("button", { name: "현재 위치" });
+    expect(button).toHaveClass("map-icon-button");
+    expect(button).toHaveAttribute("data-variant", "ghost");
     fireEvent.focus(button);
     act(() => vi.runAllTimers());
     expect(screen.getByRole("tooltip")).toHaveTextContent("현재 위치");

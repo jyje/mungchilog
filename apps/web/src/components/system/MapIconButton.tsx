@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "../../lib/utils";
+import "./map-icon-button.css";
 
 type MapIconButtonProps = Omit<ComponentProps<typeof Button>, "children" | "size"> & {
   icon: ReactNode;
@@ -15,12 +16,12 @@ export function MapIconButton({ className, icon, label, selected, ...props }: Ma
       <TooltipTrigger asChild>
         <Button
           {...props}
-          variant="outline"
+          variant="ghost"
           size="icon-lg"
           aria-label={label}
           aria-pressed={selected}
           data-selected={selected || undefined}
-          className={cn("size-11 rounded-full", className)}
+          className={cn("map-icon-button size-11 rounded-full", className)}
         >
           {icon}
         </Button>
