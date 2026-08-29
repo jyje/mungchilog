@@ -1,4 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Menu } from "lucide-react";
+import { Button } from "./ui/button";
 import { MapViewportProvider, type MapViewportInsets } from "./MapViewportContext";
 import { closestSheetState, mapViewportInsets, SHEET_LABELS, SHEET_STATES, type SheetState } from "./mapViewportGeometry";
 
@@ -354,27 +356,27 @@ export function SplitMapShell({
         <div ref={headerRef} className="map-hero-header">
           {headerLeft}
           <div className="menu-anchor">
-            <button ref={menuButtonRef} type="button" className="menu-button" aria-label="보기 설정" title="보기 설정" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
-              ☰
-            </button>
+            <Button ref={menuButtonRef} type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="보기 설정" title="보기 설정" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
+              <Menu aria-hidden="true" />
+            </Button>
             {menuOpen && (
               <>
                 <button type="button" className="menu-backdrop" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />
                 <div className="layout-menu" role="group" aria-label="패널 배치">
-                  <button type="button" onClick={() => { setLayout((current) => ({ ...current, collapsed: !panelHidden, sheetState: position === "bottom" && panelHidden ? "intermediate" : current.sheetState })); setMenuOpen(false); menuButtonRef.current?.focus(); }}>
+                  <Button type="button" variant="ghost" className="layout-menu-item" onClick={() => { setLayout((current) => ({ ...current, collapsed: !panelHidden, sheetState: position === "bottom" && panelHidden ? "intermediate" : current.sheetState })); setMenuOpen(false); menuButtonRef.current?.focus(); }}>
                     {panelHidden ? "목록 보이기" : "목록 접기"}
-                  </button>
+                  </Button>
                   {isWide && <div className="layout-menu-positions" aria-label="도킹 위치">
-                    {(["left", "bottom", "right"] as DockPosition[]).map((position) => (
-                      <button key={position} type="button" aria-pressed={layout.position === position} className={layout.position === position ? "active" : ""} onClick={() => choosePosition(position)}>
-                        {POSITION_LABEL[position]}
-                      </button>
+                    {(["left", "bottom", "right"] as DockPosition[]).map((dockPosition) => (
+                      <Button key={dockPosition} type="button" variant={layout.position === dockPosition ? "secondary" : "outline"} aria-pressed={layout.position === dockPosition} className="layout-menu-position" onClick={() => choosePosition(dockPosition)}>
+                        {POSITION_LABEL[dockPosition]}
+                      </Button>
                     ))}
                   </div>}
                   {isWide && (
-                    <button type="button" className={layout.position === "floating" ? "active" : ""} onClick={() => choosePosition("floating")}>
+                    <Button type="button" variant={layout.position === "floating" ? "secondary" : "ghost"} className="layout-menu-item" onClick={() => choosePosition("floating")}>
                       ◇ 플로팅 패널
-                    </button>
+                    </Button>
                   )}
                 </div>
               </>

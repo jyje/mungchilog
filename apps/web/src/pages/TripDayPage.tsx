@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -14,6 +15,7 @@ import { MarkdownEditor } from "../components/MarkdownEditor";
 import { TripShareButton } from "../components/TripShareButton";
 import type { SharedLocationWithName } from "../components/LocationSharingControl";
 import { TripCoverSettingsButton } from "../components/TripCoverSettingsButton";
+import { Button } from "../components/ui/button";
 import type { Me } from "../api";
 
 function nextDate(dateStr: string): string {
@@ -353,17 +355,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
           />
         }
         headerLeft={
-          <a
-            className="map-hero-back"
-            href="/trips"
-            aria-label="목록으로"
-            onClick={(e) => {
-              e.preventDefault();
-              navigate("/trips");
-            }}
-          >
-            ←
-          </a>
+          <Button asChild variant="ghost" size="icon-lg" className="map-hero-back">
+            <a href="/trips" aria-label="목록으로" onClick={(e) => { e.preventDefault(); navigate("/trips"); }}>
+              <ArrowLeft aria-hidden="true" />
+            </a>
+          </Button>
         }
         headerRight={
           <div className="trip-header-actions">

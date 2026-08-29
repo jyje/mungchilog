@@ -741,9 +741,6 @@ ul {
   box-shadow: 0 8px 24px var(--shadow-color);
 }
 .layout-menu button {
-  background: none;
-  border: none;
-  color: var(--text);
   text-align: left;
   min-height: 3rem;
   padding: 0.55rem 0.7rem;
@@ -762,13 +759,9 @@ ul {
   flex: 1;
   text-align: center;
   padding: 0.4rem 0.3rem;
-  border: 1px solid var(--border);
 }
-.layout-menu-positions button.active {
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
+.layout-menu-item { width: 100%; justify-content: flex-start; }
+.layout-menu-position { min-width: 0; }
 .trip-actions-menu {
   left: auto;
   right: 0;
