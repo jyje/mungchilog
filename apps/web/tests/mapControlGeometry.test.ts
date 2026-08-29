@@ -63,7 +63,27 @@ describe("map control geometry", () => {
     expect(rectsIntersect(placement!.rect, nativeLowerRight, 12)).toBe(false);
   });
 
-  it("falls back to the opposite side when the right rail is occupied", () => {
+  it("keeps a right-side rail clear when native controls span the map edge", () => {
+    const viewport = { width: 1280, height: 418 };
+    const nativeControls = [
+      { left: 1230, top: 282, right: 1270, bottom: 322 },
+      { left: 1230, top: 354, right: 1270, bottom: 394 },
+      { left: 1025, top: 404, right: 1270, bottom: 418 },
+    ];
+    const placement = chooseMapControlRail(viewport, {
+      itemCount: 2,
+      controlSize: { width: 44, height: 44 },
+      gap: 12,
+      edgeGap: 12,
+      exclusions: nativeControls,
+    });
+
+    expect(placement?.side).toBe("right");
+    expect(placement?.rect).toEqual({ left: 1224, top: 158, right: 1268, bottom: 258 });
+    expect(nativeControls.every((control) => !rectsIntersect(placement!.rect, control, 12))).toBe(true);
+  });
+
+  it("shifts inward before using the opposite side when the right rail is occupied", () => {
     const viewport = { width: 390, height: 844 };
     const rightEdge = { left: 320, top: 0, right: 390, bottom: 844 };
     const placement = chooseMapControlRail(viewport, {
@@ -72,7 +92,8 @@ describe("map control geometry", () => {
       exclusions: [rightEdge],
     });
 
-    expect(placement?.side).toBe("left");
+    expect(placement?.side).toBe("right");
+    expect(placement?.rect).toEqual({ left: 248, top: 724, right: 296, bottom: 832 });
     expect(rectWithin(placement!.rect, mapContentRect(viewport))).toBe(true);
     expect(rectsIntersect(placement!.rect, rightEdge)).toBe(false);
   });

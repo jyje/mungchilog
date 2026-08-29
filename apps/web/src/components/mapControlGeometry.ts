@@ -115,22 +115,40 @@ export function chooseMapControlRail(
   { itemCount, controlSize, gap = 12, edgeGap = 12, exclusions = [] }: MapControlRailOptions,
 ): MapControlRailPlacement | null {
   const content = mapContentRect(viewport);
-  const totalHeight = Math.max(0, Math.floor(itemCount)) * Math.max(0, controlSize.height)
-    + Math.max(0, Math.floor(itemCount) - 1) * Math.max(0, gap);
-  if (rectWidth(content) < controlSize.width + edgeGap * 2 || rectHeight(content) < totalHeight + edgeGap * 2) return null;
+  const count = Math.max(0, Math.floor(itemCount));
+  const width = Math.max(0, controlSize.width);
+  const height = Math.max(0, controlSize.height);
+  const safeGap = Math.max(0, gap);
+  const safeEdgeGap = Math.max(0, edgeGap);
+  const totalHeight = count * height + Math.max(0, count - 1) * safeGap;
+  if (rectWidth(content) < width + safeEdgeGap * 2 || rectHeight(content) < totalHeight + safeEdgeGap * 2) return null;
 
   const sides: Array<"right" | "left"> = ["right", "left"];
   const placements = sides.flatMap((side) => {
-    const bottom = verticalRailRect(content, side, itemCount, controlSize, gap, edgeGap);
-    const middleTop = Math.max(content.top + edgeGap, content.top + (rectHeight(content) - totalHeight) / 2);
-    const middleLeft = side === "left" ? content.left + edgeGap : content.right - edgeGap - controlSize.width;
-    const middle: ControlRect = {
-      left: middleLeft,
-      top: middleTop,
-      right: middleLeft + controlSize.width,
-      bottom: middleTop + totalHeight,
-    };
-    return [bottom, middle].map((rect) => ({ side, rect }));
+    const baseLeft = side === "left" ? content.left + safeEdgeGap : content.right - safeEdgeGap - width;
+    const leftCandidates = [
+      baseLeft,
+      // A native control can occupy the edge without occupying the whole
+      // map. Try the nearest clear column before abandoning this side.
+      ...exclusions.flatMap((exclusion) => [
+        exclusion.left - width - safeEdgeGap * 2,
+        exclusion.right + safeEdgeGap * 2,
+      ]),
+    ];
+    const bottomTop = content.bottom - safeEdgeGap - totalHeight;
+    const middleTop = Math.max(content.top + safeEdgeGap, content.top + (rectHeight(content) - totalHeight) / 2);
+    const topCandidates = [
+      bottomTop,
+      middleTop,
+      ...exclusions.flatMap((exclusion) => [
+        exclusion.top - totalHeight - safeEdgeGap * 2,
+        exclusion.bottom + safeEdgeGap * 2,
+      ]),
+    ];
+    return leftCandidates.flatMap((left) => topCandidates.map((top) => ({
+      side,
+      rect: { left, top, right: left + width, bottom: top + totalHeight },
+    })));
   });
 
   return placements.find(({ rect }) => rectWithin(rect, content) && !exclusions.some((exclusion) => rectsIntersect(rect, exclusion, edgeGap))) ?? null;
