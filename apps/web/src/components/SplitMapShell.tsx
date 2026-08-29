@@ -361,7 +361,7 @@ export function SplitMapShell({
             </Button>
             {menuOpen && (
               <>
-                <button type="button" className="menu-backdrop" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />
+                <Button type="button" variant="ghost" className="menu-backdrop" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />
                 <div className="layout-menu" role="group" aria-label="패널 배치">
                   <Button type="button" variant="ghost" className="layout-menu-item" onClick={() => { setLayout((current) => ({ ...current, collapsed: !panelHidden, sheetState: position === "bottom" && panelHidden ? "intermediate" : current.sheetState })); setMenuOpen(false); menuButtonRef.current?.focus(); }}>
                     {panelHidden ? "목록 보이기" : "목록 접기"}
@@ -393,7 +393,7 @@ export function SplitMapShell({
         <aside ref={panelRef} className="trip-panel-pane" hidden={layout.collapsed && position !== "bottom"} style={panelStyle} aria-label="여행 일정 패널">
           {position === "floating" ? (
             <>
-              <button type="button" className="floating-panel-titlebar" aria-label="패널 위치 이동" title="드래그하거나 방향키로 이동" onPointerDown={beginMove} onKeyDown={(event) => {
+              <Button type="button" variant="ghost" className="floating-panel-titlebar" aria-label="패널 위치 이동" title="드래그하거나 방향키로 이동" onPointerDown={beginMove} onKeyDown={(event) => {
                 const x = event.key === "ArrowLeft" ? -24 : event.key === "ArrowRight" ? 24 : 0;
                 const y = event.key === "ArrowUp" ? -24 : event.key === "ArrowDown" ? 24 : 0;
                 if (!x && !y) return;
@@ -403,11 +403,12 @@ export function SplitMapShell({
                 <span className="floating-panel-grip" aria-hidden="true">⠿</span>
                 <span>일정</span>
                 <span className="floating-panel-hint">드래그하여 이동</span>
-              </button>
+              </Button>
               {(["top", "right", "bottom", "left", "top-right", "bottom-right", "bottom-left", "top-left"] as ResizeEdge[]).map((edge) => (
-                <button
+                <Button
                   key={edge}
                   type="button"
+                  variant="ghost"
                   className={`floating-resize-handle floating-resize-${edge}`}
                   aria-label={`패널 ${edge} 경계 크기 조절`}
                   onPointerDown={(event) => beginResize(event, edge)}
@@ -417,20 +418,20 @@ export function SplitMapShell({
             </>
           ) : position === "bottom" ? (
             <div className="panel-sheet-toolbar">
-              <button type="button" className="panel-drag-handle" aria-label={`일정 패널 ${SHEET_LABELS[sheetState]}, 크기 변경`} aria-expanded={sheetState !== "collapsed"} aria-controls="trip-itinerary-content" title="드래그하거나 위아래 방향키로 크기 변경" onPointerDown={(event) => beginResize(event, "top")} onKeyDown={onSheetKeyDown} onClick={() => {
+              <Button type="button" variant="ghost" className="panel-drag-handle" aria-label={`일정 패널 ${SHEET_LABELS[sheetState]}, 크기 변경`} aria-expanded={sheetState !== "collapsed"} aria-controls="trip-itinerary-content" title="드래그하거나 위아래 방향키로 크기 변경" onPointerDown={(event) => beginResize(event, "top")} onKeyDown={onSheetKeyDown} onClick={() => {
                 if (suppressSheetClick.current) { suppressSheetClick.current = false; return; }
                 chooseSheetState(SHEET_STATES[(SHEET_STATES.indexOf(sheetState) + 1) % SHEET_STATES.length]);
               }}>
                 <span className="handle-bar" aria-hidden="true" /><span>일정</span>
-              </button>
+              </Button>
               <div className="panel-sheet-states" role="group" aria-label="일정 패널 크기">
-                {SHEET_STATES.map((state) => <button key={state} type="button" aria-pressed={sheetState === state} onClick={() => chooseSheetState(state)}>{SHEET_LABELS[state]}</button>)}
+                {SHEET_STATES.map((state) => <Button key={state} type="button" variant={sheetState === state ? "secondary" : "ghost"} aria-pressed={sheetState === state} onClick={() => chooseSheetState(state)}>{SHEET_LABELS[state]}</Button>)}
               </div>
             </div>
           ) : (
-            <button type="button" className="panel-drag-handle" aria-label="일정 패널 너비 조절" title="드래그하거나 좌우 방향키로 너비 변경" onPointerDown={(event) => beginResize(event, position === "left" ? "right" : "left")} onKeyDown={(event) => onResizeKeyDown(event, position === "left" ? "right" : "left")}>
+            <Button type="button" variant="ghost" className="panel-drag-handle" aria-label="일정 패널 너비 조절" title="드래그하거나 좌우 방향키로 너비 변경" onPointerDown={(event) => beginResize(event, position === "left" ? "right" : "left")} onKeyDown={(event) => onResizeKeyDown(event, position === "left" ? "right" : "left")}>
               <span>일정</span><span aria-hidden="true">↔</span>
-            </button>
+            </Button>
           )}
           <div id="trip-itinerary-content" className="panel-content" hidden={position === "bottom" && sheetState === "collapsed" && sheetDragHeight === null}>{panel}</div>
         </aside>
