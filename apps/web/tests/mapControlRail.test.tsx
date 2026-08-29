@@ -71,4 +71,29 @@ describe("MapControlRail", () => {
     await waitFor(() => expect(rail).toHaveStyle({ left: "1224px", top: "158px", right: "auto", bottom: "auto" }));
     expect(rail).toHaveAttribute("data-placement", "right");
   });
+
+  it("recalculates when Google controls mount after the map", async () => {
+    const view = render(
+      <MapViewportProvider value={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+        <div className="map-container">
+          <MapControlRail>
+            <button type="button">현재 위치</button>
+            <button type="button">따라가기</button>
+          </MapControlRail>
+        </div>
+      </MapViewportProvider>,
+    );
+    const map = view.container.querySelector(".map-container")!;
+    const rail = view.container.querySelector(".map-control-rail")!;
+    setRect(map, { left: 0, top: 0, right: 360, bottom: 800 });
+    window.dispatchEvent(new Event("resize"));
+    await waitFor(() => expect(rail).toHaveStyle({ left: "304px", top: "688px" }));
+
+    const native = document.createElement("div");
+    native.className = "gm-svpc";
+    view.container.querySelector(".map-container")!.append(native);
+    setRect(native, { left: 276, top: 610, right: 360, bottom: 800 });
+
+    await waitFor(() => expect(rail).toHaveStyle({ left: "304px", top: "350px" }));
+  });
 });
