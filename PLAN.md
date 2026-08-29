@@ -300,6 +300,7 @@ Local progress (2026-08-29):
 - Completed: contextual location/follow status and dismissal regression coverage.
 - Completed: trip header, participant sheet, day actions, cover settings, itinerary cards, opening-hours tooltip, editor actions, and gallery migration.
 - Completed: automated gallery checks at all seven supported viewport sizes; the app rail stayed inside the map and had zero intersections with the measured native-control fixtures.
+- Completed: authenticated local-browser verification with a live Google map at all seven supported viewport sizes. The measured app rail stayed inside the map and had zero intersections with nine visible native controls at each size.
 - Remaining: live screenshots and device checks for every viewport, including permission-denied, unavailable-location, following, paused, selected-route, light, and dark states.
 
 1. **Inventory fixture and geometry contract (completed locally)**
