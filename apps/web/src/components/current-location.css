@@ -37,6 +37,10 @@
   max-height: 3rem;
 }
 .trip-shell[data-compact-map="true"] .device-location-control.has-status { grid-template-columns: minmax(0, 14rem) auto; }
+@media (max-width: 480px) {
+  .device-location-control.has-status { grid-template-columns: minmax(0, 14rem) auto; }
+  .device-location-control.has-status .device-location-status { width: min(14rem, calc(100vw - 8rem)); }
+}
 .device-location-marker.is-stale { background: #64748b; box-shadow: 0 0 0 2px #475569; border-style: dashed; }
 .device-location-announcement {
   position: absolute;

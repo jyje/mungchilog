@@ -20,6 +20,6 @@
     right: max(0.5rem, calc(var(--map-control-right, 0px) + 4rem));
     bottom: max(0.5rem, calc(var(--map-control-bottom, 0px) + 0.5rem));
     gap: 0.5rem;
-    max-width: min(19rem, calc(100% - var(--map-control-left, 0px) - var(--map-control-right, 0px) - 5rem));
+    max-width: min(22rem, calc(100% - var(--map-control-left, 0px) - var(--map-control-right, 0px) - 1rem));
   }
 }
