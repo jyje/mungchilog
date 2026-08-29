@@ -2,6 +2,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { listTrips, deleteTrip } from "../api";
 import { MapsScope } from "../components/MapsScope";
 import { TripCoverMap } from "../components/TripCoverMap";
+import { BuildIdentity } from "../components/system/BuildIdentity";
 
 export function TripListPage({ navigate }: { navigate: (path: string) => void }) {
   const qc = useQueryClient();
@@ -73,6 +74,7 @@ export function TripListPage({ navigate }: { navigate: (path: string) => void })
             </article>
           ))}
         </div>
+        <BuildIdentity />
       </div>
     </MapsScope>
   );
