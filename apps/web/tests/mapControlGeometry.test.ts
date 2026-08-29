@@ -45,6 +45,24 @@ describe("map control geometry", () => {
     }
   });
 
+  it.each(MAP_VIEWPORT_FIXTURES)("avoids a representative Google control set at $name", (fixture) => {
+    const nativeControls = [
+      { left: fixture.width - 50, top: 80, right: fixture.width, bottom: 120 },
+      { left: fixture.width - 50, top: 132, right: fixture.width, bottom: 172 },
+      { left: Math.max(0, fixture.width - 300), top: fixture.height - 16, right: fixture.width, bottom: fixture.height },
+    ];
+    const placement = chooseMapControlRail(fixture, {
+      itemCount: 2,
+      controlSize: { width: 44, height: 44 },
+      gap: 12,
+      edgeGap: 12,
+      exclusions: nativeControls,
+    });
+
+    expect(placement, fixture.name).not.toBeNull();
+    expect(nativeControls.every((control) => !rectsIntersect(placement!.rect, control, 12)), fixture.name).toBe(true);
+  });
+
   it("moves the rail away from a native lower-right control cluster", () => {
     const viewport = { width: 360, height: 800 };
     const nativeLowerRight = { left: 276, top: 610, right: 360, bottom: 800 };
