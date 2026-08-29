@@ -72,7 +72,7 @@ export function CurrentLocationControl() {
   }, [map, requestedFix, insets]);
 
   return (
-    <div className="device-location-control">
+    <div className={`device-location-control${showStatus ? " has-status" : ""}`}>
       <MapIconButton
         icon={<Crosshair className="size-5" aria-hidden="true" />}
         label="현재 위치"

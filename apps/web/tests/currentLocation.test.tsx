@@ -179,6 +179,7 @@ describe("current location control", () => {
     act(() => error({ code: 1 } as GeolocationPositionError));
     expect(screen.getByRole("status")).toHaveTextContent("사이트 설정");
     expect(screen.getByRole("button", { name: "현재 위치" })).toBeEnabled();
+    expect(document.querySelector(".device-location-control")).toHaveClass("has-status");
     expect(maps.map.panTo).not.toHaveBeenCalled();
   });
 

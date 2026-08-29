@@ -67,11 +67,18 @@ export function MapControlRail({ children, className = "" }: MapControlRailProps
     function measure() {
       const bounds = mapContainer.getBoundingClientRect();
       if (!bounds.width || !bounds.height) return;
+      const railBounds = rail?.getBoundingClientRect();
+      const hasMeasuredRail = Boolean(railBounds?.width && railBounds.height);
       const next = chooseMapControlRail(
         { width: bounds.width, height: bounds.height, insets },
         {
-          itemCount,
-          controlSize: CONTROL_SIZE,
+          // A status callout can make one child wider and taller than the
+          // icon buttons. Use the rendered rail as one measured rectangle so
+          // the full callout, not just its trigger, participates in collision
+          // avoidance. The fallback keeps the first pass deterministic in
+          // environments that do not expose layout boxes yet.
+          itemCount: hasMeasuredRail ? 1 : itemCount,
+          controlSize: hasMeasuredRail ? { width: Math.max(CONTROL_SIZE.width, railBounds!.width), height: Math.max(CONTROL_SIZE.height, railBounds!.height) } : CONTROL_SIZE,
           gap: CONTROL_GAP,
           edgeGap: CONTROL_EDGE_GAP,
           exclusions: nativeControlRects(mapContainer),
@@ -83,6 +90,7 @@ export function MapControlRail({ children, className = "" }: MapControlRailProps
     measure();
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     resizeObserver?.observe(mapContainer);
+    if (rail) resizeObserver?.observe(rail);
     const mutationObserver = typeof MutationObserver === "undefined" ? null : new MutationObserver(measure);
     mutationObserver?.observe(mapContainer, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "aria-label"] });
     window.addEventListener("resize", measure);
