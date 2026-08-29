@@ -348,3 +348,29 @@ Local progress (2026-08-29):
 - The development gallery is unreachable from staging and production hosts.
 - shadcn generated files remain untouched after generation. Product customizations are traceable to the sibling wrapper directory.
 - Existing routes, OIDC behavior, PWA behavior, Google Maps loading, and itinerary interactions pass focused regression checks after every migration slice.
+
+### 10.6 Development UI storyboard
+
+The development-only gallery evolves from a primitive catalog into an interactive storyboard. It remains unavailable on staging and production hosts and never calls a trip, identity, location, or Maps API.
+
+1. **Storyboard foundation**
+   - Add an explicit storyboard section after the primitive catalog.
+   - Keep each scene as a live React composition using the same shadcn primitives and product tokens as the application, not a static screenshot or a separate visual language.
+   - Provide deterministic sample content only. Do not render user names, live locations, invitation tokens, or copied travel data.
+
+2. **Core travel flow scenes**
+   - Show the journey from an empty trip library, through creating a trip, to a populated itinerary with a selected place and route context.
+   - Show loading, empty, and recoverable error states next to the successful state so a visual review includes the entire interaction cycle.
+   - Make selection visible through an order label, focus treatment, and semantic state rather than color alone.
+
+3. **Collaboration scenes**
+   - Show the member panel, invitation entry point, location-sharing consent, and following state as a separate scene.
+   - Make the privacy boundary explicit: sharing is opt-in, temporary, and only visible to trip participants.
+
+4. **Responsive review**
+   - Provide phone, tablet, and desktop canvases. Each scene uses the same responsive breakpoints as the application and preserves 44 by 44 controls.
+   - Keep map application controls inside the measured rail. Native Maps controls remain represented as exclusions in the storyboard until a live Maps key is available.
+
+5. **Verification and commit boundaries**
+   - Add focused tests for scene labels, state controls, and development-only access.
+   - Commit the storyboard foundation, core flow scenes, and collaboration/responsive scenes separately after local verification.
