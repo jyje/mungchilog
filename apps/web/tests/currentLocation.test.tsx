@@ -82,6 +82,26 @@ describe("current location control", () => {
     expect(screen.getByRole("button", { name: "따라가기" })).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("keeps Escape from moving the camera while it dismisses follow mode", () => {
+    renderWithTooltips(
+      <ItineraryFollowControl
+        spots={[
+          { id: "one", name: "One", lat: 37, lng: 127, order: 0, items: [], bufferMinutes: 10 },
+          { id: "two", name: "Two", lat: 37.1, lng: 127.1, order: 1, items: [], bufferMinutes: 10 },
+        ]}
+        selection={null}
+        onSelect={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "따라가기" }));
+    const pans = maps.map.panTo.mock.calls.length;
+    const offsets = maps.map.panBy.mock.calls.length;
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "따라가기" })).toHaveAttribute("aria-pressed", "false");
+    expect(maps.map.panTo).toHaveBeenCalledTimes(pans);
+    expect(maps.map.panBy).toHaveBeenCalledTimes(offsets);
+  });
+
   it("uses the shared accessible tooltip without a custom touch timer", () => {
     const { unmount } = renderWithTooltips(<CurrentLocation />);
     const button = screen.getByRole("button", { name: "현재 위치" });
@@ -160,6 +180,26 @@ describe("current location control", () => {
     expect(screen.getByRole("status")).toHaveTextContent("사이트 설정");
     expect(screen.getByRole("button", { name: "현재 위치" })).toBeEnabled();
     expect(maps.map.panTo).not.toHaveBeenCalled();
+  });
+
+  it("keeps location guidance inside the app-owned rail", () => {
+    vi.stubEnv("VITE_GOOGLE_MAPS_API_KEY", "synthetic-test-key");
+    renderWithTooltips(
+      <TripMap
+        spots={[
+          { id: "one", name: "One", lat: 37, lng: 127, order: 0, items: [], bufferMinutes: 10 },
+        ]}
+        date="2026-09-07"
+        timezone="Asia/Seoul"
+        selection={null}
+        onSelect={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "현재 위치" }));
+    act(() => error({ code: 1 } as GeolocationPositionError));
+    const status = document.querySelector(".device-location-status") as HTMLElement;
+    expect(status).toHaveClass("device-location-status");
+    expect(status.closest(".map-control-rail")).toBe(screen.getByRole("group", { name: "지도 도구" }));
   });
 
   it("does not undo recentering on a metadata-only itinerary refresh", () => {
