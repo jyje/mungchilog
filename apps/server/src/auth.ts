@@ -14,6 +14,7 @@ import {
   shouldSeedInitialAdminCandidates,
 } from "./initial-admin.js";
 import { canAllowUnverifiedEmailForLocalOidc, canAuthenticateWithUnverifiedEmailClaim } from "./local-oidc-email-verification.js";
+import { localWebRedirect } from "./local-web-origin.js";
 import { sessionStorageId } from "./session-security.js";
 import { locationSharingStore } from "./location-sharing-store.js";
 
@@ -417,7 +418,7 @@ auth.get("/callback", async (c) => {
     path: "/",
   });
 
-  return c.redirect(user.status === "pending" ? "/pending" : "/trips");
+  return c.redirect(localWebRedirect(user.status === "pending" ? "/pending" : "/trips"));
 });
 
 auth.post("/logout", requireSameOrigin, async (c) => {
