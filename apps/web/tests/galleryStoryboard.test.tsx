@@ -11,6 +11,12 @@ function renderStoryboard() {
   );
 }
 
+function activateScene(name: string) {
+  const tab = screen.getByRole("tab", { name });
+  fireEvent.mouseDown(tab, { button: 0, ctrlKey: false });
+  fireEvent.click(tab);
+}
+
 describe("GalleryStoryboard", () => {
   it("moves through the core trip flow without leaving the storyboard", () => {
     renderStoryboard();
@@ -32,5 +38,26 @@ describe("GalleryStoryboard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "데스크톱" }));
     expect(container.querySelector("[data-storyboard-viewport]")).toHaveAttribute("data-storyboard-viewport", "desktop");
+  });
+
+  it("keeps location sharing opt-in in the collaboration scene", () => {
+    renderStoryboard();
+
+    activateScene("같이 보기");
+    const sharing = screen.getByRole("switch", { name: "내 위치 공유" });
+    expect(sharing).toHaveAttribute("data-state", "unchecked");
+    expect(screen.getByText("이 여행의 참여자에게만 임시로 공유")).toBeVisible();
+
+    fireEvent.click(sharing);
+    expect(screen.getByText("위치 공유가 켜졌습니다. 언제든 여기서 끌 수 있습니다.")).toBeVisible();
+  });
+
+  it("keeps a recoverable map error visible beside other review states", () => {
+    renderStoryboard();
+
+    activateScene("상태");
+    activateScene("복구 필요");
+    expect(screen.getByText("지도를 불러오지 못했습니다.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeVisible();
   });
 });
