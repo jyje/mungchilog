@@ -384,10 +384,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             <div className="day-tabs-wrap">
               <div className="day-tabs">
                 {trip.days.map((d, i) => (
-                  <button
+                  <Button
                     key={d.date}
                     type="button"
-                    className={i === dayIndex ? "active" : ""}
+                    variant={i === dayIndex ? "default" : "outline"}
+                    className={i === dayIndex ? "active" : undefined}
                     onClick={() => selectDay(i)}
                     onContextMenu={(event) => {
                       event.preventDefault();
@@ -402,26 +403,28 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     aria-label={`${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리`}
                   >
                     {formatScheduleDate(d.date)}
-                  </button>
+                  </Button>
                 ))}
                 <div className="day-add-group">
-                  <button type="button" className="day-add" onClick={addDay}>
+                  <Button type="button" variant="outline" className="day-add" onClick={addDay}>
                     + 날짜
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="icon-lg"
                     className="day-add-arrow"
                     aria-label="특정 날짜 추가"
                     aria-expanded={dateAddOpen}
                     onClick={openDateAdd}
                   >
                     ▾
-                  </button>
+                  </Button>
                 </div>
                 {day && (
-                  <button type="button" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
+                  <Button type="button" variant="ghost" size="icon-lg" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
                     ⋮
-                  </button>
+                  </Button>
                 )}
               </div>
 
@@ -433,8 +436,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                   </label>
                   {dateError && <p className="error day-date-error">{dateError}</p>}
                   <div className="day-date-actions">
-                    <button type="button" onClick={addCustomDay}>추가</button>
-                    <button type="button" className="ghost" onClick={closeDatePopover}>취소</button>
+                    <Button type="button" onClick={addCustomDay}>추가</Button>
+                    <Button type="button" variant="ghost" onClick={closeDatePopover}>취소</Button>
                   </div>
                 </div>
               )}
@@ -448,9 +451,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                   <p className="meta day-date-hint">날짜를 바꾸면 해당 날짜의 메모와 스팟도 함께 이동합니다.</p>
                   {dateError && <p className="error day-date-error">{dateError}</p>}
                   <div className="day-date-actions">
-                    <button type="button" onClick={updateDayDate}>변경 저장</button>
-                    <button type="button" className="ghost" onClick={closeDatePopover}>취소</button>
-                    <button type="button" className="day-delete" onClick={() => deleteDay(editingDate)}>날짜 삭제</button>
+                    <Button type="button" onClick={updateDayDate}>변경 저장</Button>
+                    <Button type="button" variant="ghost" onClick={closeDatePopover}>취소</Button>
+                    <Button type="button" variant="outline" className="day-delete" onClick={() => deleteDay(editingDate)}>날짜 삭제</Button>
                   </div>
                 </div>
               )}
