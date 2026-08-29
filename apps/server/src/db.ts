@@ -38,6 +38,7 @@ const SCHEMA = `
     fare_amount INTEGER,
     fare_currency TEXT,
     polyline TEXT,
+    routes_json TEXT,
     fetched_at TEXT NOT NULL
   );
 
@@ -97,6 +98,20 @@ export async function migrateUserIdentityColumns(database: Database, provider: D
   await database.exec(
     "CREATE UNIQUE INDEX IF NOT EXISTS users_oidc_identity ON users(oidc_issuer, oidc_subject) WHERE oidc_issuer IS NOT NULL AND oidc_subject IS NOT NULL",
   );
+}
+
+// Route alternatives were added after the original cache schema. Keep the
+// existing primary-route columns for compatibility and retain all returned
+// options in a small JSON column.
+export async function migrateLegRoutesColumn(database: Database, provider: DbProvider) {
+  if (provider === "postgres") {
+    await database.exec("ALTER TABLE legs ADD COLUMN IF NOT EXISTS routes_json TEXT");
+    return;
+  }
+  const columns = await database.all<{ name: string }>("PRAGMA table_info(legs)");
+  if (!columns.some((column) => column.name === "routes_json")) {
+    await database.exec("ALTER TABLE legs ADD COLUMN routes_json TEXT");
+  }
 }
 
 export function getDbProvider(env: NodeJS.ProcessEnv = process.env): DbProvider {
@@ -218,6 +233,7 @@ async function createDatabase(): Promise<Database> {
     const database = new PostgresDatabase(new Pool({ connectionString }));
     await database.exec(SCHEMA);
     await migrateUserIdentityColumns(database, provider);
+    await migrateLegRoutesColumn(database, provider);
     return database;
   }
 
@@ -230,6 +246,7 @@ async function createDatabase(): Promise<Database> {
   await database.exec("PRAGMA busy_timeout = 5000;");
   await database.exec(SCHEMA);
   await migrateUserIdentityColumns(database, provider);
+  await migrateLegRoutesColumn(database, provider);
   return database;
 }
 

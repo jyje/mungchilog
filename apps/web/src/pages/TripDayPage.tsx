@@ -16,6 +16,8 @@ import { TripShareButton } from "../components/TripShareButton";
 import type { SharedLocationWithName } from "../components/LocationSharingControl";
 import { TripCoverSettingsButton } from "../components/TripCoverSettingsButton";
 import { Button } from "../components/ui/button";
+import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
+import type { PersistedLegMode } from "../types";
 import type { Me } from "../api";
 import { downloadTripExchange } from "../tripExchange";
 
@@ -52,6 +54,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [selection, setSelection] = useState<ItinerarySelection>(null);
   const [sharedLocations, setSharedLocations] = useState<SharedLocationWithName[]>([]);
   const [focusedSharedUserId, setFocusedSharedUserId] = useState<string | null>(null);
+  const [legSaveError, setLegSaveError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreNextDayClick = useRef(false);
@@ -159,7 +162,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return false;
     }
 
-    const days = sortDays([...trip.days, { date, spots: [] }]);
+    const days = sortDays([...trip.days, { date, spots: [], legPreferences: [] }]);
     const startDate = date < trip.startDate ? date : trip.startDate;
     const endDate = date > trip.endDate ? date : trip.endDate;
     saveNow({ ...trip, startDate, endDate, days });
@@ -280,7 +283,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   function deleteSpot(spotId: string) {
     if (!trip) return;
-    const days = trip.days.map((d, i) => (i !== dayIndex ? d : { ...d, spots: d.spots.filter((s) => s.id !== spotId) }));
+    const days = trip.days.map((d, i) => (
+      i !== dayIndex
+        ? d
+        : { ...d, spots: d.spots.filter((s) => s.id !== spotId), legPreferences: removeSpotLegPreferences(d.legPreferences, spotId) }
+    ));
     const cover = trip.cover?.spotId === spotId
       ? (trip.cover.imageDataUrl ? { imageDataUrl: trip.cover.imageDataUrl } : null)
       : trip.cover;
@@ -324,6 +331,31 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     scheduleSave({ ...trip, days });
   }
 
+  function saveLegPreference(fromSpotId: string, toSpotId: string, mode: PersistedLegMode, routeIndex = 0, trafficAware = false) {
+    if (!trip || !day) return;
+    const previous = trip;
+    const days = trip.days.map((candidate, index) => (
+      index !== dayIndex
+        ? candidate
+        : { ...candidate, legPreferences: replaceLegPreference(candidate.legPreferences, fromSpotId, toSpotId, mode, { routeIndex, trafficAware }) }
+    ));
+    const next = { ...trip, days };
+    qc.setQueryData(queryKey, next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setLegSaveError(null);
+    setSelection({ kind: "leg", fromId: fromSpotId, toId: toSpotId });
+    mutation.mutate(next, {
+      onError: () => {
+        qc.setQueryData(queryKey, previous);
+        setLegSaveError("동선 선택을 저장하지 못했습니다. 이전 선택으로 되돌렸습니다.");
+      },
+    });
+  }
+
+  function setLegMode(fromSpotId: string, toSpotId: string, mode: PersistedLegMode) {
+    saveLegPreference(fromSpotId, toSpotId, mode);
+  }
+
   function toggleItem(spotId: string, itemId: string) {
     if (!trip) return;
     const days = trip.days.map((d, i) => {
@@ -348,6 +380,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             spots={day?.spots ?? []}
             date={day?.date ?? trip.startDate}
             timezone={trip.timezone}
+            legPreferences={day?.legPreferences ?? []}
             selection={selection}
             onSelect={selectItinerary}
             sharedLocations={sharedLocations}
@@ -465,6 +498,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
             {day ? (
               <>
+                {legSaveError && <p className="error leg-save-error" role="alert">{legSaveError}</p>}
                 {day.note || dayNoteOpen ? (
                   <div className="day-note">
                     <p className="field-label">📝 이 날 메모</p>
@@ -511,14 +545,23 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                           return [
                             card,
                             <li key={`${spot.id}-leg`} className="leg-row">
-                              <LegInfo
-                                from={spot}
-                                to={sorted[i + 1]}
-                                date={day.date}
-                                timezone={trip.timezone}
-                                selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
-                                onSelect={() => selectItinerary({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
-                              />
+                              {(() => {
+                                const preference = legPreferenceFor(day.legPreferences, spot.id, sorted[i + 1].id);
+                                return <LegInfo
+                                  from={spot}
+                                  to={sorted[i + 1]}
+                                  date={day.date}
+                                  timezone={trip.timezone}
+                                  mode={preference.mode}
+                                  routeIndex={preference.routeIndex}
+                                  trafficAware={preference.trafficAware}
+                                  selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
+                                  onSelect={() => selectItinerary({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
+                                  onModeChange={(mode) => setLegMode(spot.id, sorted[i + 1].id, mode)}
+                                  onRouteIndexChange={(routeIndex) => saveLegPreference(spot.id, sorted[i + 1].id, preference.mode, routeIndex, preference.trafficAware)}
+                                  onTrafficAwareChange={(trafficAware) => saveLegPreference(spot.id, sorted[i + 1].id, preference.mode, preference.routeIndex, trafficAware)}
+                                />;
+                              })()}
                             </li>,
                           ];
                         })}

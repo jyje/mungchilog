@@ -13,7 +13,7 @@ const trip = {
 };
 const normalizedTrip = {
   ...trip,
-  days: [{ ...trip.days[0], spots: [{ ...trip.days[0].spots[0], bufferMinutes: 10 }] }],
+  days: [{ ...trip.days[0], legPreferences: [], spots: [{ ...trip.days[0].spots[0], bufferMinutes: 10 }] }],
 };
 
 describe("portable trip exchange", () => {

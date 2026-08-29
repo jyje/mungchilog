@@ -55,6 +55,7 @@
 - [x] **버그 발견·수정 (코드)**: `LegInfo`가 여행 당일 시각 대신 요청 시점("지금")을 Routes API에 넘기고 있어서 미래 날짜 조회가 틀어질 뻔함 — codex가 잡음, IANA 타임존 기반 정확한 변환으로 수정 (뉴욕 서머타임까지 검증)
 - [x] **라이브 검증**: 서버 키로 Routes API 실제 호출 성공 확인 (가짜 placeId로 404는 정상 — 진짜 장소 데이터가 아직 없어서)
 - [x] **지도 위 경로 시각화 (신규 요청 반영)**: 하루 동선을 지도에 화살표 폴리라인으로 표시. Routes API가 실제로 준 도로/철도 경로(`encodedPath`)를 그리고, 아직 안 풀렸으면 좌표 간 직선으로 우아하게 대체 (`RouteOverlay.tsx`) — 키/placeId 갖춰지면 코드 변경 없이 자동으로 실제 경로로 업그레이드
+- [x] **구간별 동선 선택**: 연속 스팟마다 직선·대중교통·운전·도보를 저장하고, Routes API의 최대 3개 대안 경로 중 하나를 선택. 운전일 때만 실시간 교통을 선택할 수 있으며 5분 캐시로 호출량을 제한.
 - [ ] Cloud Console Routes 일일 쿼터 상한 + 예산 알림 — 사용자가 스크린샷으로 이미 일부 설정 확인해주심
 - [x] **조사 완료 (인프라, 알려진 제약으로 남김)**: 잘못된 입력을 보내면 `POST/PUT/DELETE`가 진짜 이유(400 등) 대신 `405 Method Not Allowed`로 보임 — 앱이 막힌 게 아니라, 클러스터 전역 ingress-nginx ConfigMap의 `custom-http-errors`(400,401,403,404,405,408,409,410,429,500,502,503,504) 설정이 `proxy_intercept_errors on`을 트리거해서, 앱이 낸 4xx/5xx 응답을 nginx가 가로채 GET/HEAD 전용인 `error-pages` 서비스로 내부 리다이렉트하고 거기서 다시 405가 나는 것. **정상 입력에는 영향 없음** (`/api/trips/import` 유효 payload는 계속 201). 인그레스 단위로만 우회 가능한지 라이브로 확인해봤는데: (1) `nginx.ingress.kubernetes.io/custom-http-errors` 어노테이션은 전역 목록에서 코드를 빼는 게 아니라 더하는 것만 됨(빈 값·`599` 테스트로 확인) — mungchilog Ingress만 예외 처리하는 용도로 못 씀. (2) `configuration-snippet`으로 `proxy_intercept_errors off`를 강제하는 방법은 문법상 가능하나(`allow-snippet-annotations: true`), 다른 프로덕션 앱도 걸려있는 공유 인그레스 컨트롤러에 라이브로 임의 nginx 설정을 주입하는 변경이라 사용자 확인 없이 실행하지 않음. 전역 ConfigMap 변경(다른 앱들도 영향)은 이 프로젝트 범위 밖이라 보류 — 실사용(웹 UI 정상 입력) 흐름엔 영향 없으므로 v1은 이대로 둠
 
