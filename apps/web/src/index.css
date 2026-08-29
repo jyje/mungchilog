@@ -1507,10 +1507,7 @@ button.ghost {
   background: var(--bg);
 }
 .opening-hours-popover {
-  position: absolute;
-  z-index: 3;
-  top: calc(100% + 4px);
-  left: 0;
+  display: block;
   width: max-content;
   max-width: min(300px, calc(100vw - 48px));
   padding: 0.65rem 0.75rem;

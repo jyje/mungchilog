@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "./ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 type OpeningHoursData = {
   regularOpeningHours: { weekdayDescriptions?: string[] } | null;
@@ -47,20 +49,21 @@ export function OpeningHours({ placeId, date }: { placeId?: string; date?: strin
   const scheduledHours = descriptions[mondayFirstIndex(date)];
 
   return (
-    <div className="opening-hours" onMouseEnter={() => setExpanded(true)} onMouseLeave={() => setExpanded(false)}>
-      <button
-        type="button"
-        className="opening-hours-summary meta"
-        aria-expanded={expanded}
-        aria-label={`${scheduledHours}. 전체 영업시간 보기`}
-        onClick={() => setExpanded((open) => !open)}
-        onFocus={() => setExpanded(true)}
-        onBlur={() => setExpanded(false)}
-      >
-        🕐 {scheduledHours}
-      </button>
-      {expanded && (
-        <div className="opening-hours-popover" role="tooltip">
+    <div className="opening-hours">
+      <Tooltip open={expanded} onOpenChange={setExpanded}>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            className="opening-hours-summary meta"
+            aria-expanded={expanded}
+            aria-label={`${scheduledHours}. 전체 영업시간 보기`}
+            onClick={() => setExpanded((open) => !open)}
+          >
+            🕐 {scheduledHours}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent className="opening-hours-popover" side="bottom" align="start">
           <strong>전체 영업시간</strong>
           <ul>
             {descriptions.map((description) => (
@@ -69,8 +72,8 @@ export function OpeningHours({ placeId, date }: { placeId?: string; date?: strin
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }
