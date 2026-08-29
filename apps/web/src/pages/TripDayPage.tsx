@@ -472,9 +472,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     />
                   </div>
                 ) : (
-                  <button type="button" className="add-spot-button" onClick={() => setDayNoteOpen(true)}>
+                  <Button type="button" variant="outline" className="add-spot-button" onClick={() => setDayNoteOpen(true)}>
                     + 이 날 메모 추가
-                  </button>
+                  </Button>
                 )}
 
                 <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -527,9 +527,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                   </SortableContext>
                 </DndContext>
                 {!addingSpot && (
-                  <button type="button" className="add-spot-button" onClick={() => setAddingSpot(true)}>
+                  <Button type="button" variant="outline" className="add-spot-button" onClick={() => setAddingSpot(true)}>
                     + 스팟 추가
-                  </button>
+                  </Button>
                 )}
               </>
             ) : (

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Trip, Spot } from "../types";
 import { MAX_COVER_IMAGE_BYTES } from "../types";
+import { Button } from "./ui/button";
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -88,18 +89,18 @@ export function TripCoverEditor({
       {imageDataUrl && (
         <div className="trip-cover-preview">
           <img src={imageDataUrl} alt="선택한 대표 이미지 미리보기" />
-          <button type="button" className="ghost" onClick={() => setImageDataUrl("")}>이미지 제거</button>
+          <Button type="button" variant="ghost" onClick={() => setImageDataUrl("")}>이미지 제거</Button>
         </div>
       )}
 
       <div className="trip-cover-actions">
-        <button type="button" onClick={saveCover} disabled={saving}>
+        <Button type="button" onClick={saveCover} disabled={saving}>
           {saving ? "저장 중..." : "대표 화면 저장"}
-        </button>
+        </Button>
         {(spotId || imageDataUrl) && (
-          <button
+          <Button
             type="button"
-            className="ghost"
+            variant="ghost"
             disabled={saving}
             onClick={() => {
               setSpotId("");
@@ -109,7 +110,7 @@ export function TripCoverEditor({
             }}
           >
             대표 화면 비우기
-          </button>
+          </Button>
         )}
       </div>
     </div>

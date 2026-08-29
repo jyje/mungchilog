@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Spot } from "../types";
 import { PlaceAutocompleteInput, type PlaceSelection } from "./PlaceAutocompleteInput";
 import { MarkdownEditor } from "./MarkdownEditor";
+import { Button } from "./ui/button";
 
 export type SpotFormValues = {
   name: string;
@@ -95,12 +96,12 @@ export function SpotForm({
       />
       <MarkdownEditor value={note} onChange={setNote} rows={3} placeholder="메모 (선택) - 마크다운으로 적을 수 있어요" />
       <div className="add-spot-row">
-        <button type="button" onClick={submit} disabled={!name.trim()}>
+        <Button type="button" onClick={submit} disabled={!name.trim()}>
           {submitLabel}
-        </button>
-        <button type="button" className="ghost" onClick={onCancel}>
+        </Button>
+        <Button type="button" variant="ghost" onClick={onCancel}>
           취소
-        </button>
+        </Button>
       </div>
     </div>
   );
