@@ -9,6 +9,7 @@ import { admin } from "./routes/admin.js";
 import { locationSharing } from "./routes/location-sharing.js";
 import { startLocationSharingCleanup } from "./location-sharing-store.js";
 import { auth, isAuthenticationReady, requireApproved, requireAuth, requireSameOrigin } from "./auth.js";
+import { localWebPageRedirect } from "./local-web-origin.js";
 
 const app = new Hono();
 const publicRoot = process.env.WEB_PUBLIC_DIR ?? "./public";
@@ -34,6 +35,16 @@ app.route("/api/trips", trips);
 app.route("/api/legs", legs);
 app.route("/api/places", places);
 app.route("/api/admin", admin);
+
+// During local development the API server listens on :3000 while Vite owns
+// the browser page on :5173. If a user opens a client route on :3000 directly,
+// send only that page navigation to Vite. API, OIDC, health, and asset paths
+// continue through the server and never enter this redirect.
+app.get("*", async (c, next) => {
+  const target = localWebPageRedirect(c.req.path, new URL(c.req.url).search, process.env);
+  if (target) return c.redirect(target, 307);
+  await next();
+});
 
 // apps/web's build lands in ./public (see Dockerfile). Everything not
 // matched above, including /trips and /trips/:id, falls through to

@@ -1,6 +1,7 @@
 type Environment = NodeJS.ProcessEnv;
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
+const CLIENT_PAGE_PATHS = new Set(["/", "/login", "/pending", "/trips", "/import", "/new", "/admin", "/gallery", "/invite"]);
 
 /**
  * Returns the Vite origin to use after an OIDC callback during local
@@ -23,4 +24,19 @@ export function localWebOrigin(env: Environment = process.env): string | null {
 export function localWebRedirect(path: "/pending" | "/trips", env: Environment = process.env): string {
   const origin = localWebOrigin(env);
   return origin ? new URL(path, origin).toString() : path;
+}
+
+/**
+ * Redirect a direct browser navigation from the development API port to the
+ * Vite page server. API, OIDC, health, and static asset paths deliberately
+ * return null so the server keeps handling them locally.
+ */
+export function localWebPageRedirect(pathname: string, search = "", env: Environment = process.env): string | null {
+  const origin = localWebOrigin(env);
+  const isTripPage = pathname.startsWith("/trips/") && pathname.length > "/trips/".length;
+  if (!origin || (!CLIENT_PAGE_PATHS.has(pathname) && !isTripPage)) return null;
+
+  const target = new URL(pathname, origin);
+  target.search = search;
+  return target.toString();
 }
