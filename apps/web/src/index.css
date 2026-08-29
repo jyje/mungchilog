@@ -2138,40 +2138,22 @@ input[type="text"]::placeholder {
 .location-sharing-consent select { min-height: 2.25rem; border: 1px solid var(--border); border-radius: 0.45rem; background: var(--surface); color: var(--text); font: inherit; }
 .location-sharing-consent > div { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .location-takeover { color: var(--danger); }
-.itinerary-follow-controls {
-  position: absolute;
-  z-index: 4;
-  /* This is the upper button in the app-control column. Current-location
-     occupies the lower button position on the same rail. */
-  right: max(0.75rem, calc(var(--map-control-right, 0px) + 4.5rem));
-  bottom: max(4.25rem, calc(var(--map-control-bottom, 0px) + 4.25rem));
-  display: grid;
-  justify-items: end;
-  gap: 0.45rem;
-}
+.itinerary-follow-control { position: relative; display: grid; justify-items: end; gap: 0.45rem; }
 .itinerary-follow-button {
-  display: grid;
-  width: 3rem;
-  height: 3rem;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text);
   box-shadow: 0 0.25rem 0.8rem var(--shadow-color);
-  cursor: pointer;
 }
 .itinerary-follow-button svg { width: 1.35rem; height: 1.35rem; }
 .itinerary-follow-button.following { border-color: var(--accent); background: var(--accent); color: var(--accent-contrast); }
 .itinerary-follow-button.paused { border-color: var(--accent); color: var(--accent); }
-.itinerary-follow-button:disabled { cursor: not-allowed; opacity: 0.55; }
 .itinerary-follow-status {
   position: absolute;
-  right: 0;
-  bottom: calc(100% + 0.45rem);
+  right: calc(100% + 0.6rem);
+  bottom: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
+  max-width: min(18rem, calc(100vw - 6rem));
   padding: 0.35rem 0.4rem 0.35rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: 999px;

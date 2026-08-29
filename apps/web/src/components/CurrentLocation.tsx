@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef } from "react";
 import { AdvancedMarker, AdvancedMarkerAnchorPoint, Circle, useMap } from "@vis.gl/react-google-maps";
+import { Crosshair } from "lucide-react";
 import { useDeviceLocation } from "../hooks/useDeviceLocation";
 import { LOW_ACCURACY_METERS, type DeviceLocationState, type LocationPhase } from "../location/deviceLocation";
 import "./current-location.css";
 import { useMapViewportInsets } from "./MapViewportContext";
 import { panToVisibleCenter } from "./mapCamera";
+import { MapIconButton } from "./system/MapIconButton";
 
 const GUIDANCE: Partial<Record<LocationPhase, string>> = {
   acquiring: "현재 위치를 확인하고 있습니다.",
@@ -26,42 +28,11 @@ function locationStatusText({ phase, fix }: DeviceLocationState): string {
   return `${fix.accuracy > LOW_ACCURACY_METERS ? "대략적인 위치입니다. " : ""}오차 범위 약 ${accuracy}. ${updated}. 내 위치는 동행자에게 공유되지 않습니다.`;
 }
 
-export function CurrentLocation() {
-  const map = useMap();
-  const insets = useMapViewportInsets();
-  const lastRequest = useRef<typeof requestedFix>(null);
+export function CurrentLocation({ showControl = true }: { showControl?: boolean } = {}) {
   const location = useDeviceLocation();
-  const { fix, phase, requestedFix, requestLocation } = location;
-  const [touchTooltip, setTouchTooltip] = useState(false);
-  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const holdStart = useRef<{ x: number; y: number } | null>(null);
-  const suppressClick = useRef(false);
-  function cancelHold() {
-    if (holdTimer.current !== null) clearTimeout(holdTimer.current);
-    holdTimer.current = null;
-    holdStart.current = null;
-  }
-  useEffect(() => () => {
-    if (holdTimer.current !== null) clearTimeout(holdTimer.current);
-  }, []);
+  const { fix, phase } = location;
   const status = locationStatusText(location);
-  // A normal, accurate fix is already announced accessibly. Keeping its full
-  // timestamp and privacy explanation visible on the map turns a compact
-  // control into a persistent, oversized callout. Reserve visible guidance
-  // for a state that needs a decision or caution.
-  const showStatus = Boolean(status) && (phase !== "ready" || (fix?.accuracy ?? 0) > LOW_ACCURACY_METERS);
   const muted = phase !== "ready";
-  // Announce meaningful changes, not each GPS timestamp or accuracy fluctuation.
-  const announcement = GUIDANCE[phase] ?? (fix ? fix.accuracy > LOW_ACCURACY_METERS ? "대략적인 현재 위치를 확인했습니다. 오차 범위를 확인해주세요." : "현재 위치를 확인했습니다." : "");
-
-  useEffect(() => {
-    if (!map || !requestedFix || requestedFix === lastRequest.current) return;
-    lastRequest.current = requestedFix;
-    // A broad network estimate should not be presented at building-level zoom.
-    const zoom = requestedFix.accuracy > 5_000 ? 10 : requestedFix.accuracy > 1_000 ? 12 : requestedFix.accuracy > 100 ? 14 : 16;
-    map.setZoom(zoom);
-    panToVisibleCenter(map, { lat: requestedFix.lat, lng: requestedFix.lng }, insets);
-  }, [map, requestedFix, insets]);
 
   return (
     <>
@@ -75,46 +46,44 @@ export function CurrentLocation() {
           <span className={`device-location-marker${muted ? " is-stale" : ""}`} role="img" aria-label={phase === "ready" ? "내 현재 위치" : "마지막으로 확인한 내 위치"} />
         </AdvancedMarker>
       </>}
-      <div className="device-location-controls" style={{ "--map-control-right": `${insets.right}px`, "--map-control-bottom": `${insets.bottom}px`, "--map-control-left": `${insets.left}px` } as CSSProperties}>
-        <div className={`device-location-action${touchTooltip ? " show-touch-tooltip" : ""}`}>
-          <button type="button" className="device-location-button" aria-label="현재 위치" aria-describedby={showStatus ? "device-location-status" : undefined}
-            title="현재 위치" aria-busy={phase === "acquiring"} disabled={phase === "acquiring"}
-            onPointerDown={(event) => {
-              cancelHold();
-              suppressClick.current = false;
-              setTouchTooltip(false);
-              if (event.pointerType !== "touch" && event.pointerType !== "pen") return;
-              holdStart.current = { x: event.clientX, y: event.clientY };
-              holdTimer.current = setTimeout(() => {
-                holdTimer.current = null;
-                suppressClick.current = true;
-                setTouchTooltip(true);
-              }, 600);
-            }}
-            onPointerMove={(event) => {
-              if (holdStart.current && Math.hypot(event.clientX - holdStart.current.x, event.clientY - holdStart.current.y) > 10) {
-                cancelHold();
-                suppressClick.current = true;
-                setTouchTooltip(false);
-              }
-            }}
-            onPointerUp={cancelHold}
-            onPointerCancel={() => { cancelHold(); suppressClick.current = true; setTouchTooltip(false); }}
-            onPointerLeave={() => { if (holdStart.current) suppressClick.current = true; cancelHold(); setTouchTooltip(false); }}
-            onContextMenu={(event) => event.preventDefault()}
-            onBlur={() => { cancelHold(); setTouchTooltip(false); }}
-            onKeyDown={(event) => { suppressClick.current = false; if (event.key === "Escape") setTouchTooltip(false); }}
-            onClick={() => { if (!suppressClick.current) requestLocation(); }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
-              <path d="M12 1v4m0 14v4M1 12h4m14 0h4" />
-            </svg>
-          </button>
-          <span className="device-location-tooltip" aria-hidden="true">현재 위치</span>
-        </div>
-        {showStatus && <p className="device-location-status" id="device-location-status" aria-live="off">{status}</p>}
-        <span className="device-location-announcement" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
-      </div>
+      {showControl && <CurrentLocationControl />}
     </>
+  );
+}
+
+/** The button half can live in the shared app-control rail while the marker
+ * half remains a direct child of the map overlay. */
+export function CurrentLocationControl() {
+  const map = useMap();
+  const insets = useMapViewportInsets();
+  const lastRequest = useRef<ReturnType<typeof useDeviceLocation>["requestedFix"]>(null);
+  const location = useDeviceLocation();
+  const { fix, phase, requestedFix, requestLocation } = location;
+  const status = locationStatusText(location);
+  const showStatus = Boolean(status) && (phase !== "ready" || (fix?.accuracy ?? 0) > LOW_ACCURACY_METERS);
+  const announcement = GUIDANCE[phase] ?? (fix ? fix.accuracy > LOW_ACCURACY_METERS ? "대략적인 현재 위치를 확인했습니다. 오차 범위를 확인해주세요." : "현재 위치를 확인했습니다." : "");
+
+  useEffect(() => {
+    if (!map || !requestedFix || requestedFix === lastRequest.current) return;
+    lastRequest.current = requestedFix;
+    const zoom = requestedFix.accuracy > 5_000 ? 10 : requestedFix.accuracy > 1_000 ? 12 : requestedFix.accuracy > 100 ? 14 : 16;
+    map.setZoom(zoom);
+    panToVisibleCenter(map, { lat: requestedFix.lat, lng: requestedFix.lng }, insets);
+  }, [map, requestedFix, insets]);
+
+  return (
+    <div className="device-location-control">
+      <MapIconButton
+        icon={<Crosshair className="size-5" aria-hidden="true" />}
+        label="현재 위치"
+        className="device-location-button"
+        aria-describedby={showStatus ? "device-location-status" : undefined}
+        aria-busy={phase === "acquiring"}
+        disabled={phase === "acquiring"}
+        onClick={requestLocation}
+      />
+      {showStatus && <p className="device-location-status" id="device-location-status" aria-live="off">{status}</p>}
+      <span className="device-location-announcement" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
+    </div>
   );
 }

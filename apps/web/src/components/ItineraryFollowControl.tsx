@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMap } from "@vis.gl/react-google-maps";
+import { Route } from "lucide-react";
 import type { Spot } from "../types";
 import { useDeviceLocation } from "../hooks/useDeviceLocation";
 import { useMapViewportInsets } from "./MapViewportContext";
 import { panToVisibleCenter } from "./mapCamera";
+import { MapIconButton } from "./system/MapIconButton";
 import type { ItinerarySelection } from "./TripMap";
 
 type FollowState = "idle" | "following" | "paused";
@@ -98,12 +100,16 @@ export function ItineraryFollowControl({ spots, selection, onSelect }: {
     setLeg(next);
     onSelect({ kind: "leg", fromId: next.fromId, toId: next.toId });
   }
-  const style = { "--map-control-right": insets.right + "px", "--map-control-bottom": insets.bottom + "px" } as CSSProperties;
-  return <div className="itinerary-follow-controls" style={style}>
-    <button type="button" className={"itinerary-follow-button " + visibleState} aria-label={label} title={label}
-      aria-pressed={visibleState === "following"} disabled={spots.length < 2 || phase === "acquiring"} onClick={toggle}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" aria-hidden="true"><path d="M5 4v11a3 3 0 0 0 3 3h11"/><path d="m14 14 5 4-5 4"/><path d="M19 4h-7a3 3 0 0 0-3 3v2"/></svg>
-    </button>
+  return <div className={`itinerary-follow-control ${visibleState}`}>
+    <MapIconButton
+      icon={<Route className="size-5" aria-hidden="true" />}
+      label={label}
+      className={`itinerary-follow-button ${visibleState}`}
+      selected={visibleState === "following"}
+      disabled={spots.length < 2 || phase === "acquiring"}
+      aria-busy={phase === "acquiring"}
+      onClick={toggle}
+    />
     {visibleState !== "idle" && <div className="itinerary-follow-status" role="status" aria-live="polite">
       <span>{visibleState === "paused" ? "따라가기 일시 정지" : Math.max(1, activeIndex + 1) + "번째 동선 따라가기"}</span>
       <button type="button" onClick={nextStop}>{activeIndex >= sorted.length - 1 ? "완료" : "다음 스팟"}</button>

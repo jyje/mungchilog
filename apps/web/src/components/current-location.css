@@ -1,55 +1,7 @@
-.device-location-controls {
-  position: absolute;
-  /* Keep app controls to the left of the Google Maps control rail. The
-     follow control uses this same column, so the two never form a diagonal
-     pair or overlap the native map controls. */
-  right: max(0.75rem, calc(var(--map-control-right, 0px) + 4.5rem));
-  bottom: max(0.75rem, calc(var(--map-control-bottom, 0px) + 0.75rem));
-  z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.5rem;
-  max-width: min(22rem, calc(100% - var(--map-control-left, 0px) - var(--map-control-right, 0px) - 5.5rem));
-  pointer-events: none;
-}
-.device-location-action { position: relative; pointer-events: auto; }
-.device-location-button {
-  display: grid;
-  place-items: center;
-  width: 3rem;
-  height: 3rem;
-  min-width: 3rem;
-  padding: 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 2px 8px var(--shadow-color);
-  cursor: pointer;
-  touch-action: manipulation;
-}
-.device-location-button svg { width: 1.5rem; height: 1.5rem; }
-.device-location-button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.device-location-control { position: relative; display: grid; justify-items: end; gap: 0.5rem; pointer-events: auto; }
+.device-location-button { box-shadow: 0 0.25rem 0.8rem var(--shadow-color); }
+.device-location-button svg { width: 1.35rem; height: 1.35rem; }
 .device-location-button[aria-busy="true"] { color: var(--text-muted); cursor: progress; }
-.device-location-tooltip {
-  position: absolute;
-  right: calc(100% + 0.5rem);
-  top: 50%;
-  transform: translateY(-50%);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 0.4rem 0.65rem;
-  background: var(--surface);
-  color: var(--text);
-  white-space: nowrap;
-  font-size: 0.875rem;
-  opacity: 0;
-  pointer-events: none;
-}
-.device-location-action:hover .device-location-tooltip,
-.device-location-action:focus-within .device-location-tooltip,
-.device-location-action.show-touch-tooltip .device-location-tooltip { opacity: 1; }
 .device-location-status {
   position: absolute;
   right: calc(100% + 0.6rem);
@@ -68,6 +20,7 @@
   line-height: 1.5;
   overflow-wrap: anywhere;
   box-shadow: 0 2px 8px var(--shadow-color);
+  z-index: 2;
 }
 .device-location-marker {
   display: block;
@@ -79,7 +32,7 @@
   box-shadow: 0 0 0 2px #1e40af, 0 2px 4px #0004;
 }
 .trip-shell[data-compact-map="true"] .device-location-status {
-  width: min(14rem, 50vw);
+  width: min(14rem, calc(100vw - 6rem));
   max-height: 3rem;
 }
 .device-location-marker.is-stale { background: #64748b; box-shadow: 0 0 0 2px #475569; border-style: dashed; }

@@ -5,6 +5,7 @@ import { CurrentLocation } from "../src/components/CurrentLocation";
 import { ItineraryFollowControl } from "../src/components/ItineraryFollowControl";
 import { TripMap } from "../src/components/TripMap";
 import { MapViewportProvider } from "../src/components/MapViewportContext";
+import { TooltipProvider } from "../src/components/ui/tooltip";
 
 const maps = vi.hoisted(() => ({
   map: { panTo: vi.fn(), panBy: vi.fn(), fitBounds: vi.fn(), setZoom: vi.fn(), setCenter: vi.fn(), getZoom: vi.fn(() => 15) },
@@ -32,9 +33,18 @@ function update(timestamp: number, accuracy = 15) {
   act(() => success({ coords: { latitude: 37.5, longitude: 127, accuracy }, timestamp } as GeolocationPosition));
 }
 
+function renderWithTooltips(ui: React.ReactNode) {
+  return render(<TooltipProvider delayDuration={0}>{ui}</TooltipProvider>);
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
+  vi.stubGlobal("ResizeObserver", class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  });
   vi.stubGlobal("isSecureContext", true);
   vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
   clearWatch = vi.fn();
@@ -50,7 +60,7 @@ beforeEach(() => {
 describe("current location control", () => {
   it("starts itinerary follow only after an explicit tap and Escape stops it", () => {
     const onSelect = vi.fn();
-    render(
+    renderWithTooltips(
       <MapViewportProvider value={{ top: 0, right: 0, bottom: 0, left: 0 }}>
         <ItineraryFollowControl
           spots={[
@@ -72,39 +82,23 @@ describe("current location control", () => {
     expect(screen.getByRole("button", { name: "따라가기" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("long-press previews the tooltip without requesting GPS and a later tap still works", () => {
-    vi.stubGlobal("PointerEvent", class extends MouseEvent {
-      pointerType: string;
-      constructor(type: string, init: PointerEventInit = {}) { super(type, init); this.pointerType = init.pointerType ?? ""; }
-    });
-    const { unmount } = render(<CurrentLocation />);
+  it("uses the shared accessible tooltip without a custom touch timer", () => {
+    const { unmount } = renderWithTooltips(<CurrentLocation />);
     const button = screen.getByRole("button", { name: "현재 위치" });
-    fireEvent.pointerDown(button, { pointerType: "touch", clientX: 20, clientY: 20 });
-    act(() => vi.advanceTimersByTime(600));
-    expect(button.parentElement).toHaveClass("show-touch-tooltip");
-    fireEvent.pointerUp(button);
-    fireEvent.click(button);
-    expect(watchPosition).not.toHaveBeenCalled();
+    fireEvent.focus(button);
+    act(() => vi.runAllTimers());
+    expect(screen.getByRole("tooltip")).toHaveTextContent("현재 위치");
     fireEvent.pointerDown(button, { pointerType: "touch" });
     fireEvent.pointerUp(button);
-    fireEvent.click(button);
-    expect(watchPosition).toHaveBeenCalledTimes(1);
+    expect(watchPosition).not.toHaveBeenCalled();
     unmount();
-    expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("cancels touch gestures that move or leave without requesting GPS", () => {
-    vi.stubGlobal("PointerEvent", class extends MouseEvent {
-      pointerType: string;
-      constructor(type: string, init: PointerEventInit = {}) { super(type, init); this.pointerType = init.pointerType ?? ""; }
-    });
-    const { unmount } = render(<CurrentLocation />);
+  it("does not schedule a custom hold gesture for touch input", () => {
+    const { unmount } = renderWithTooltips(<CurrentLocation />);
     const button = screen.getByRole("button", { name: "현재 위치" });
     fireEvent.pointerDown(button, { pointerType: "touch", clientX: 20, clientY: 20 });
     fireEvent.pointerMove(button, { pointerType: "touch", clientX: 50, clientY: 20 });
-    act(() => vi.advanceTimersByTime(600));
-    fireEvent.click(button);
-    expect(button.parentElement).not.toHaveClass("show-touch-tooltip");
     expect(watchPosition).not.toHaveBeenCalled();
     fireEvent.pointerDown(button, { pointerType: "pen" });
     unmount();
@@ -112,11 +106,11 @@ describe("current location control", () => {
   });
 
   it("uses panel insets for an explicit recenter without repanning on a layout change", () => {
-    const { rerender } = render(<MapViewportProvider value={{ top: 120, right: 300, bottom: 0, left: 0 }}><CurrentLocation /></MapViewportProvider>);
+    const { rerender } = renderWithTooltips(<MapViewportProvider value={{ top: 120, right: 300, bottom: 0, left: 0 }}><CurrentLocation /></MapViewportProvider>);
     fireEvent.click(screen.getByRole("button", { name: "현재 위치" }));
     update(NOW);
     expect(maps.map.panBy).toHaveBeenLastCalledWith(150, -60);
-    rerender(<MapViewportProvider value={{ top: 80, right: 0, bottom: 0, left: 0 }}><CurrentLocation /></MapViewportProvider>);
+    rerender(<TooltipProvider delayDuration={0}><MapViewportProvider value={{ top: 80, right: 0, bottom: 0, left: 0 }}><CurrentLocation /></MapViewportProvider></TooltipProvider>);
     expect(maps.map.panTo).toHaveBeenCalledTimes(1);
   });
 
@@ -126,7 +120,7 @@ describe("current location control", () => {
     const storage = vi.spyOn(Storage.prototype, "setItem");
     const indexedDB = { open: vi.fn() };
     vi.stubGlobal("indexedDB", indexedDB);
-    const { unmount } = render(<StrictMode><CurrentLocation /></StrictMode>);
+    const { unmount } = renderWithTooltips(<StrictMode><CurrentLocation /></StrictMode>);
     expect(watchPosition).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "현재 위치" }));
     expect(screen.getByRole("button", { name: "현재 위치" })).toHaveAttribute("aria-busy", "true");
@@ -148,7 +142,7 @@ describe("current location control", () => {
   });
 
   it("labels a low-accuracy estimate and retains a distinguishable stale marker", () => {
-    render(<CurrentLocation />);
+    renderWithTooltips(<CurrentLocation />);
     fireEvent.click(screen.getByRole("button", { name: "현재 위치" }));
     update(NOW, 2_000);
     expect(screen.getByRole("status")).toHaveTextContent("대략적인 현재 위치");
@@ -160,7 +154,7 @@ describe("current location control", () => {
   });
 
   it("shows actionable denial guidance without blocking a retry", () => {
-    render(<CurrentLocation />);
+    renderWithTooltips(<CurrentLocation />);
     fireEvent.click(screen.getByRole("button", { name: "현재 위치" }));
     act(() => error({ code: 1 } as GeolocationPositionError));
     expect(screen.getByRole("status")).toHaveTextContent("사이트 설정");
@@ -172,7 +166,7 @@ describe("current location control", () => {
     vi.stubEnv("VITE_GOOGLE_MAPS_API_KEY", "synthetic-test-key");
     const spot = { id: "one", name: "One", lat: 37, lng: 127, order: 0 };
     const props = { spots: [spot] as React.ComponentProps<typeof TripMap>["spots"], selection: { kind: "spot" as const, spotId: "one" }, date: "2026-09-07", timezone: "Asia/Seoul", onSelect: vi.fn() };
-    const { rerender } = render(<TripMap {...props} />);
+    const { rerender } = renderWithTooltips(<TripMap {...props} />);
     fireEvent.click(screen.getByRole("button", { name: "현재 위치" }));
     update(NOW);
     const centers = maps.map.setCenter.mock.calls.length;
@@ -185,7 +179,7 @@ describe("current location control", () => {
   it.each(["FAILED", "AUTH_FAILURE"])("does not acquire location when map loading fails (%s)", (status) => {
     maps.status = status;
     vi.stubEnv("VITE_GOOGLE_MAPS_API_KEY", "synthetic-test-key");
-    render(<TripMap spots={[]} selection={null} date="2026-09-07" timezone="Asia/Seoul" onSelect={vi.fn()} />);
+    renderWithTooltips(<TripMap spots={[]} selection={null} date="2026-09-07" timezone="Asia/Seoul" onSelect={vi.fn()} />);
     expect(screen.getByText("지도를 불러오지 못했습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "현재 위치" })).not.toBeInTheDocument();
     expect(watchPosition).not.toHaveBeenCalled();

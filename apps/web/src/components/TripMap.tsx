@@ -2,10 +2,11 @@ import { Component, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Map, AdvancedMarker, Pin, useMap, useApiLoadingStatus, APILoadingStatus } from "@vis.gl/react-google-maps";
 import type { Spot } from "../types";
 import { RouteOverlay } from "./RouteOverlay";
-import { CurrentLocation } from "./CurrentLocation";
+import { CurrentLocation, CurrentLocationControl } from "./CurrentLocation";
 import { ItineraryFollowControl } from "./ItineraryFollowControl";
 import { useMapViewportInsets } from "./MapViewportContext";
 import { cameraOffset, framePadding, panToVisibleCenter } from "./mapCamera";
+import { MapControlRail } from "./system/MapControlRail";
 
 const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 }; // Tokyo Station, fallback only
 
@@ -248,8 +249,11 @@ function MapContent({
       <PreserveVisibleCenter />
       {status === APILoadingStatus.LOADED && <>
         <SharedLocationMarkers locations={sharedLocations} focusedUserId={focusedSharedUserId} onFocus={onFocusSharedLocation} />
-        <CurrentLocation />
-        <ItineraryFollowControl spots={spots} selection={selection} onSelect={onSelect} />
+        <CurrentLocation showControl={false} />
+        <MapControlRail>
+          <CurrentLocationControl />
+          <ItineraryFollowControl spots={spots} selection={selection} onSelect={onSelect} />
+        </MapControlRail>
       </>}
     </>
   );
