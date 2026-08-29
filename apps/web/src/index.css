@@ -1207,63 +1207,14 @@ body.trip-panel-resizing { cursor: col-resize; }
   color: var(--accent);
   background: var(--bg);
 }
-.spot-menu-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 6;
-  border: none;
-  background: transparent;
-  cursor: default;
-}
 .spot-context-menu {
-  position: absolute;
-  z-index: 7;
-  top: calc(100% + 0.35rem);
-  right: 0;
-  display: grid;
   min-width: 10rem;
-  padding: 0.35rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  box-shadow: 0 0.75rem 1.75rem var(--shadow-color);
 }
-.spot-context-menu > button,
-.spot-context-actions button {
+.spot-context-menu [data-slot="dropdown-menu-item"] {
   min-height: 44px;
   padding: 0.55rem 0.7rem;
-  border: none;
-  border-radius: 0.5rem;
-  background: none;
-  color: var(--text);
-  font: inherit;
   font-size: var(--type-label);
   font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-.spot-context-menu > button:hover,
-.spot-context-actions button:hover {
-  background: var(--bg);
-}
-.spot-context-menu .danger,
-.spot-context-actions .danger {
-  color: var(--danger);
-}
-.spot-context-menu p {
-  margin: 0;
-  padding: 0.55rem 0.7rem 0.35rem;
-  font-size: var(--type-label);
-  font-weight: 600;
-}
-.spot-context-actions {
-  display: flex;
-  gap: 0.25rem;
-  padding: 0.15rem;
-}
-.spot-context-actions button {
-  flex: 1;
-  text-align: center;
 }
 
 .item-list {
@@ -1308,8 +1259,8 @@ body.trip-panel-resizing { cursor: col-resize; }
   border: none;
   color: var(--text-muted);
   font-size: var(--type-label);
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 6px;
   cursor: pointer;
 }

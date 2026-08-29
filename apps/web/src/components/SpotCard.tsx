@@ -1,10 +1,27 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { ExternalLink, GripVertical, MoreVertical, X } from "lucide-react";
 import type { Item, Spot } from "../types";
 import { OpeningHours } from "./OpeningHours";
 import { SpotForm, type SpotFormValues } from "./SpotForm";
 import { MarkdownView } from "./MarkdownView";
+import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 const KIND_LABEL: Record<Item["kind"], string> = { buy: "🛍️ 살 것", eat: "🍜 먹을 것", todo: "✅ 할 일" };
 
@@ -44,16 +61,17 @@ function AddItemForm({ onAdd, onCancel }: { onAdd: (item: Omit<Item, "id" | "don
           if (e.key === "Escape") onCancel();
         }}
       />
-      <button
+      <Button
         type="button"
+        variant="default"
         onClick={() => title.trim() && onAdd({ kind, title: title.trim() })}
         disabled={!title.trim()}
       >
         추가
-      </button>
-      <button type="button" className="ghost" onClick={onCancel}>
+      </Button>
+      <Button type="button" variant="ghost" onClick={onCancel}>
         취소
-      </button>
+      </Button>
     </li>
   );
 }
@@ -85,22 +103,6 @@ export function SpotCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingDeletion, setConfirmingDeletion] = useState(false);
 
-  function closeMenu() {
-    setMenuOpen(false);
-    setConfirmingDeletion(false);
-  }
-
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") closeMenu();
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [menuOpen]);
-
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -130,72 +132,51 @@ export function SpotCard({
 
   return (
     <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}`}>
-      <button className="drag-handle" aria-label="순서 변경" {...attributes} {...listeners}>
-        ⠿
-      </button>
+      <Button type="button" variant="ghost" size="icon-lg" className="drag-handle" aria-label="순서 변경" {...attributes} {...listeners}>
+        <GripVertical aria-hidden="true" />
+      </Button>
       <div className="spot-body">
         <div className="spot-header">
-          <button type="button" className="spot-select" onClick={onSelect} aria-pressed={selected} aria-label={`${spot.name} 지도에서 보기`}>
+          <Button type="button" variant={selected ? "secondary" : "ghost"} className="spot-select" onClick={onSelect} aria-pressed={selected} aria-label={`${spot.name} 지도에서 보기`}>
             {spot.plannedArrival && <span className="meta">{spot.plannedArrival}</span>}
             <span className="spot-name">{spot.name}</span>
             {spot.nameLocal && <span className="spot-local">{spot.nameLocal}</span>}
-          </button>
+          </Button>
           <div className="spot-actions">
-            <a
-              className="spot-map-link"
-              href={googleMapsUrl(spot)}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`${spot.name} Google 지도에서 열기 (새 창)`}
-              data-place-id={spot.placeId}
-            >
-              ↗
-            </a>
-            <button
-              type="button"
-              className="spot-more"
-              aria-label={`${spot.name} 더보기`}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              onClick={() => {
-                setMenuOpen((open) => !open);
-                setConfirmingDeletion(false);
-              }}
-            >
-              ⋮
-            </button>
-            {menuOpen && (
-              <>
-                <button type="button" className="spot-menu-backdrop" aria-label="장소 메뉴 닫기" onClick={closeMenu} />
-                <div className="spot-context-menu" role={confirmingDeletion ? "dialog" : "menu"} aria-label={`${spot.name} 메뉴`}>
-                  {confirmingDeletion ? (
-                    <>
-                      <p>이 장소와 목록을 삭제할까요?</p>
-                      <div className="spot-context-actions">
-                        <button type="button" onClick={closeMenu}>취소</button>
-                        <button type="button" className="danger" onClick={onDeleteSpot}>삭제</button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          closeMenu();
-                          setEditing(true);
-                        }}
-                      >
-                        수정
-                      </button>
-                      <button type="button" role="menuitem" className="danger" onClick={() => setConfirmingDeletion(true)}>
-                        삭제
-                      </button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
+            <Button asChild variant="ghost" size="icon-lg" className="spot-map-link">
+              <a
+                href={googleMapsUrl(spot)}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`${spot.name} Google 지도에서 열기 (새 창)`}
+                data-place-id={spot.placeId}
+              >
+                <ExternalLink aria-hidden="true" />
+              </a>
+            </Button>
+            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="icon-lg" className="spot-more" aria-label={`${spot.name} 더보기`}>
+                  <MoreVertical aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="spot-context-menu">
+                <DropdownMenuItem onSelect={() => setEditing(true)}>수정</DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onSelect={() => setConfirmingDeletion(true)}>삭제</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Dialog open={confirmingDeletion} onOpenChange={setConfirmingDeletion}>
+              <DialogContent className="spot-delete-dialog">
+                <DialogHeader>
+                  <DialogTitle>이 장소와 목록을 삭제할까요?</DialogTitle>
+                  <DialogDescription>{spot.name}의 일정과 목록을 삭제합니다. 이 작업은 되돌릴 수 없습니다.</DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose asChild><Button type="button" variant="ghost">취소</Button></DialogClose>
+                  <Button type="button" variant="destructive" onClick={() => { setConfirmingDeletion(false); onDeleteSpot(); }}>삭제</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
         {spot.note && <MarkdownView text={spot.note} className="spot-note" />}
@@ -211,9 +192,9 @@ export function SpotCard({
                     {item.price != null ? ` · ¥${item.price.toLocaleString()}` : ""}
                   </span>
                 </label>
-                <button type="button" className="item-delete" aria-label={`${item.title} 삭제`} onClick={() => onDeleteItem(item.id)}>
-                  ✕
-                </button>
+                <Button type="button" variant="ghost" size="icon-lg" className="item-delete" aria-label={`${item.title} 삭제`} onClick={() => onDeleteItem(item.id)}>
+                  <X aria-hidden="true" />
+                </Button>
               </li>
             ))}
             {addingItem && (
@@ -228,9 +209,9 @@ export function SpotCard({
           </ul>
         )}
         {!addingItem && (
-          <button type="button" className="add-item-button" onClick={() => setAddingItem(true)}>
+          <Button type="button" variant="outline" className="add-item-button" onClick={() => setAddingItem(true)}>
             + 살 것/먹을 것 추가
-          </button>
+          </Button>
         )}
       </div>
     </li>
