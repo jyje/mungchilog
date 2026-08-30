@@ -91,3 +91,17 @@ test("leg preferences are optional for existing trips and validate their spot pa
   });
   assert.equal(invalidTraffic.success, false);
 });
+
+test("arbitrary spot coordinates are finite, ranged, and stored as a pair", () => {
+  const withSpot = (spot: Record<string, unknown>) => TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{ date: "2026-09-07", spots: [{ id: "point", order: 0, name: "공터", items: [], ...spot }] }],
+  });
+
+  assert.equal(withSpot({ lat: 0, lng: 0 }).success, true);
+  assert.equal(withSpot({ lat: 37.5, lng: 127 }).success, true);
+  assert.equal(withSpot({ lat: 37.5 }).success, false);
+  assert.equal(withSpot({ lng: 127 }).success, false);
+  assert.equal(withSpot({ lat: 91, lng: 127 }).success, false);
+  assert.equal(withSpot({ lat: 37.5, lng: 181 }).success, false);
+});

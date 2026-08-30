@@ -45,14 +45,18 @@ export const SpotSchema = z.object({
   name: z.string().min(1),
   nameLocal: z.string().optional(),
   placeId: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
   category: z.string().optional(),
   plannedArrival: z.string().optional(),
   dwellMinutes: z.number().int().nonnegative().optional(),
   bufferMinutes: z.number().int().nonnegative().default(10),
   note: z.string().optional(),
   items: z.array(ItemSchema).default([]),
+}).superRefine((spot, ctx) => {
+  if ((spot.lat == null) !== (spot.lng == null)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [spot.lat == null ? "lat" : "lng"], message: "위도와 경도는 함께 저장해야 합니다." });
+  }
 });
 
 // Mirrors the server schema. The preference belongs to a directed pair of
