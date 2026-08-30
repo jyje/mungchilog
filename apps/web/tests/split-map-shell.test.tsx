@@ -135,6 +135,16 @@ describe("adaptive map shell", () => {
     expect(parseFloat(panel.style.width)).toBe(originalWidth + 24);
   });
 
+  it("exposes all floating resize edges as keyboard and touch targets", () => {
+    shell();
+    fireEvent.click(screen.getByRole("button", { name: "일정 목록 보기 설정" }));
+    fireEvent.click(screen.getByRole("button", { name: /플로팅 패널/ }));
+
+    const handles = screen.getAllByRole("button", { name: /패널 .* 경계 크기 조절/ });
+    expect(handles).toHaveLength(8);
+    expect(handles.every((handle) => handle.classList.contains("floating-resize-handle"))).toBe(true);
+  });
+
   it("dismisses the layout menu with Escape and restores focus without forwarding the key", () => {
     shell();
     const menu = screen.getByRole("button", { name: "일정 목록 보기 설정" });
