@@ -1953,6 +1953,20 @@ input[type="text"]::placeholder {
   font-weight: 600;
   cursor: pointer;
 }
+.menu-button[data-sharing-active="true"] {
+  position: relative;
+}
+.share-live-indicator {
+  position: absolute;
+  right: 0.3rem;
+  bottom: 0.3rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+}
 .location-sharing-control {
   display: grid;
   gap: 0.45rem;
@@ -1985,7 +1999,27 @@ input[type="text"]::placeholder {
   background: transparent;
   color: var(--text);
 }
-.location-sharing-live { margin: 0; color: var(--accent); font-size: var(--type-label); font-weight: 600; }
+.location-sharing-live {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  color: var(--accent);
+  font-size: var(--type-label);
+  font-weight: 600;
+}
+.location-sharing-live button {
+  min-height: 2.25rem;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  color: var(--accent);
+}
+.location-sharing-live button svg {
+  width: 1rem;
+  height: 1rem;
+}
 .location-sharing-consent {
   display: grid;
   gap: 0.5rem;
@@ -2042,6 +2076,83 @@ input[type="text"]::placeholder {
   cursor: pointer;
 }
 .shared-location-marker.selected { outline: 3px solid #facc15; outline-offset: 2px; }
+.location-sharing-map-status {
+  display: grid;
+  grid-template-columns: minmax(0, 18rem) auto;
+  align-items: end;
+  column-gap: 0.6rem;
+}
+.location-sharing-map-fallback {
+  position: absolute;
+  right: max(0.75rem, calc(var(--location-sharing-right, 0px) + 0.75rem));
+  bottom: max(0.75rem, calc(var(--location-sharing-bottom, 0px) + 0.75rem));
+  z-index: 5;
+  max-width: calc(100% - var(--location-sharing-right, 0px) - 1.5rem);
+}
+.location-sharing-map-pill {
+  display: flex;
+  grid-column: 1;
+  grid-row: 1;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.75rem;
+  max-width: 18rem;
+  padding: 0.25rem 0.3rem 0.25rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text);
+  box-shadow: 0 0.3rem 0.9rem color-mix(in srgb, var(--shadow-color) 72%, transparent);
+  backdrop-filter: blur(14px) saturate(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+}
+.location-sharing-map-pill > span {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  font-size: var(--type-label);
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.location-sharing-map-pill > span svg {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--accent);
+}
+.location-sharing-map-pill button {
+  flex: none;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: var(--type-label);
+  font-weight: 700;
+}
+.location-sharing-map-button {
+  grid-column: 2;
+  grid-row: 1;
+}
+@media (max-width: 480px) {
+  .location-sharing-map-status {
+    grid-template-columns: minmax(0, 13.5rem) auto;
+  }
+  .location-sharing-map-pill {
+    max-width: 13.5rem;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .location-sharing-map-pill {
+    background: var(--surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
 
 /*
  ---break---

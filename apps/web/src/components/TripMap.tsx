@@ -1,4 +1,4 @@
-import { Component, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { Component, useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 import { Map, AdvancedMarker, Pin, useMap, useApiLoadingStatus, APILoadingStatus } from "@vis.gl/react-google-maps";
 import type { LegPreference, Spot } from "../types";
 import { RouteOverlay } from "./RouteOverlay";
@@ -8,6 +8,8 @@ import { useMapViewportInsets } from "./MapViewportContext";
 import { cameraOffset, framePadding, panToVisibleCenter } from "./mapCamera";
 import { MapControlRail } from "./system/MapControlRail";
 import { Button } from "./ui/button";
+import type { TripLocationSharingController } from "../hooks/useTripLocationSharing";
+import { LocationSharingMapStatus } from "./LocationSharingMapStatus";
 
 const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 }; // Tokyo Station, fallback only
 
@@ -140,6 +142,8 @@ export function TripMap({
   sharedLocations = [],
   focusedSharedUserId = null,
   onFocusSharedLocation,
+  locationSharing,
+  onOpenLocationSharing,
 }: {
   spots: Spot[];
   date: string;
@@ -150,6 +154,8 @@ export function TripMap({
   sharedLocations?: SharedMapLocation[];
   focusedSharedUserId?: string | null;
   onFocusSharedLocation?: (userId: string) => void;
+  locationSharing?: TripLocationSharingController;
+  onOpenLocationSharing?: () => void;
 }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
   // Numbered in visiting order (spot.order), not raw array order, so the
@@ -162,9 +168,10 @@ export function TripMap({
     [spots],
   );
 
-  if (!apiKey) {
-    return <MapUnavailable />;
-  }
+  if (!apiKey) return <div className="map-container">
+    <MapUnavailable />
+    {locationSharing && onOpenLocationSharing && <LocationSharingFallback controller={locationSharing} onOpenDetails={onOpenLocationSharing} />}
+  </div>;
 
   const center = located[0] ?? DEFAULT_CENTER;
 
@@ -185,7 +192,7 @@ export function TripMap({
           disableDefaultUI={false}
           fullscreenControl={false}
         >
-          <MapContent spots={spots} located={located} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} sharedLocations={sharedLocations} focusedSharedUserId={focusedSharedUserId} onFocusSharedLocation={onFocusSharedLocation} />
+          <MapContent spots={spots} located={located} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} sharedLocations={sharedLocations} focusedSharedUserId={focusedSharedUserId} onFocusSharedLocation={onFocusSharedLocation} locationSharing={locationSharing} onOpenLocationSharing={onOpenLocationSharing} />
         </Map>
       </MapFailureBoundary>
     </div>
@@ -207,6 +214,8 @@ function MapContent({
   sharedLocations,
   focusedSharedUserId,
   onFocusSharedLocation,
+  locationSharing,
+  onOpenLocationSharing,
 }: {
   spots: Spot[];
   located: LocatedSpot[];
@@ -218,12 +227,15 @@ function MapContent({
   sharedLocations: SharedMapLocation[];
   focusedSharedUserId: string | null;
   onFocusSharedLocation?: (userId: string) => void;
+  locationSharing?: TripLocationSharingController;
+  onOpenLocationSharing?: () => void;
 }) {
   const status = useApiLoadingStatus();
 
-  if (status === APILoadingStatus.FAILED || status === APILoadingStatus.AUTH_FAILURE) {
-    return <MapUnavailable overlay />;
-  }
+  if (status === APILoadingStatus.FAILED || status === APILoadingStatus.AUTH_FAILURE) return <>
+    <MapUnavailable overlay />
+    {locationSharing && onOpenLocationSharing && <LocationSharingFallback controller={locationSharing} onOpenDetails={onOpenLocationSharing} />}
+  </>;
 
   return (
     <>
@@ -258,10 +270,25 @@ function MapContent({
         <MapControlRail>
           <CurrentLocationControl />
           <ItineraryFollowControl spots={spots} selection={selection} onSelect={onSelect} />
+          {locationSharing && onOpenLocationSharing && <LocationSharingMapStatus controller={locationSharing} onOpenDetails={onOpenLocationSharing} />}
         </MapControlRail>
       </>}
     </>
   );
+}
+
+function LocationSharingFallback({ controller, onOpenDetails }: {
+  controller: TripLocationSharingController;
+  onOpenDetails: () => void;
+}) {
+  const insets = useMapViewportInsets();
+  const style = {
+    "--location-sharing-right": `${insets.right}px`,
+    "--location-sharing-bottom": `${insets.bottom}px`,
+  } as CSSProperties;
+  return <div className="location-sharing-map-fallback" style={style}>
+    <LocationSharingMapStatus controller={controller} onOpenDetails={onOpenDetails} />
+  </div>;
 }
 
 function SharedLocationMarkers({ locations, focusedUserId, onFocus }: {

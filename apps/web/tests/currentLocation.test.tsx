@@ -6,6 +6,7 @@ import { ItineraryFollowControl } from "../src/components/ItineraryFollowControl
 import { TripMap } from "../src/components/TripMap";
 import { MapViewportProvider } from "../src/components/MapViewportContext";
 import { TooltipProvider } from "../src/components/ui/tooltip";
+import type { TripLocationSharingController } from "../src/hooks/useTripLocationSharing";
 
 const maps = vi.hoisted(() => ({
   map: { panTo: vi.fn(), panBy: vi.fn(), fitBounds: vi.fn(), setZoom: vi.fn(), setCenter: vi.fn(), getZoom: vi.fn(() => 15) },
@@ -228,5 +229,35 @@ describe("current location control", () => {
     expect(screen.getByText("지도를 불러오지 못했습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "현재 위치" })).not.toBeInTheDocument();
     expect(watchPosition).not.toHaveBeenCalled();
+  });
+
+  it("keeps active sharing status and stop reachable when the map fails", () => {
+    maps.status = "FAILED";
+    vi.stubEnv("VITE_GOOGLE_MAPS_API_KEY", "synthetic-test-key");
+    const stopSharing = vi.fn();
+    const locationSharing = {
+      localActive: true,
+      remoteActive: false,
+      remoteOnOtherTrip: false,
+      active: true,
+      starting: false,
+      interrupted: false,
+      remaining: "42분 남음",
+      pending: false,
+      stopSharing,
+    } as unknown as TripLocationSharingController;
+    renderWithTooltips(<TripMap
+      spots={[]}
+      selection={null}
+      date="2026-09-07"
+      timezone="Asia/Seoul"
+      onSelect={vi.fn()}
+      locationSharing={locationSharing}
+      onOpenLocationSharing={vi.fn()}
+    />);
+    expect(screen.getByText("지도를 불러오지 못했습니다.")).toBeInTheDocument();
+    expect(screen.getByText(/공유 중.*42분 남음/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "중지" }));
+    expect(stopSharing).toHaveBeenCalledTimes(1);
   });
 });

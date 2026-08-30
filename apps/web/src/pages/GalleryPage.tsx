@@ -11,7 +11,21 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { MapIconButton } from "@/components/system/MapIconButton";
 import { MapControlRail } from "@/components/system/MapControlRail";
 import { ThemeMenu } from "@/components/system/ThemeMenu";
+import { LocationSharingMapStatus } from "@/components/LocationSharingMapStatus";
+import type { TripLocationSharingController } from "@/hooks/useTripLocationSharing";
 import { GalleryStoryboard } from "./gallery/GalleryStoryboard";
+
+const galleryLocationSharing = {
+  localActive: true,
+  remoteActive: false,
+  remoteOnOtherTrip: false,
+  active: true,
+  starting: false,
+  interrupted: false,
+  remaining: "42분 남음",
+  pending: false,
+  stopSharing: async () => undefined,
+} as TripLocationSharingController;
 
 function GallerySection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
   return (
@@ -144,6 +158,7 @@ export function GalleryPage() {
           <MapControlRail className="gallery-map-control-rail">
             <MapIconButton icon={<Crosshair />} label="현재 위치" />
             <MapIconButton icon={<Route />} label="따라가기" selected />
+            <LocationSharingMapStatus controller={galleryLocationSharing} onOpenDetails={() => undefined} />
             <MapIconButton icon={<Navigation />} label="선택한 장소로 이동" />
           </MapControlRail>
         </div>
