@@ -18,8 +18,20 @@ export type ThemePreference = "system" | "light" | "dark";
 const STORAGE_KEY = "mungchilog-theme";
 
 function readStored(): ThemePreference {
-  const preference = localStorage.getItem(STORAGE_KEY);
-  return preference === "light" || preference === "dark" ? preference : "system";
+  try {
+    const preference = localStorage.getItem(STORAGE_KEY);
+    return preference === "light" || preference === "dark" ? preference : "system";
+  } catch {
+    return "system";
+  }
+}
+
+function store(preference: ThemePreference) {
+  try {
+    localStorage.setItem(STORAGE_KEY, preference);
+  } catch {
+    // The selected theme still applies for this page when storage is blocked.
+  }
 }
 
 function apply(preference: ThemePreference) {
@@ -27,7 +39,8 @@ function apply(preference: ThemePreference) {
   if (preference === "system") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", preference);
 
-  const isDark = preference === "dark" || (preference === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const systemDark = typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const isDark = preference === "dark" || (preference === "system" && systemDark);
   root.classList.toggle("dark", isDark);
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", isDark ? "#111214" : "#f5f6f8");
 }
@@ -42,7 +55,7 @@ export function ThemeMenu({ className }: { className?: string }) {
 
   useEffect(() => {
     apply(preference);
-    localStorage.setItem(STORAGE_KEY, preference);
+    store(preference);
   }, [preference]);
 
   function changeTheme(value: string) {
