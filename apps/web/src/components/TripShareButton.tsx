@@ -4,7 +4,8 @@ import { Button } from "./ui/button";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
 import { Users, X } from "lucide-react";
 import { listTripMembers, inviteToTrip, removeTripMember, type Me } from "../api";
-import { LocationSharingControl, type SharedLocationWithName } from "./LocationSharingControl";
+import { type SharedLocationWithName, type TripLocationSharingController } from "../hooks/useTripLocationSharing";
+import { LocationSharingControl } from "./LocationSharingControl";
 
 // The map header triggers an app-level sheet. Anyone on the trip can see
 // who else is on it; only the owner (or a global admin) gets the invite
@@ -12,17 +13,20 @@ import { LocationSharingControl, type SharedLocationWithName } from "./LocationS
 export function TripShareButton({
   tripId,
   me,
+  open,
+  onOpenChange,
+  locationSharing,
   sharedLocations,
-  onLocationsChange,
   onFocusLocation,
 }: {
   tripId: string;
   me: Me;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  locationSharing: TripLocationSharingController;
   sharedLocations: SharedLocationWithName[];
-  onLocationsChange: (locations: SharedLocationWithName[]) => void;
   onFocusLocation: (userId: string | null) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const { data: members } = useQuery({
     queryKey: ["trip-members", tripId],
@@ -56,10 +60,11 @@ export function TripShareButton({
   const memberCount = members?.length ?? 0;
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="같이 보는 사람" title="같이 보는 사람" aria-haspopup="dialog" aria-expanded={open}>
+        <Button type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="같이 보는 사람" title="같이 보는 사람" aria-haspopup="dialog" aria-expanded={open} data-sharing-active={locationSharing.localActive || locationSharing.remoteActive || undefined}>
           <Users aria-hidden="true" />
+          {(locationSharing.localActive || locationSharing.remoteActive) && <span className="share-live-indicator" aria-hidden="true" />}
         </Button>
       </SheetTrigger>
       <SheetContent side="bottom" showCloseButton={false} className="share-sheet">
@@ -147,12 +152,7 @@ export function TripShareButton({
         )}
         {success && <p className="share-status" role="status">{success}</p>}
         {error && <p className="error share-status" role="alert">{error}</p>}
-        <LocationSharingControl
-          tripId={tripId}
-          open={open}
-          onLocationsChange={onLocationsChange}
-          onFocus={onFocusLocation}
-        />
+        <LocationSharingControl controller={locationSharing} />
       </SheetContent>
     </Sheet>
   );

@@ -13,7 +13,7 @@ import { LegInfo } from "../components/LegInfo";
 import { SpotForm, type SpotFormValues } from "../components/SpotForm";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { TripShareButton } from "../components/TripShareButton";
-import type { SharedLocationWithName } from "../components/LocationSharingControl";
+import { useTripLocationSharing, type SharedLocationWithName } from "../hooks/useTripLocationSharing";
 import { TripActionsMenu } from "../components/TripActionsMenu";
 import { Button } from "../components/ui/button";
 import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
@@ -54,6 +54,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [selection, setSelection] = useState<ItinerarySelection>(null);
   const [sharedLocations, setSharedLocations] = useState<SharedLocationWithName[]>([]);
   const [focusedSharedUserId, setFocusedSharedUserId] = useState<string | null>(null);
+  const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const [legSaveError, setLegSaveError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -89,6 +90,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     setSharedLocations(locations);
     setFocusedSharedUserId((current) => (current && !locations.some((location) => location.userId === current) ? null : current));
   }, []);
+  const locationSharing = useTripLocationSharing({
+    tripId: id,
+    onLocationsChange: handleSharedLocations,
+    onFocus: setFocusedSharedUserId,
+  });
 
   useEffect(() => {
     if (!selection) return;
@@ -386,6 +392,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             sharedLocations={sharedLocations}
             focusedSharedUserId={focusedSharedUserId}
             onFocusSharedLocation={setFocusedSharedUserId}
+            locationSharing={locationSharing}
+            onOpenLocationSharing={() => setSharePanelOpen(true)}
           />
         }
         headerLeft={
@@ -400,8 +408,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             <TripShareButton
               tripId={id}
               me={me}
+              open={sharePanelOpen}
+              onOpenChange={setSharePanelOpen}
+              locationSharing={locationSharing}
               sharedLocations={sharedLocations}
-              onLocationsChange={handleSharedLocations}
               onFocusLocation={setFocusedSharedUserId}
             />
             <TripActionsMenu trip={trip} onSave={saveNow} onExport={() => downloadTripExchange(trip)} saving={mutation.isPending} />

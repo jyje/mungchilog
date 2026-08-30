@@ -1,7 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TripShareButton } from "../src/components/TripShareButton";
+import type { TripLocationSharingController } from "../src/hooks/useTripLocationSharing";
 
 const api = vi.hoisted(() => ({
   listTripMembers: vi.fn(),
@@ -31,17 +33,28 @@ const members = [
   { id: "editor-1", email: "editor@example.com", name: "함께 가는 사람", role: "editor" as const },
 ];
 
+const locationSharing = {
+  localActive: false,
+  remoteActive: false,
+} as TripLocationSharingController;
+
 function renderShareButton() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function Harness() {
+    const [open, setOpen] = useState(false);
+    return <TripShareButton
+      tripId="trip-1"
+      me={me}
+      open={open}
+      onOpenChange={setOpen}
+      locationSharing={locationSharing}
+      sharedLocations={[]}
+      onFocusLocation={vi.fn()}
+    />;
+  }
   return render(
     <QueryClientProvider client={queryClient}>
-      <TripShareButton
-        tripId="trip-1"
-        me={me}
-        sharedLocations={[]}
-        onLocationsChange={vi.fn()}
-        onFocusLocation={vi.fn()}
-      />
+      <Harness />
     </QueryClientProvider>,
   );
 }
