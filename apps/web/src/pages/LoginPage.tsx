@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { AlertCircle, ArrowRight, LoaderCircle, LogIn } from "lucide-react";
 
-import { beginFreshLogin } from "../api";
+import { beginFreshLogin, pingBackend } from "../api";
 import { restartAfterProviderLogout } from "../auth/providerLogout";
 import { AuthShell } from "../components/system/AuthShell";
 
@@ -10,10 +10,22 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const isLoggingIn = loginState !== "idle";
 
-  function handleLogin() {
+  // A bare `window.location.assign` hands control to the browser's own page
+  // navigation, which has no timeout - if the backend is down, the tab just
+  // sits on this half-navigated page with the spinner frozen forever, with
+  // no way for this component to recover. Confirming the backend answers
+  // first keeps the failure inside React state, where it can show an error
+  // and let the user retry instead of leaving them staring at a spinner.
+  async function handleLogin() {
     setError(null);
     setLoginState("standard");
-    window.requestAnimationFrame(() => window.location.assign("/auth/login"));
+    try {
+      await pingBackend();
+      window.location.assign("/auth/login");
+    } catch {
+      setLoginState("idle");
+      setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    }
   }
 
   async function handleFreshLogin() {

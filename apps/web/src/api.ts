@@ -9,6 +9,27 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// The backend being unreachable (pod down, NAT weirdness, ISP hiccup) must
+// never leave the caller waiting forever - a bare `fetch` has no timeout of
+// its own. Auth calls in particular gate a full-page redirect, so a hang
+// here reads as a frozen app. `TimeoutError` lets callers show a distinct
+// "can't reach the server" message instead of a generic failure.
+export class TimeoutError extends Error {
+  constructor(message = "요청이 너무 오래 걸립니다") {
+    super(message);
+    this.name = "TimeoutError";
+  }
+}
+
+async function fetchWithTimeout(input: RequestInfo, init: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+  try {
+    return await fetch(input, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") throw new TimeoutError();
+    throw err;
+  }
+}
+
 export function listTrips(): Promise<TripSummary[]> {
   return fetch("/api/trips").then((r) => json(r));
 }
@@ -41,7 +62,23 @@ export function lookupTimezone(lat: number, lng: number, date: string): Promise<
 export type Me = { id: string; email: string; name: string | null; status: "pending" | "approved"; role: "admin" | "member" };
 
 export function getMe(): Promise<Me | null> {
-  return fetch("/auth/me").then((r) => (r.status === 401 ? null : json<Me>(r)));
+  return fetchWithTimeout("/auth/me").then((r) => (r.status === 401 ? null : json<Me>(r)));
+}
+
+// The login page's own health check before it commits to a full-page
+// redirect (see LoginPage.handleLogin): `/auth/me` has no side effects and
+// always responds fast when the backend is up, whether or not the caller is
+// signed in. A short timeout here so a dead backend surfaces in a few
+// seconds instead of leaving the button spinning indefinitely.
+//
+// A network-level failure isn't the only way "down" shows up - in front of
+// ingress-nginx, a dead pod answers with a completed 502/503/504, which
+// `fetch` treats as a normal response rather than an error. Both cases must
+// fail this check, or a redirect still goes through to a backend that can't
+// serve it.
+export async function pingBackend(timeoutMs = 4000): Promise<void> {
+  const res = await fetchWithTimeout("/auth/me", {}, timeoutMs);
+  if (res.status >= 500) throw new Error(`backend unavailable: ${res.status}`);
 }
 
 export async function logout(): Promise<void> {
@@ -49,7 +86,7 @@ export async function logout(): Promise<void> {
   // the server session may remain until it expires, but this browser must no
   // longer present the previous user's cached data as its own.
   try {
-    await fetch("/auth/logout", { method: "POST" });
+    await fetchWithTimeout("/auth/logout", { method: "POST" });
   } finally {
     await clearPrivateCache();
   }
@@ -60,7 +97,7 @@ export async function beginFreshLogin(): Promise<string> {
   // end-session URL. The caller waits for that logout document before it
   // starts the next PKCE flow.
   try {
-    const response = await fetch("/auth/restart-login", { method: "POST" });
+    const response = await fetchWithTimeout("/auth/restart-login", { method: "POST" });
     const { logoutUrl } = await json<{ logoutUrl: string }>(response);
     return logoutUrl;
   } finally {

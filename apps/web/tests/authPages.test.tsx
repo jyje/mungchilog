@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { beginFreshLogin, logout } from "../src/api";
+import { beginFreshLogin, logout, pingBackend } from "../src/api";
 import { restartAfterProviderLogout } from "../src/auth/providerLogout";
 import { LoginPage } from "../src/pages/LoginPage";
 import { PendingPage } from "../src/pages/PendingPage";
@@ -9,6 +9,7 @@ import { PendingPage } from "../src/pages/PendingPage";
 vi.mock("../src/api", () => ({
   beginFreshLogin: vi.fn(),
   logout: vi.fn(),
+  pingBackend: vi.fn(),
 }));
 
 vi.mock("../src/auth/providerLogout", () => ({
@@ -31,20 +32,39 @@ beforeEach(() => {
   vi.mocked(beginFreshLogin).mockReset();
   vi.mocked(restartAfterProviderLogout).mockReset();
   vi.mocked(logout).mockReset();
+  vi.mocked(pingBackend).mockReset().mockResolvedValue(undefined);
   vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
+  // jsdom's window.location.assign isn't a configurable own property, so
+  // vi.spyOn can't touch it directly - replace the whole location object.
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: { ...window.location, assign: vi.fn() },
+  });
 });
 
 describe("authentication pages", () => {
-  it("makes the standard Authentik handoff the single primary action", () => {
+  it("makes the standard Authentik handoff the single primary action", async () => {
     render(<LoginPage />);
 
     const primary = screen.getByRole("button", { name: "Authentik으로 계속하기" });
     fireEvent.click(primary);
 
-    expect(window.requestAnimationFrame).toHaveBeenCalledTimes(1);
     expect(primary).toBeDisabled();
     expect(screen.getByRole("button", { name: "Authentik으로 이동 중" })).toBeInTheDocument();
     expect(screen.getByText("로그인하면 안전한 인증을 위해 Authentik으로 이동합니다.")).toBeInTheDocument();
+
+    await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("/auth/login"));
+  });
+
+  it("keeps the user on the page and offers a retry when the backend can't be reached", async () => {
+    vi.mocked(pingBackend).mockRejectedValue(new Error("timeout"));
+    render(<LoginPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Authentik으로 계속하기" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    expect(window.location.assign).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Authentik으로 계속하기" })).not.toBeDisabled();
   });
 
   it("describes and starts the separate fresh-account flow", async () => {
