@@ -105,3 +105,19 @@ test("arbitrary spot coordinates are finite, ranged, and stored as a pair", () =
   assert.equal(withSpot({ lat: 91, lng: 127 }).success, false);
   assert.equal(withSpot({ lat: 37.5, lng: 181 }).success, false);
 });
+
+test("spot schedules preserve legacy times and validate explicit semantics", () => {
+  const withSpot = (spot: Record<string, unknown>) => TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{ date: "2026-09-07", spots: [{ id: "point", order: 0, name: "예약 장소", items: [], ...spot }] }],
+  });
+
+  const legacy = withSpot({ plannedArrival: "10:30" });
+  assert.equal(legacy.success, true);
+  if (legacy.success) assert.equal(legacy.data.days[0].spots[0].timeKind, undefined);
+
+  assert.equal(withSpot({ plannedArrival: "19:00", timeKind: "RESERVATION", dwellMinutes: 90 }).success, true);
+  assert.equal(withSpot({ plannedArrival: "9:00", timeKind: "APPROXIMATE" }).success, false);
+  assert.equal(withSpot({ timeKind: "RESERVATION" }).success, false);
+  assert.equal(withSpot({ plannedArrival: "24:00" }).success, false);
+});
