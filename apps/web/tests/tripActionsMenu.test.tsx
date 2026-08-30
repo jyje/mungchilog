@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TripActionsMenu } from "../src/components/TripActionsMenu";
+import type { TripPanelActions } from "../src/components/SplitMapShell";
 import type { Trip } from "../src/types";
 
 vi.mock("../src/components/TripCoverEditor", () => ({
@@ -21,13 +22,23 @@ const trip: Trip = {
 };
 
 beforeEach(() => {
+  const values = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+    clear: () => values.clear(),
+  });
   vi.stubGlobal("confirm", vi.fn(() => true));
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  document.documentElement.removeAttribute("data-theme");
+  document.documentElement.classList.remove("dark");
 });
 
-function renderMenu(overrides: { onExport?: () => void; onSave?: (trip: Trip) => void } = {}) {
+function renderMenu(overrides: { onExport?: () => void; onSave?: (trip: Trip) => void; panelActions?: TripPanelActions } = {}) {
   const onExport = overrides.onExport ?? vi.fn();
   const onSave = overrides.onSave ?? vi.fn();
-  render(<TripActionsMenu trip={trip} onSave={onSave} onExport={onExport} saving={false} />);
+  render(<TripActionsMenu trip={trip} onSave={onSave} onExport={onExport} saving={false} panelActions={overrides.panelActions} />);
   return { onExport, onSave };
 }
 
@@ -44,6 +55,39 @@ describe("trip actions menu", () => {
 
     expect(onExport).toHaveBeenCalledOnce();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("switches theme from the existing overflow instead of adding a toolbar button", async () => {
+    renderMenu();
+    openMenu();
+    expect(await screen.findByText("화면")).toBeVisible();
+    fireEvent.click(screen.getByRole("menuitem", { name: "다크 테마로 전환" }));
+
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+    expect(localStorage.getItem("mungchilog-theme")).toBe("dark");
+  });
+
+  it("keeps desktop itinerary visibility and placement in one screen submenu", async () => {
+    const panelActions: TripPanelActions = {
+      isWide: true,
+      position: "right",
+      panelHidden: false,
+      setPanelVisible: vi.fn(),
+      choosePosition: vi.fn(),
+    };
+    renderMenu({ panelActions });
+    openMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "일정 패널" }));
+
+    const visibility = await screen.findByRole("menuitemcheckbox", { name: "일정 목록 표시" });
+    expect(visibility).toHaveAttribute("data-state", "checked");
+    fireEvent.click(visibility);
+    expect(panelActions.setPanelVisible).toHaveBeenCalledWith(false);
+
+    openMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "일정 패널" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "좌측" }));
+    expect(panelActions.choosePosition).toHaveBeenCalledWith("left");
   });
 
   it("opens the settings dialog from the shadcn dropdown and closes it through DialogClose", async () => {

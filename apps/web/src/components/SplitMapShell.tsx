@@ -1,11 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { List } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { Button } from "./ui/button";
-import { ThemeMenu } from "./system/ThemeMenu";
 import { MapViewportProvider, type MapViewportInsets } from "./MapViewportContext";
 import { closestSheetState, mapViewportInsets, SHEET_LABELS, SHEET_STATES, type SheetState } from "./mapViewportGeometry";
 
-type PanelPosition = "bottom" | "left" | "right" | "floating";
+export type PanelPosition = "bottom" | "left" | "right" | "floating";
 type DockPosition = Exclude<PanelPosition, "floating">;
 type ResizeEdge = "top" | "right" | "bottom" | "left" | "top-right" | "bottom-right" | "bottom-left" | "top-left";
 
@@ -16,6 +15,15 @@ type PanelLayout = {
   floating: FloatingBounds;
   collapsed: boolean;
   sheetState: SheetState;
+  headerExpanded: boolean;
+};
+
+export type TripPanelActions = {
+  isWide: boolean;
+  position: PanelPosition;
+  panelHidden: boolean;
+  setPanelVisible: (visible: boolean) => void;
+  choosePosition: (position: PanelPosition) => void;
 };
 
 type DragState =
@@ -65,6 +73,7 @@ function defaultLayout(): PanelLayout {
     },
     collapsed: false,
     sheetState: "intermediate",
+    headerExpanded: window.innerWidth >= WIDE_VIEWPORT,
   };
 }
 
@@ -105,7 +114,14 @@ function readLayout(): PanelLayout {
           ? savedFloating
           : defaults.floating;
 
-      return { position, sizes, floating, collapsed: saved.collapsed === true, sheetState: SHEET_STATES.includes(saved.sheetState as SheetState) ? saved.sheetState as SheetState : "intermediate" };
+      return {
+        position,
+        sizes,
+        floating,
+        collapsed: saved.collapsed === true,
+        sheetState: SHEET_STATES.includes(saved.sheetState as SheetState) ? saved.sheetState as SheetState : "intermediate",
+        headerExpanded: typeof saved.headerExpanded === "boolean" ? saved.headerExpanded : defaults.headerExpanded,
+      };
     }
 
     // Adopt the original dock-only preference when users update from the
@@ -145,13 +161,6 @@ function resizedBounds(edge: ResizeEdge, start: FloatingBounds, deltaX: number, 
   return normalizeFloating({ x: left, y: top, width: right - left, height: bottom - top });
 }
 
-const POSITION_LABEL: Record<PanelPosition, string> = {
-  bottom: "하단",
-  left: "좌측",
-  right: "우측",
-  floating: "플로팅",
-};
-
 /**
  * The map remains the ground plane. Its itinerary controls can dock around
  * it on small screens, then turn into a movable work surface on large ones.
@@ -167,32 +176,29 @@ export function SplitMapShell({
 }: {
   map: ReactNode;
   headerLeft?: ReactNode;
-  headerRight?: ReactNode;
+  headerRight?: ReactNode | ((actions: TripPanelActions) => ReactNode);
   title: ReactNode;
   subtitle?: ReactNode;
   panel: ReactNode;
 }) {
   const [layout, setLayout] = useState<PanelLayout>(readLayout);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [isWide, setIsWide] = useState(() => window.innerWidth >= WIDE_VIEWPORT);
   const [insets, setInsets] = useState<MapViewportInsets>({ top: 0, right: 0, bottom: 0, left: 0 });
   const [sheetDragHeight, setSheetDragHeight] = useState<number | null>(null);
-  const [headerClearance, setHeaderClearance] = useState(128);
   const [visualViewport, setVisualViewport] = useState<{ height: number; top: number } | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const suppressSheetClick = useRef(false);
   const drag = useRef<DragState | null>(null);
   const position: PanelPosition = isWide ? layout.position : "bottom";
   const sheetState = layout.collapsed ? "collapsed" : layout.sheetState;
   const panelHidden = layout.collapsed || (position === "bottom" && sheetState === "collapsed");
+  const titleExpanded = layout.headerExpanded && !(position === "bottom" && sheetState === "expanded");
   // Leave room for the editor when the software keyboard or landscape
   // viewport reduces height. Location details use a compact side callout.
   const compactMap = (visualViewport?.height ?? window.innerHeight) < 600;
-  const mapControlClearance = compactMap ? 112 : 224;
 
   useEffect(() => {
     try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* The layout still works when storage is blocked. */ }
@@ -226,7 +232,6 @@ export function SplitMapShell({
       const mapBounds = mapRef.current.getBoundingClientRect();
       if (!mapBounds.width || !mapBounds.height) return;
       const headerBounds = headerRef.current.getBoundingClientRect();
-      setHeaderClearance(headerBounds.bottom - mapBounds.top);
       const next = mapViewportInsets(mapBounds, headerBounds, position === "floating" && !layout.collapsed ? panelRef.current?.getBoundingClientRect() : undefined);
       setInsets((current) => Object.keys(next).every((key) => current[key as keyof MapViewportInsets] === next[key as keyof MapViewportInsets]) ? current : next);
     }
@@ -238,19 +243,6 @@ export function SplitMapShell({
   }, [position, layout, sheetDragHeight]);
 
   useEffect(() => {
-    if (!menuOpen) return;
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      setMenuOpen(false);
-      menuButtonRef.current?.focus();
-    }
-    window.addEventListener("keydown", closeOnEscape, true);
-    return () => window.removeEventListener("keydown", closeOnEscape, true);
-  }, [menuOpen]);
-
-  useEffect(() => {
     function onMove(event: PointerEvent) {
       if (!drag.current) return;
       const active = drag.current;
@@ -260,7 +252,7 @@ export function SplitMapShell({
       if (active.kind === "resize" && active.position === "bottom") {
         if (Math.abs(deltaY) > 6) suppressSheetClick.current = true;
         const height = shellRef.current?.clientHeight || window.innerHeight;
-        setSheetDragHeight(clamp(active.size - deltaY, 48, height * 0.78));
+        setSheetDragHeight(clamp(active.size - deltaY, 56, Math.max(56, height - 72)));
         return;
       }
 
@@ -318,8 +310,10 @@ export function SplitMapShell({
 
   function choosePosition(position: PanelPosition) {
     setLayout((current) => ({ ...current, position, collapsed: false, sheetState: current.sheetState === "collapsed" ? "intermediate" : current.sheetState }));
-    setMenuOpen(false);
-    menuButtonRef.current?.focus();
+  }
+
+  function setPanelVisible(visible: boolean) {
+    setLayout((current) => ({ ...current, collapsed: !visible }));
   }
 
   function chooseSheetState(next: SheetState) {
@@ -347,54 +341,55 @@ export function SplitMapShell({
     position === "floating"
       ? { left: `${floating.x}px`, top: `${floating.y}px`, width: `${floating.width}px`, height: `${floating.height}px` }
       : position === "bottom"
-        ? { height: sheetDragHeight !== null ? `${sheetDragHeight}px` : sheetState === "collapsed" ? "calc(3rem + env(safe-area-inset-bottom))" : sheetState === "expanded" ? "78%" : "42%", maxHeight: `max(3rem, calc(100% - ${headerClearance + mapControlClearance}px))` }
+        ? { height: sheetDragHeight !== null ? `${sheetDragHeight}px` : sheetState === "collapsed" ? "calc(3.5rem + env(safe-area-inset-bottom))" : sheetState === "expanded" ? "calc(100% - (4.5rem + env(safe-area-inset-top)))" : "50%" }
         : dockStyle(position, layout.sizes[position]);
 
+  const panelActions: TripPanelActions = { isWide, position, panelHidden, setPanelVisible, choosePosition };
+
   return (
-    <div ref={shellRef} className="trip-shell" style={visualViewport ? { height: visualViewport.height, top: visualViewport.top } : undefined} data-panel-position={position} data-compact-map={compactMap || undefined} data-panel-collapsed={layout.collapsed || undefined} data-sheet-state={position === "bottom" ? sheetState : undefined}>
+    <div ref={shellRef} className="trip-shell" style={visualViewport ? { height: visualViewport.height, top: visualViewport.top } : undefined} data-panel-position={position} data-compact-map={compactMap || undefined} data-panel-collapsed={layout.collapsed || undefined} data-sheet-state={position === "bottom" ? sheetState : undefined} data-title-expanded={titleExpanded || undefined}>
       <div ref={mapRef} className="trip-map-pane">
         <MapViewportProvider value={insets}>{map}</MapViewportProvider>
         <div ref={headerRef} className="map-hero-header">
           {headerLeft}
           <div className="map-hero-title">
-            <h1>{title}</h1>
-            {subtitle && <p className="meta">{subtitle}</p>}
-          </div>
-          <div className="trip-header-actions">
-            <ThemeMenu className="menu-button theme-menu-trigger" />
-            <div className="menu-anchor">
-              <Button ref={menuButtonRef} type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="일정 목록 보기 설정" title="일정 목록 보기 설정" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
-                <List aria-hidden="true" />
-              </Button>
-              {menuOpen && (
-                <>
-                  <Button type="button" variant="ghost" className="menu-backdrop" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />
-                  <div className="layout-menu" role="group" aria-label="일정 목록 및 패널 배치">
-                    <Button type="button" variant="ghost" className="layout-menu-item" onClick={() => { setLayout((current) => ({ ...current, collapsed: !panelHidden, sheetState: position === "bottom" && panelHidden ? "intermediate" : current.sheetState })); setMenuOpen(false); menuButtonRef.current?.focus(); }}>
-                      {panelHidden ? "일정 목록 보이기" : "일정 목록 접기"}
-                    </Button>
-                    {isWide && <div className="layout-menu-positions" aria-label="도킹 위치">
-                      {(["left", "bottom", "right"] as DockPosition[]).map((dockPosition) => (
-                        <Button key={dockPosition} type="button" variant={layout.position === dockPosition ? "secondary" : "outline"} aria-pressed={layout.position === dockPosition} className="layout-menu-position" onClick={() => choosePosition(dockPosition)}>
-                          {POSITION_LABEL[dockPosition]}
-                        </Button>
-                      ))}
-                    </div>}
-                    {isWide && (
-                      <Button type="button" variant={layout.position === "floating" ? "secondary" : "ghost"} className="layout-menu-item" onClick={() => choosePosition("floating")}>
-                        ◇ 플로팅 패널
-                      </Button>
-                    )}
-                  </div>
-                </>
+            <div className="map-hero-title-row">
+              <h1>{title}</h1>
+              {subtitle && !(position === "bottom" && sheetState === "expanded") && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-lg"
+                  className="trip-title-disclosure"
+                  aria-label={titleExpanded ? "여행 정보 접기" : "여행 정보 펼치기"}
+                  aria-expanded={titleExpanded}
+                  aria-controls="trip-title-details"
+                  onClick={() => setLayout((current) => ({ ...current, headerExpanded: !current.headerExpanded }))}
+                >
+                  <ChevronDown aria-hidden="true" />
+                </Button>
               )}
             </div>
-            {headerRight}
+          </div>
+          {subtitle && titleExpanded && <p id="trip-title-details" className="map-hero-meta">{subtitle}</p>}
+          <div className="trip-header-actions">
+            {typeof headerRight === "function" ? headerRight(panelActions) : headerRight}
           </div>
         </div>
       </div>
 
-        <aside ref={panelRef} className="trip-panel-pane" hidden={layout.collapsed && position !== "bottom"} style={panelStyle} aria-label="여행 일정 패널">
+        <aside
+          ref={panelRef}
+          className="trip-panel-pane"
+          hidden={layout.collapsed && position !== "bottom"}
+          style={panelStyle}
+          aria-label="여행 일정 패널"
+          onFocusCapture={(event) => {
+            if (position !== "bottom" || sheetState === "expanded") return;
+            const target = event.target as HTMLElement;
+            if (target.matches("input, textarea, select, [contenteditable='true']")) chooseSheetState("expanded");
+          }}
+        >
           {position === "floating" ? (
             <>
               <Button type="button" variant="ghost" className="floating-panel-titlebar" aria-label="패널 위치 이동" title="드래그하거나 방향키로 이동" onPointerDown={beginMove} onKeyDown={(event) => {

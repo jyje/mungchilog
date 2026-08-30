@@ -12,7 +12,7 @@
  * Theme tokens: light is the bare :root default. Dark applies either from
  * the OS (prefers-color-scheme, unless the user picked "light" explicitly
  * via [data-theme="light"]) or from an explicit user choice
- * ([data-theme="dark"], set by ThemeMenu.tsx / the boot script in
+ * ([data-theme="dark"], set by ThemeToggle.tsx / the boot script in
  * index.html). Both dark blocks repeat the same values on purpose - the
  * explicit block is what lets a user's choice win over the OS setting.
  */
@@ -649,7 +649,14 @@ ul {
   flex: 1;
   min-width: 0;
 }
+.map-hero-title-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
 .map-hero-title h1 {
+  flex: 1;
+  min-width: 0;
   margin: 0.15rem 0;
   color: var(--text);
   font-size: 1.25rem;
@@ -658,8 +665,25 @@ ul {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.map-hero-title .meta {
-  margin: 0.2rem 0 0;
+.trip-title-disclosure[data-slot="button"] {
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  color: var(--text-muted);
+  border-radius: 999px;
+}
+.trip-title-disclosure svg {
+  transition: transform 160ms ease;
+}
+.trip-title-disclosure[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.map-hero-meta {
+  grid-column: 2 / 3;
+  grid-row: 2;
+  min-width: 0;
+  margin: -0.25rem 0 0;
   color: var(--text-muted);
   font-size: var(--type-label);
   line-height: 1.4;
@@ -670,11 +694,6 @@ ul {
   flex: none;
   gap: 0.35rem;
 }
-.trip-header-actions .layout-menu {
-  left: auto;
-  right: 0;
-}
-
 .menu-anchor {
   position: relative;
 }
@@ -731,7 +750,19 @@ ul {
 .layout-menu-item { width: 100%; justify-content: flex-start; }
 .layout-menu-position { min-width: 0; }
 .trip-actions-menu {
-  min-width: 12rem;
+  min-width: 13.5rem;
+}
+.trip-actions-menu [data-slot="dropdown-menu-item"],
+.trip-actions-menu [data-slot="dropdown-menu-sub-trigger"] {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.65rem;
+}
+.trip-panel-menu {
+  min-width: 10rem;
+}
+.trip-panel-menu [data-slot="dropdown-menu-checkbox-item"],
+.trip-panel-menu [data-slot="dropdown-menu-radio-item"] {
+  min-height: 2.75rem;
 }
 .trip-actions-menu [data-slot="dropdown-menu-item"] {
   min-height: 3rem;
@@ -808,8 +839,8 @@ ul {
 .trip-panel-pane[hidden],
 .trip-panel-pane .panel-content[hidden] { display: none; }
 .trip-shell[data-panel-position="bottom"] .trip-panel-pane {
-  max-height: calc(100% - 12rem);
-  min-height: 3rem;
+  max-height: calc(100% - (4.5rem + env(safe-area-inset-top)));
+  min-height: 3.5rem;
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -8px 20px var(--shadow-color);
 }
@@ -1046,11 +1077,12 @@ body.trip-panel-resizing { cursor: col-resize; }
   }
 }
 @media (max-width: 56.249rem) {
-  .map-hero-header { gap: 0.25rem 0.5rem; }
-  .map-hero-title { grid-column: 1 / -1; grid-row: 2; padding: 0.1rem 0.5rem 0.35rem; }
-  .trip-header-actions { grid-column: 3; grid-row: 1; }
+  .map-hero-header { gap: 0.25rem 0.35rem; }
+  .map-hero-title { grid-column: 2; grid-row: 1; }
+  .map-hero-meta { grid-column: 1 / -1; grid-row: 2; margin: 0; padding: 0 0.5rem 0.25rem; }
+  .trip-header-actions { grid-column: 3; grid-row: 1; gap: 0.2rem; }
   .map-hero-title h1 { font-size: 1.125rem; }
-  .map-hero-title .meta { font-size: var(--type-label); }
+  .map-hero-meta { font-size: var(--type-label); }
 }
 @media (prefers-reduced-motion: reduce) {
   .trip-shell *, .trip-shell *::before, .trip-shell *::after { scroll-behavior: auto; }

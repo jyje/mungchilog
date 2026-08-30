@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Download, Image, MoreVertical, X } from "lucide-react";
+import { Download, Image, MoreVertical, PanelsTopLeft, X } from "lucide-react";
 import type { Trip } from "../types";
+import type { PanelPosition, TripPanelActions } from "./SplitMapShell";
 import { TripCoverEditor } from "./TripCoverEditor";
+import { ThemeToggleMenuItem } from "./system/ThemeToggle";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -13,11 +15,29 @@ import {
 } from "./ui/dialog";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+
+const PANEL_LABELS: Record<PanelPosition, string> = {
+  bottom: "하단",
+  left: "좌측",
+  right: "우측",
+  floating: "플로팅",
+};
+
+function panelPosition(value: string): value is PanelPosition {
+  return value === "bottom" || value === "left" || value === "right" || value === "floating";
+}
 
 function hasUnsavedChanges(trip: Trip, spotId: string, imageDataUrl: string) {
   return (trip.cover?.spotId ?? "") !== spotId || (trip.cover?.imageDataUrl ?? "") !== imageDataUrl;
@@ -28,11 +48,13 @@ export function TripActionsMenu({
   onSave,
   onExport,
   saving,
+  panelActions,
 }: {
   trip: Trip;
   onSave: (trip: Trip) => void;
   onExport: () => void;
   saving: boolean;
+  panelActions?: TripPanelActions;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -53,6 +75,7 @@ export function TripActionsMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="trip-actions-menu">
+          <DropdownMenuLabel>여행</DropdownMenuLabel>
           <DropdownMenuItem onSelect={() => setEditorOpen(true)}>
             <Image aria-hidden="true" />
             대표 화면 설정
@@ -62,6 +85,34 @@ export function TripActionsMenu({
             <Download aria-hidden="true" />
             여행 내보내기 (.json)
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>화면</DropdownMenuLabel>
+          {panelActions?.isWide && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <PanelsTopLeft aria-hidden="true" />
+                일정 패널
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="trip-panel-menu">
+                <DropdownMenuCheckboxItem
+                  checked={!panelActions.panelHidden}
+                  onCheckedChange={(checked) => panelActions.setPanelVisible(checked === true)}
+                >
+                  일정 목록 표시
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuRadioGroup
+                  value={panelActions.position}
+                  onValueChange={(value) => { if (panelPosition(value)) panelActions.choosePosition(value); }}
+                >
+                  {(Object.keys(PANEL_LABELS) as PanelPosition[]).map((position) => (
+                    <DropdownMenuRadioItem key={position} value={position}>{PANEL_LABELS[position]}</DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
+          <ThemeToggleMenuItem />
         </DropdownMenuContent>
       </DropdownMenu>
 
