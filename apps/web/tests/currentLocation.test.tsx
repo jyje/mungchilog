@@ -260,4 +260,38 @@ describe("current location control", () => {
     fireEvent.click(screen.getByRole("button", { name: "중지" }));
     expect(stopSharing).toHaveBeenCalledTimes(1);
   });
+
+  it("selects and clears a shared participant marker without changing its order", () => {
+    vi.stubEnv("VITE_GOOGLE_MAPS_API_KEY", "synthetic-test-key");
+    const onFocusSharedLocation = vi.fn();
+    const props = {
+      spots: [],
+      date: "2026-09-07",
+      timezone: "Asia/Seoul",
+      legPreferences: [],
+      selection: null,
+      onSelect: vi.fn(),
+      sharedLocations: [{
+        userId: "other",
+        name: "동행자",
+        lat: 37.5,
+        lng: 127,
+        accuracy: 12,
+        measuredAt: NOW,
+      }],
+      onFocusSharedLocation,
+    } satisfies React.ComponentProps<typeof TripMap>;
+    const { rerender } = renderWithTooltips(<TripMap {...props} focusedSharedUserId={null} />);
+
+    const marker = screen.getByRole("button", { name: "동행자 위치 보기" });
+    expect(marker).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(marker);
+    expect(onFocusSharedLocation).toHaveBeenLastCalledWith("other");
+
+    rerender(<TooltipProvider delayDuration={0}><TripMap {...props} focusedSharedUserId="other" /></TooltipProvider>);
+    const selectedMarker = screen.getByRole("button", { name: "동행자 위치 보기" });
+    expect(selectedMarker).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(selectedMarker);
+    expect(onFocusSharedLocation).toHaveBeenLastCalledWith(null);
+  });
 });

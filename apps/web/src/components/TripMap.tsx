@@ -153,7 +153,7 @@ export function TripMap({
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
   sharedLocations?: SharedMapLocation[];
   focusedSharedUserId?: string | null;
-  onFocusSharedLocation?: (userId: string) => void;
+  onFocusSharedLocation?: (userId: string | null) => void;
   locationSharing?: TripLocationSharingController;
   onOpenLocationSharing?: () => void;
 }) {
@@ -226,7 +226,7 @@ function MapContent({
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
   sharedLocations: SharedMapLocation[];
   focusedSharedUserId: string | null;
-  onFocusSharedLocation?: (userId: string) => void;
+  onFocusSharedLocation?: (userId: string | null) => void;
   locationSharing?: TripLocationSharingController;
   onOpenLocationSharing?: () => void;
 }) {
@@ -294,7 +294,7 @@ function LocationSharingFallback({ controller, onOpenDetails }: {
 function SharedLocationMarkers({ locations, focusedUserId, onFocus }: {
   locations: SharedMapLocation[];
   focusedUserId: string | null;
-  onFocus?: (userId: string) => void;
+  onFocus?: (userId: string | null) => void;
 }) {
   const map = useMap();
   const insets = useMapViewportInsets();
@@ -311,9 +311,8 @@ function SharedLocationMarkers({ locations, focusedUserId, onFocus }: {
       const selected = location.userId === focusedUserId;
       const initials = (location.name?.trim().slice(0, 1) || "동").toUpperCase();
       return <AdvancedMarker key={location.userId} position={{ lat: location.lat, lng: location.lng }}
-        title={`${location.name ?? "동행자"} · 오차 약 ${Math.ceil(location.accuracy)}m`}
-        onClick={() => onFocus?.(location.userId)}>
-        <Button type="button" variant={selected ? "secondary" : "ghost"} size="icon-lg" className={`shared-location-marker${selected ? " selected" : ""}`} aria-label={`${location.name ?? "동행자"} 위치 보기`} aria-pressed={selected} onClick={() => onFocus?.(location.userId)}>{initials}</Button>
+        title={`${location.name ?? "동행자"} · 오차 약 ${Math.ceil(location.accuracy)}m`}>
+        <Button type="button" variant={selected ? "secondary" : "ghost"} size="icon-lg" className={`shared-location-marker${selected ? " selected" : ""}`} aria-label={`${location.name ?? "동행자"} 위치 보기`} aria-pressed={selected} onClick={() => onFocus?.(selected ? null : location.userId)}>{initials}</Button>
       </AdvancedMarker>;
     })}
   </>;
