@@ -1,14 +1,18 @@
 import { useState } from "react";
-import type { Spot } from "../types";
+import type { Spot, SpotTimeKind } from "../types";
 import { PlaceAutocompleteInput, type PlaceSelection } from "./PlaceAutocompleteInput";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { Input } from "./ui/input";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 
 export type SpotFormValues = {
   name: string;
   nameLocal?: string;
   plannedArrival?: string;
+  timeKind?: SpotTimeKind;
+  dwellMinutes?: number;
   note?: string;
   placeId?: string;
   lat?: number;
@@ -35,7 +39,7 @@ export function SpotForm({
   onSubmit,
   onCancel,
 }: {
-  initial?: Pick<Spot, "name" | "nameLocal" | "plannedArrival" | "note" | "placeId" | "lat" | "lng" | "category">;
+  initial?: Pick<Spot, "name" | "nameLocal" | "plannedArrival" | "timeKind" | "dwellMinutes" | "note" | "placeId" | "lat" | "lng" | "category">;
   initialLocation?: CoordinateSelection;
   initialPlace?: PlaceSelection;
   submitLabel?: string;
@@ -45,6 +49,11 @@ export function SpotForm({
   const [name, setName] = useState(initial?.name ?? initialPlace?.name ?? "");
   const [nameLocal, setNameLocal] = useState(initial?.nameLocal ?? "");
   const [plannedArrival, setPlannedArrival] = useState(initial?.plannedArrival ?? "");
+  const [timeChoice, setTimeChoice] = useState<"NONE" | SpotTimeKind>(
+    initial?.plannedArrival ? initial.timeKind ?? "APPROXIMATE" : "NONE",
+  );
+  const [dwellMinutes, setDwellMinutes] = useState(initial?.dwellMinutes?.toString() ?? "");
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [note, setNote] = useState(initial?.note ?? "");
   const [picked, setPicked] = useState<SelectedLocation | null>(
     initial?.placeId
@@ -80,13 +89,25 @@ export function SpotForm({
 
   function submit() {
     if (!name.trim()) return;
+    if (timeChoice !== "NONE" && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(plannedArrival)) {
+      setScheduleError("일정 시각을 24시간제로 입력해주세요.");
+      return;
+    }
+    const parsedDwell = dwellMinutes === "" ? undefined : Number(dwellMinutes);
+    if (timeChoice !== "NONE" && (parsedDwell != null && (!Number.isInteger(parsedDwell) || parsedDwell < 0))) {
+      setScheduleError("머무는 시간은 0 이상의 분 단위 정수여야 합니다.");
+      return;
+    }
+    setScheduleError(null);
     const matchedPlace = picked?.kind === "place" && picked.name === name;
     const coordinates = picked?.kind === "coordinate" || matchedPlace ? picked : null;
     const hasCoordinates = coordinates != null && Number.isFinite(coordinates.lat) && Number.isFinite(coordinates.lng);
     onSubmit({
       name: name.trim(),
       nameLocal: nameLocal.trim() || undefined,
-      plannedArrival: plannedArrival || undefined,
+      plannedArrival: timeChoice === "NONE" ? undefined : plannedArrival,
+      timeKind: timeChoice === "NONE" ? undefined : timeChoice,
+      dwellMinutes: timeChoice === "NONE" ? undefined : parsedDwell,
       note: note.trim() || undefined,
       placeId: matchedPlace ? picked.placeId : undefined,
       lat: hasCoordinates ? coordinates.lat : undefined,
@@ -114,12 +135,51 @@ export function SpotForm({
         </div>
       )}
       <input type="text" placeholder="현지어 이름 (선택)" value={nameLocal} onChange={(e) => setNameLocal(e.target.value)} />
-      <input
-        type="time"
-        className="spot-time-input"
-        value={plannedArrival}
-        onChange={(e) => setPlannedArrival(e.target.value)}
-      />
+      <fieldset className="spot-schedule-editor">
+        <legend>일정 시각</legend>
+        <RadioGroup
+          className="spot-time-kind"
+          value={timeChoice}
+          onValueChange={(value) => {
+            setTimeChoice(value as "NONE" | SpotTimeKind);
+            setScheduleError(null);
+          }}
+          aria-label="일정 시각 유형"
+        >
+          <label><RadioGroupItem value="NONE" /> 시간 미정</label>
+          <label><RadioGroupItem value="APPROXIMATE" /> 대략적인 시각</label>
+          <label><RadioGroupItem value="RESERVATION" /> 예약 시각</label>
+        </RadioGroup>
+        {timeChoice !== "NONE" && (
+          <div className="spot-schedule-fields">
+            <label>
+              <span>{timeChoice === "RESERVATION" ? "예약 시각" : "예상 시각"}</span>
+              <Input
+                type="time"
+                className="spot-time-input"
+                value={plannedArrival}
+                onChange={(event) => { setPlannedArrival(event.target.value); setScheduleError(null); }}
+                aria-label={timeChoice === "RESERVATION" ? "예약 시각 입력" : "예상 시각 입력"}
+                aria-invalid={!!scheduleError}
+                aria-describedby={scheduleError ? "spot-schedule-error" : undefined}
+              />
+            </label>
+            <label>
+              <span>머무는 시간 (분, 선택)</span>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="15"
+                value={dwellMinutes}
+                onChange={(event) => { setDwellMinutes(event.target.value); setScheduleError(null); }}
+                aria-invalid={!!scheduleError}
+              />
+            </label>
+          </div>
+        )}
+        {scheduleError && <p id="spot-schedule-error" className="spot-schedule-error" role="alert">{scheduleError}</p>}
+      </fieldset>
       <MarkdownEditor value={note} onChange={setNote} rows={3} placeholder="메모 (선택) - 마크다운으로 적을 수 있어요" />
       <div className="add-spot-row">
         <Button type="button" onClick={submit} disabled={!name.trim()}>

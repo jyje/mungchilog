@@ -94,3 +94,51 @@ describe("coordinate spot form", () => {
     }));
   });
 });
+
+describe("spot schedule editor", () => {
+  it("presents legacy times as approximate and preserves their meaning explicitly", () => {
+    const onSubmit = vi.fn();
+    render(
+      <SpotForm
+        initial={{ name: "미술관", plannedArrival: "10:30" }}
+        submitLabel="저장"
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("radio", { name: "대략적인 시각" })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      plannedArrival: "10:30",
+      timeKind: "APPROXIMATE",
+    }));
+  });
+
+  it("saves a reservation time and visit duration after explicit selection", () => {
+    const onSubmit = vi.fn();
+    render(<SpotForm initial={{ name: "저녁 예약" }} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("radio", { name: "예약 시각" }));
+    fireEvent.change(screen.getByLabelText("예약 시각 입력"), { target: { value: "19:00" } });
+    fireEvent.change(screen.getByLabelText("머무는 시간 (분, 선택)"), { target: { value: "90" } });
+    fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      plannedArrival: "19:00",
+      timeKind: "RESERVATION",
+      dwellMinutes: 90,
+    }));
+  });
+
+  it("keeps the form open and explains a missing selected time", () => {
+    const onSubmit = vi.fn();
+    render(<SpotForm initial={{ name: "열차" }} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("radio", { name: "예약 시각" }));
+    fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("일정 시각을 24시간제로 입력해주세요.");
+  });
+});

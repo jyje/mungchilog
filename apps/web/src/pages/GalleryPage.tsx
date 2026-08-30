@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Bell, CalendarDays, Clock3, Crosshair, MapPin, MapPinned, MoreVertical, Navigation, Plus, RotateCcw, Route, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -48,6 +49,7 @@ function GallerySection({ title, description, children }: { title: string; descr
 export function GalleryPage() {
   const [sharing, setSharing] = useState(false);
   const [routeMode, setRouteMode] = useState("transit");
+  const [scheduleKind, setScheduleKind] = useState("RESERVATION");
 
   return (
     <main className="component-gallery mx-auto min-h-dvh w-full max-w-6xl space-y-6 bg-background py-8 text-foreground">
@@ -237,6 +239,27 @@ export function GalleryPage() {
             </TabsContent>
           </Tabs>
         </div>
+
+        <fieldset className="spot-schedule-editor mt-5">
+          <legend>일정 시각 편집 예시</legend>
+          <RadioGroup className="spot-time-kind" value={scheduleKind} onValueChange={setScheduleKind} aria-label="일정 시각 유형 예시">
+            <label><RadioGroupItem value="NONE" /> 시간 미정</label>
+            <label><RadioGroupItem value="APPROXIMATE" /> 대략적인 시각</label>
+            <label><RadioGroupItem value="RESERVATION" /> 예약 시각</label>
+          </RadioGroup>
+          {scheduleKind !== "NONE" && (
+            <div className="spot-schedule-fields">
+              <label>
+                <span>{scheduleKind === "RESERVATION" ? "예약 시각" : "예상 시각"}</span>
+                <Input type="time" defaultValue="10:00" />
+              </label>
+              <label>
+                <span>머무는 시간 (분, 선택)</span>
+                <Input type="number" inputMode="numeric" min="0" step="15" defaultValue="45" />
+              </label>
+            </div>
+          )}
+        </fieldset>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3" aria-label="Planner loading, empty, and error states">
           <div className="space-y-3 rounded-xl border p-4" role="status" aria-label="Planner loading state">
