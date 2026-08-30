@@ -15,6 +15,7 @@ import { MarkdownEditor } from "../components/MarkdownEditor";
 import { TripShareButton } from "../components/TripShareButton";
 import { useTripLocationSharing, type SharedLocationWithName } from "../hooks/useTripLocationSharing";
 import { TripActionsMenu } from "../components/TripActionsMenu";
+import { DateAddSplitButton } from "../components/system/DateAddSplitButton";
 import { Button } from "../components/ui/button";
 import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
 import type { PersistedLegMode } from "../types";
@@ -212,7 +213,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     setCustomDate(defaultNewDayDate());
     setDateError(null);
     setEditingDate(null);
-    setDateAddOpen((open) => !open);
+    setDateAddOpen(true);
   }
 
   function openDateEditor(date: string) {
@@ -473,22 +474,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     {formatScheduleDate(d.date)}
                   </Button>
                 ))}
-                <div className="day-add-group">
-                  <Button type="button" variant="outline" className="day-add" onClick={addDay}>
-                    + 날짜
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon-lg"
-                    className="day-add-arrow"
-                    aria-label="특정 날짜 추가"
-                    aria-expanded={dateAddOpen}
-                    onClick={openDateAdd}
-                  >
-                    ▾
-                  </Button>
-                </div>
+                <DateAddSplitButton onAddDay={addDay} onOpenDateAdd={openDateAdd} />
                 {day && (
                   <Button type="button" variant="ghost" size="icon-lg" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
                     ⋮
