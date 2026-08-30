@@ -1005,8 +1005,12 @@ body.panel-resizing {
   font-weight: 400;
 }
 .floating-resize-handle {
+  /* Keep every resize affordance comfortably hittable on touch screens.
+     The visual edge stays narrow, while the transparent hit area is 44px. */
   position: absolute;
   z-index: 4;
+  min-width: 44px;
+  min-height: 44px;
   border: none;
   background: transparent;
   padding: 0;
@@ -1016,36 +1020,36 @@ body.panel-resizing {
 .floating-resize-bottom {
   right: 10px;
   left: 10px;
-  height: 12px;
+  height: 44px;
   cursor: row-resize;
 }
-.floating-resize-top { top: -6px; }
-.floating-resize-bottom { bottom: -6px; }
+.floating-resize-top { top: -22px; }
+.floating-resize-bottom { bottom: -22px; }
 .floating-resize-left,
 .floating-resize-right {
   top: 10px;
   bottom: 10px;
-  width: 12px;
+  width: 44px;
   cursor: col-resize;
 }
-.floating-resize-left { left: -6px; }
-.floating-resize-right { right: -6px; }
+.floating-resize-left { left: -22px; }
+.floating-resize-right { right: -22px; }
 .floating-resize-top-left,
 .floating-resize-bottom-right,
 .floating-resize-top-right,
 .floating-resize-bottom-left {
-  width: 18px;
-  height: 18px;
+  width: 44px;
+  height: 44px;
 }
-.floating-resize-top-left { top: -8px; left: -8px; cursor: nwse-resize; }
-.floating-resize-bottom-right { right: -8px; bottom: -8px; cursor: nwse-resize; }
-.floating-resize-top-right { top: -8px; right: -8px; cursor: nesw-resize; }
-.floating-resize-bottom-left { bottom: -8px; left: -8px; cursor: nesw-resize; }
+.floating-resize-top-left { top: -22px; left: -22px; cursor: nwse-resize; }
+.floating-resize-bottom-right { right: -22px; bottom: -22px; cursor: nwse-resize; }
+.floating-resize-top-right { top: -22px; right: -22px; cursor: nesw-resize; }
+.floating-resize-bottom-left { bottom: -22px; left: -22px; cursor: nesw-resize; }
 .floating-resize-bottom-right {
-  width: 3rem;
-  height: 3rem;
-  right: 0;
-  bottom: 0;
+  width: 44px;
+  height: 44px;
+  right: -22px;
+  bottom: -22px;
   background: linear-gradient(135deg, transparent 68%, var(--border) 69%, var(--border) 74%, transparent 75%);
 }
 body.trip-panel-dragging,
