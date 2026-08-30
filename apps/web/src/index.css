@@ -463,28 +463,6 @@ ul {
   border-color: var(--accent);
   font-weight: 600;
 }
-.day-add {
-  color: var(--accent) !important;
-  border-style: dashed !important;
-}
-.day-add-group {
-  display: flex;
-  flex: none;
-}
-.day-tabs .day-add-group button {
-  border-radius: 0;
-}
-.day-tabs .day-add-group .day-add {
-  border-radius: 999px 0 0 999px;
-  border-right: 0;
-}
-.day-tabs .day-add-arrow {
-  min-width: 44px;
-  padding: 0.6rem;
-  border-style: dashed;
-  border-radius: 0 999px 999px 0;
-  color: var(--accent);
-}
 .day-tabs .day-manage {
   min-width: 44px;
   padding: 0.6rem;
