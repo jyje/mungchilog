@@ -1,6 +1,7 @@
 import { Polyline } from "@vis.gl/react-google-maps";
 import { useLeg } from "../hooks/useLeg";
-import type { LegPreference, PersistedLegMode, Spot } from "../types";
+import { isLegacyLegMode, legPreferenceFor, selectedRouteIndex } from "../legPreferences";
+import type { LegPreference, Spot } from "../types";
 import type { ItinerarySelection } from "./TripMap";
 
 // Direction arrows repeated along the line, not just an arrowhead at the
@@ -140,9 +141,7 @@ function RouteLeg({
   to,
   date,
   timezone,
-  mode,
-  routeIndex,
-  trafficAware,
+  preference,
   selected,
   hasSelection,
   onSelect,
@@ -151,20 +150,21 @@ function RouteLeg({
   to: Spot;
   date: string;
   timezone: string;
-  mode: PersistedLegMode;
-  routeIndex: number;
-  trafficAware: boolean;
+  preference: LegPreference;
   selected: boolean;
   hasSelection: boolean;
   onSelect: () => void;
 }) {
-  const { data: leg } = useLeg(from, to, mode, trafficAware, date, timezone);
-  const selectedRoute = leg?.routes[Math.min(routeIndex, Math.max(0, (leg?.routes.length ?? 1) - 1))];
+  const mode = preference.mode;
+  const { data: leg } = useLeg(from, to, mode, preference.trafficAware, date, timezone, preference.timing);
+  // Resolve by fingerprint, not position: the provider may reorder
+  // alternatives between cache refreshes.
+  const selectedRoute = leg?.routes[selectedRouteIndex(leg?.routes, preference)];
   const strokeColor = selected ? "#f59e0b" : "#7dd3fc";
   const strokeOpacity = selected ? 1 : hasSelection ? 0.28 : 0.85;
   const strokeWeight = selected ? 7 : 4;
 
-  if (mode !== "DIRECT" && selectedRoute?.polyline) {
+  if (!isLegacyLegMode(mode) && selectedRoute?.polyline) {
     // Real road/rail-following route from the Routes API - what "the
     // route between stops" actually means once a server key exists.
     return (
@@ -203,7 +203,7 @@ function RouteLeg({
       strokeColor={strokeColor}
       strokeOpacity={selected ? 1 : hasSelection ? 0.2 : 0.7}
       strokeWeight={strokeWeight}
-      icons={mode === "DIRECT" || selected ? [] : [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.6, scale: 3 }, offset: "0", repeat: "10px" }]}
+      icons={isLegacyLegMode(mode) || selected ? [] : [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.6, scale: 3 }, offset: "0", repeat: "10px" }]}
       onClick={onSelect}
     />
   );
@@ -237,9 +237,7 @@ export function RouteOverlay({
           to={sorted[i + 1]}
           date={date}
           timezone={timezone}
-          mode={legPreferences.find((preference) => preference.fromSpotId === spot.id && preference.toSpotId === sorted[i + 1].id)?.mode ?? "TRANSIT"}
-          routeIndex={legPreferences.find((preference) => preference.fromSpotId === spot.id && preference.toSpotId === sorted[i + 1].id)?.routeIndex ?? 0}
-          trafficAware={legPreferences.find((preference) => preference.fromSpotId === spot.id && preference.toSpotId === sorted[i + 1].id)?.trafficAware ?? false}
+          preference={legPreferenceFor(legPreferences, spot.id, sorted[i + 1].id)}
           selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
           hasSelection={selection !== null}
           onSelect={() => onSelect({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}

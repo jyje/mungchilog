@@ -18,7 +18,7 @@ import { TripActionsMenu } from "../components/TripActionsMenu";
 import { DateAddSplitButton } from "../components/system/DateAddSplitButton";
 import { Button } from "../components/ui/button";
 import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
-import type { PersistedLegMode } from "../types";
+import type { LegPreference, PersistedLegMode } from "../types";
 import type { Me } from "../api";
 import { downloadTripExchange } from "../tripExchange";
 import { PlaceDetailsPanel } from "../components/PlaceDetailsPanel";
@@ -459,13 +459,31 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     scheduleSave({ ...trip, days });
   }
 
-  function saveLegPreference(fromSpotId: string, toSpotId: string, mode: PersistedLegMode, routeIndex = 0, trafficAware = false) {
+  // One entry point for every leg edit. The caller sends only what changed;
+  // anything it leaves out keeps its saved value, except that changing the
+  // mode discards the previous route choice - an alternative belongs to the
+  // journey it came from, so carrying it across modes would point at an
+  // unrelated route.
+  function saveLegPreference(
+    fromSpotId: string,
+    toSpotId: string,
+    patch: Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware">> & { mode?: PersistedLegMode },
+  ) {
     if (!trip || !day) return;
     const previous = trip;
+    const current = legPreferenceFor(day.legPreferences, fromSpotId, toSpotId);
+    const mode = patch.mode ?? current.mode;
+    const modeChanged = mode !== current.mode;
+    const options = {
+      routeIndex: patch.routeIndex ?? (modeChanged ? 0 : current.routeIndex),
+      routeKey: patch.routeKey ?? (modeChanged ? undefined : current.routeKey),
+      timing: patch.timing ?? current.timing,
+      trafficAware: patch.trafficAware ?? current.trafficAware,
+    };
     const days = trip.days.map((candidate, index) => (
       index !== dayIndex
         ? candidate
-        : { ...candidate, legPreferences: replaceLegPreference(candidate.legPreferences, fromSpotId, toSpotId, mode, { routeIndex, trafficAware }) }
+        : { ...candidate, legPreferences: replaceLegPreference(candidate.legPreferences, fromSpotId, toSpotId, mode, options) }
     ));
     const next = { ...trip, days };
     qc.setQueryData(queryKey, next);
@@ -480,9 +498,6 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     });
   }
 
-  function setLegMode(fromSpotId: string, toSpotId: string, mode: PersistedLegMode) {
-    saveLegPreference(fromSpotId, toSpotId, mode);
-  }
 
   function toggleItem(spotId: string, itemId: string) {
     if (!trip) return;
@@ -678,14 +693,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                                   to={sorted[i + 1]}
                                   date={day.date}
                                   timezone={trip.timezone}
-                                  mode={preference.mode}
-                                  routeIndex={preference.routeIndex}
-                                  trafficAware={preference.trafficAware}
+                                  preference={preference}
                                   selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
                                   onSelect={() => selectItinerary({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
-                                  onModeChange={(mode) => setLegMode(spot.id, sorted[i + 1].id, mode)}
-                                  onRouteIndexChange={(routeIndex) => saveLegPreference(spot.id, sorted[i + 1].id, preference.mode, routeIndex, preference.trafficAware)}
-                                  onTrafficAwareChange={(trafficAware) => saveLegPreference(spot.id, sorted[i + 1].id, preference.mode, preference.routeIndex, trafficAware)}
+                                  onChange={(patch) => saveLegPreference(spot.id, sorted[i + 1].id, patch)}
                                 />;
                               })()}
                             </li>,
