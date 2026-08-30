@@ -151,6 +151,15 @@ h2 {
 button {
   font: inherit;
 }
+
+/* The development gallery renders primitives in several standalone and
+   nested contexts. Keep the neutral button variants tied to the product
+   foreground token instead of relying on whichever ancestor supplies color. */
+#root.gallery-root [data-slot="button"][data-variant="outline"],
+#root.gallery-root [data-slot="button"][data-variant="ghost"] {
+  color: var(--foreground);
+}
+
 button:active {
   transform: scale(0.97);
 }
