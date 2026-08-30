@@ -45,6 +45,8 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS places (
     place_id TEXT PRIMARY KEY,
     opening_hours TEXT,
+    details_json TEXT,
+    details_fetched_at TEXT,
     fetched_at TEXT NOT NULL
   );
 
@@ -111,6 +113,23 @@ export async function migrateLegRoutesColumn(database: Database, provider: DbPro
   const columns = await database.all<{ name: string }>("PRAGMA table_info(legs)");
   if (!columns.some((column) => column.name === "routes_json")) {
     await database.exec("ALTER TABLE legs ADD COLUMN routes_json TEXT");
+  }
+}
+
+export async function migratePlaceDetailsColumn(database: Database, provider: DbProvider) {
+  if (provider === "postgres") {
+    await database.exec(`
+      ALTER TABLE places ADD COLUMN IF NOT EXISTS details_json TEXT;
+      ALTER TABLE places ADD COLUMN IF NOT EXISTS details_fetched_at TEXT;
+    `);
+    return;
+  }
+  const columns = await database.all<{ name: string }>("PRAGMA table_info(places)");
+  if (!columns.some((column) => column.name === "details_json")) {
+    await database.exec("ALTER TABLE places ADD COLUMN details_json TEXT");
+  }
+  if (!columns.some((column) => column.name === "details_fetched_at")) {
+    await database.exec("ALTER TABLE places ADD COLUMN details_fetched_at TEXT");
   }
 }
 
@@ -234,6 +253,7 @@ async function createDatabase(): Promise<Database> {
     await database.exec(SCHEMA);
     await migrateUserIdentityColumns(database, provider);
     await migrateLegRoutesColumn(database, provider);
+    await migratePlaceDetailsColumn(database, provider);
     return database;
   }
 
@@ -247,6 +267,7 @@ async function createDatabase(): Promise<Database> {
   await database.exec(SCHEMA);
   await migrateUserIdentityColumns(database, provider);
   await migrateLegRoutesColumn(database, provider);
+  await migratePlaceDetailsColumn(database, provider);
   return database;
 }
 
