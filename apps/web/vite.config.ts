@@ -1,6 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { fileURLToPath, URL } from "node:url";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -9,6 +11,7 @@ export default defineConfig({
   envDir: "../..",
   plugins: [
     react(),
+    tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
@@ -33,8 +36,15 @@ export default defineConfig({
         // this exclusion Workbox returns the SPA shell for /auth/login and
         // /auth/callback, preventing the server from issuing or consuming
         // the OIDC session cookies.
-        navigateFallbackDenylist: [/^\/auth(?:\/|$)/],
+        navigateFallbackDenylist: [/^\/auth(?:\/|$)/, /^\/api(?:\/|$)/],
         runtimeCaching: [
+          {
+            // Location sharing is ephemeral. Workbox can cache responses
+            // despite HTTP no-store headers, so this must precede trips-api.
+            urlPattern: ({ url }) => /^\/api\/trips\/[^/]+\/location-sharing(?:\/|$)/.test(url.pathname),
+            handler: "NetworkOnly",
+            method: "GET",
+          },
           {
             urlPattern: /^\/api\/trips(\/.*)?$/,
             handler: "NetworkFirst",
@@ -49,6 +59,11 @@ export default defineConfig({
       },
     }),
   ],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   server: {
     proxy: {
       "/api": "http://localhost:3000",

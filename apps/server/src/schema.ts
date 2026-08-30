@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const MAX_COVER_IMAGE_BYTES = 2 * 1024 * 1024;
+export const DEFAULT_TIMEZONE = "Asia/Seoul";
 
 const IMAGE_DATA_URL = /^data:(image\/(?:jpeg|png|webp));base64,((?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?)$/;
 
@@ -78,14 +79,53 @@ export const SpotSchema = z.object({
   items: z.array(ItemSchema).default([]),
 });
 
-export const DaySchema = z.object({
-  date: z.string(), // "YYYY-MM-DD"
-  // Freeform markdown notes for the day as a whole (weather plan, packing
-  // reminders, "call the ryokan by noon") - separate from each spot's own
-  // `note`, which is scoped to that one stop.
-  note: z.string().optional(),
-  spots: z.array(SpotSchema).default([]),
+// This is a user decision for an itinerary edge, not the `legs` database
+// cache entry that stores a Google Routes response. Pairing both spot IDs
+// means reordering cannot accidentally apply a mode to a new destination.
+export const PersistedLegModeSchema = z.enum(["DIRECT", "TRANSIT", "DRIVE", "WALK"]);
+export const LegPreferenceSchema = z.object({
+  fromSpotId: z.string().min(1),
+  toSpotId: z.string().min(1),
+  mode: PersistedLegModeSchema,
+  routeIndex: z.number().int().min(0).max(3).default(0),
+  // Traffic-aware Routes requests use the higher Pro SKU. Keep this opt-in
+  // and meaningful only for road routes.
+  trafficAware: z.boolean().default(false),
 });
+
+export const DaySchema = z
+  .object({
+    date: z.string(), // "YYYY-MM-DD"
+    // Freeform markdown notes for the day as a whole (weather plan, packing
+    // reminders, "call the ryokan by noon") - separate from each spot's own
+    // `note`, which is scoped to that one stop.
+    note: z.string().optional(),
+    spots: z.array(SpotSchema).default([]),
+    // Omitted by all existing itineraries. Defaulting preserves their legacy
+    // TRANSIT display behavior until a person makes an explicit choice.
+    legPreferences: z.array(LegPreferenceSchema).default([]),
+  })
+  .superRefine((day, ctx) => {
+    const spotIds = new Set(day.spots.map((spot) => spot.id));
+    const pairs = new Set<string>();
+    day.legPreferences.forEach((preference, index) => {
+      const path = ["legPreferences", index];
+      if (preference.fromSpotId === preference.toSpotId) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "leg preference must connect two different spots" });
+      }
+      if (preference.trafficAware && preference.mode !== "DRIVE") {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "traffic-aware routing is only available for driving legs" });
+      }
+      if (!spotIds.has(preference.fromSpotId) || !spotIds.has(preference.toSpotId)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "leg preference spots must belong to the same day" });
+      }
+      const pair = `${preference.fromSpotId}:${preference.toSpotId}`;
+      if (pairs.has(pair)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "only one preference is allowed per directed leg" });
+      }
+      pairs.add(pair);
+    });
+  });
 
 export const TripDataSchema = z
   .object({
@@ -93,7 +133,9 @@ export const TripDataSchema = z
     // Any IANA timezone name (e.g. "Asia/Tokyo", "Europe/Paris",
     // "America/New_York"). Not locked to one destination - see
     // routes/legs.ts for how this drives route-time calculations.
-    timezone: z.string().default("Asia/Tokyo"),
+    // Empty legacy/offline values use Seoul rather than the server or
+    // browser timezone, which would make an imported itinerary ambiguous.
+    timezone: z.string().trim().default(DEFAULT_TIMEZONE).transform((value) => value || DEFAULT_TIMEZONE),
     currency: z.string().default("JPY"),
     startDate: z.string(),
     endDate: z.string(),

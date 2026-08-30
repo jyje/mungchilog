@@ -1,0 +1,51 @@
+/*
+ * App-owned map controls deliberately use one translucent surface in both
+ * themes. This distinguishes their compact vertical rail from Google Maps'
+ * native zoom, fullscreen, and Street View controls without covering them.
+ */
+.map-icon-button[data-slot="button"] {
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  color: var(--text);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--surface) 58%, transparent),
+    0 0.35rem 1rem color-mix(in srgb, var(--shadow-color) 68%, transparent);
+  backdrop-filter: blur(14px) saturate(1.08);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+}
+
+.map-icon-button[data-slot="button"]:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--border) 92%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  color: var(--text);
+}
+
+.map-icon-button[data-slot="button"]:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.map-icon-button[data-slot="button"][data-selected="true"] {
+  border-color: color-mix(in srgb, var(--accent) 75%, var(--surface));
+  background: color-mix(in srgb, var(--accent) 76%, transparent);
+  color: var(--accent-contrast);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--accent-contrast) 28%, transparent),
+    0 0.4rem 1rem color-mix(in srgb, var(--accent) 28%, var(--shadow-color));
+}
+
+.map-icon-button[data-slot="button"]:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .map-icon-button[data-slot="button"] {
+    background: var(--surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .map-icon-button[data-slot="button"][data-selected="true"] {
+    background: var(--accent);
+  }
+}

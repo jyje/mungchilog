@@ -1,7 +1,12 @@
+import { ChevronDown } from "lucide-react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { listTrips, deleteTrip } from "../api";
 import { MapsScope } from "../components/MapsScope";
 import { TripCoverMap } from "../components/TripCoverMap";
+import { BuildIdentity } from "../components/system/BuildIdentity";
+import { Button } from "../components/ui/button";
+import { ButtonGroup } from "../components/ui/button-group";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
 
 export function TripListPage({ navigate }: { navigate: (path: string) => void }) {
   const qc = useQueryClient();
@@ -24,8 +29,21 @@ export function TripListPage({ navigate }: { navigate: (path: string) => void })
             <p className="meta">내가 참여한 여행만 표시됩니다.</p>
           </div>
           <div className="trip-library-actions">
-            <a href="/new" onClick={(e) => { e.preventDefault(); navigate("/new"); }}>새 여행 만들기</a>
-            <a href="/import" onClick={(e) => { e.preventDefault(); navigate("/import"); }}>JSON 가져오기</a>
+            <ButtonGroup className="trip-new-trip-group">
+              <Button asChild variant="outline" className="trip-new-trip-primary">
+                <a href="/new" onClick={(e) => { e.preventDefault(); navigate("/new"); }}>새 여행 만들기</a>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon" aria-label="새 여행 만들기 옵션 더 보기">
+                    <ChevronDown aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="trip-actions-menu">
+                  <DropdownMenuItem onSelect={() => navigate("/import")}>JSON 가져오기</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </ButtonGroup>
           </div>
         </header>
         {error && <p className="error">{String((error as Error).message ?? error)}</p>}
@@ -73,6 +91,7 @@ export function TripListPage({ navigate }: { navigate: (path: string) => void })
             </article>
           ))}
         </div>
+        <BuildIdentity />
       </div>
     </MapsScope>
   );

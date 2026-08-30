@@ -90,3 +90,11 @@ auth:
 ```bash
 npm --prefix apps/server run dev:oidc
 ```
+
+Vite의 HMR 화면(`http://localhost:5173`)에서 같은 OIDC 흐름을 확인하려면 `.env`에 아래 값을 추가하고, 서버와 웹을 각각 실행합니다. IdP의 strict callback은 계속 `http://localhost:3000/auth/callback`으로 유지됩니다. 서버는 callback에서 세션을 만든 다음 브라우저만 Vite 화면으로 되돌립니다.
+
+```bash
+LOCAL_WEB_ORIGIN=http://localhost:5173
+npm --prefix apps/server run dev
+npm --prefix apps/web run dev
+```

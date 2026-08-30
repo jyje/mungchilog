@@ -2,7 +2,7 @@
 
 # jyje/mungchilog
 
-<img width="120" src="https://raw.githubusercontent.com/jyje/mungchilog/main/apps/web/public/pwa-512.png" alt="mungchilog" title="mungchilog"/>
+<img width="120" src="https://raw.githubusercontent.com/jyje/mungchilog/dev/apps/web/public/pwa-512.png" alt="mungchilog" title="mungchilog"/>
 
 **뭉치 + log**: a personal travel itinerary app with live Google Maps routing, for any destination
 
@@ -14,7 +14,9 @@
 
 mungchilog plans a trip's day-by-day route and shows it live on Google Maps while traveling: distance, transit time, and what to buy or eat at each stop. Not locked to one destination or timezone; the first trip it was built for happens to be Japan, but any IANA timezone works.
 
-Live at `https://mungchilog.app.jyje.online` (personal itinerary data, gated behind Basic Auth).
+For offline trip sharing, see [the portable trip JSON format](docs/trip-exchange.md).
+
+Live at `https://mungchilog.app.jyje.online` through OIDC sign-in.
 
 ## Features
 
@@ -33,11 +35,30 @@ Live at `https://mungchilog.app.jyje.online` (personal itinerary data, gated beh
 ## Development
 
 ```bash
-cd apps/server && npm install && npm run dev   # http://localhost:3000
-cd apps/web && npm install && npm run dev       # http://localhost:5173
+cp .env.sample .env
+npm --prefix apps/server install
+npm --prefix apps/web install
+npm --prefix apps/server run dev  # http://localhost:3000
+npm --prefix apps/web run dev     # http://localhost:5173, run in another shell
 ```
 
-Copy `.env.sample` to `.env` at the repo root for local Google Maps keys (optional: the app runs fine without them, map and routing UI just show a placeholder).
+The copied file is a safe local default: SQLite is enabled, OIDC stays disabled
+for the development-only pseudo-user, and Maps gracefully shows a placeholder.
+Uncomment the Maps variables after adding local referrer access to the browser
+key. For full Authentik validation, uncomment the OIDC block, add the ignored
+client secret, and register `http://localhost:3000/auth/callback` as a strict
+redirect URI. See [the Authentik guide](docs/authentik-setup.md) and
+[the Maps guide](docs/google-maps-setup.md).
+
+An ignored `.env` does not follow a Git worktree automatically. Reuse the
+primary checkout's file with a private local copy, or use a symlink when one
+shared source of truth is preferred:
+
+```bash
+install -m 600 /absolute/path/to/primary-checkout/.env .env
+# Or:
+ln -s /absolute/path/to/primary-checkout/.env .env
+```
 
 ### Container development
 
@@ -96,8 +117,22 @@ come from an existing Kubernetes Secret and are never chart values.
 
 Chart releases are OCI artifacts published to
 `oci://ghcr.io/jyje/charts/mungchilog`. Every chart source change must bump
-`charts/mungchilog/Chart.yaml` before merge. The main-branch release workflow
+`charts/mungchilog/Chart.yaml` before merge. The `prd` branch release workflow
 then packages and publishes that immutable version. Cluster GitOps
 configuration should consume the version rather than copying chart source.
+
+### Environment image packages
+
+Each environment has a separate GHCR package so release candidates and
+production releases remain easy to identify and retain independently:
+
+- Development: `ghcr.io/jyje/mungchilog-dev:r<run>-<sha>`
+- Staging: `ghcr.io/jyje/mungchilog-stg:r<run>-<sha>`
+- Production: `ghcr.io/jyje/mungchilog:v<major>.<minor>.<patch>` and
+  `ghcr.io/jyje/mungchilog:v<major>.<minor>.<patch>-r<run>-<sha>`
+
+Promotion copies the verified multi-architecture OCI manifest from development
+to staging and then production. It does not rebuild the image. GitOps must pin
+an explicit production version or immutable digest and never use `latest`.
 
 See [`PLAN.md`](PLAN.md) for architecture decisions and [`TASK.md`](TASK.md) for the milestone checklist.
