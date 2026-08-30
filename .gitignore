@@ -11,3 +11,6 @@ dist/
 
 # local dev SQLite db
 apps/server/data/
+# same db, created here when the server runs with the repo root as cwd
+# instead of apps/server/
+/data/
