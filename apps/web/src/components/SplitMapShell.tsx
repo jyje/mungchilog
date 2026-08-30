@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { List } from "lucide-react";
 import { Button } from "./ui/button";
+import { ThemeMenu } from "./system/ThemeMenu";
 import { MapViewportProvider, type MapViewportInsets } from "./MapViewportContext";
 import { closestSheetState, mapViewportInsets, SHEET_LABELS, SHEET_STATES, type SheetState } from "./mapViewportGeometry";
 
@@ -360,6 +361,7 @@ export function SplitMapShell({
             {subtitle && <p className="meta">{subtitle}</p>}
           </div>
           <div className="trip-header-actions">
+            <ThemeMenu className="menu-button theme-menu-trigger" />
             <div className="menu-anchor">
               <Button ref={menuButtonRef} type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="일정 목록 보기 설정" title="일정 목록 보기 설정" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>
                 <List aria-hidden="true" />

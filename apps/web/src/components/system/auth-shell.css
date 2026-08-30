@@ -76,6 +76,13 @@
   padding: clamp(1.5rem, 5vw, 5rem);
 }
 
+.auth-theme-menu[data-slot="button"] {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  right: max(1rem, env(safe-area-inset-right));
+  z-index: 1;
+}
+
 .auth-shell-panel-inner {
   width: min(100%, 27rem);
   margin: 0 auto;

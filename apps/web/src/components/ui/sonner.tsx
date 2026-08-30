@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 // Upstream shadcn wires this to next-themes' useTheme(). This app already
-// owns theme state itself (see ThemeToggle.tsx, which toggles a `dark`
+// owns theme state itself (see ThemeMenu.tsx, which toggles a `dark`
 // class on <html>) - reusing that single source of truth instead of adding
 // a second theme provider that duplicates it.
 function isDarkNow() {

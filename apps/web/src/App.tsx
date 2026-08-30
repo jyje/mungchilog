@@ -8,7 +8,6 @@ import { NewTripPage } from "./pages/NewTripPage";
 import { LoginPage } from "./pages/LoginPage";
 import { PendingPage } from "./pages/PendingPage";
 import { AdminPage } from "./pages/AdminPage";
-import { ThemeToggle } from "./components/ThemeToggle";
 import { AppNav } from "./components/AppNav";
 import { Toaster } from "./components/ui/sonner";
 import { GalleryPage } from "./pages/GalleryPage";
@@ -86,7 +85,6 @@ export default function App() {
         <>
           <AppNav me={me} navigate={navigate} />
           {page}
-          <ThemeToggle />
         </>
       );
     }

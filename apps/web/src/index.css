@@ -12,7 +12,7 @@
  * Theme tokens: light is the bare :root default. Dark applies either from
  * the OS (prefers-color-scheme, unless the user picked "light" explicitly
  * via [data-theme="light"]) or from an explicit user choice
- * ([data-theme="dark"], set by ThemeToggle.tsx / the boot script in
+ * ([data-theme="dark"], set by ThemeMenu.tsx / the boot script in
  * index.html). Both dark blocks repeat the same values on purpose - the
  * explicit block is what lets a user's choice win over the OS setting.
  */
@@ -113,25 +113,6 @@ body {
       background-color 0.15s ease,
       color 0.15s ease;
   }
-}
-
-.theme-toggle {
-  position: fixed;
-  top: max(0.75rem, env(safe-area-inset-top));
-  right: max(0.75rem, env(safe-area-inset-right));
-  z-index: 50;
-  width: 40px;
-  height: 40px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 1.1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  box-shadow: 0 2px 10px var(--shadow-color);
 }
 
 #root {

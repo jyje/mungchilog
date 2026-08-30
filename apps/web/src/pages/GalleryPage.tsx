@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MapIconButton } from "@/components/system/MapIconButton";
 import { MapControlRail } from "@/components/system/MapControlRail";
+import { ThemeMenu } from "@/components/system/ThemeMenu";
 import { GalleryStoryboard } from "./gallery/GalleryStoryboard";
 
 function GallerySection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
@@ -35,7 +36,8 @@ export function GalleryPage() {
 
   return (
     <main className="mx-auto w-full max-w-6xl space-y-6 py-8">
-      <header className="space-y-2 border-b pb-6">
+      <header className="relative space-y-2 border-b pb-6">
+        <ThemeMenu className="gallery-theme-menu" />
         <p className="text-sm font-medium text-primary">Development only</p>
         <h1 className="m-0 text-3xl">Component gallery</h1>
         <p className="max-w-2xl text-muted-foreground">Mungchilog uses shadcn primitives directly. Product wrappers are reserved for reusable interaction contracts, such as map controls.</p>
