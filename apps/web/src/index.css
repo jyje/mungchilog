@@ -2326,6 +2326,110 @@ input[type="text"]::placeholder {
   cursor: pointer;
 }
 .shared-location-marker.selected { outline: 3px solid #facc15; outline-offset: 2px; }
+.place-discovery-marker {
+  border: 3px solid var(--surface);
+  border-radius: 999px;
+  color: var(--accent);
+  box-shadow: 0 0 0 3px #facc15, 0 0.25rem 0.8rem rgba(20, 21, 26, 0.3);
+}
+.place-details-empty,
+.place-details-card {
+  display: flex;
+  min-height: 18rem;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+.place-details-empty {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.place-details-empty > svg {
+  width: 2rem;
+  height: 2rem;
+  color: var(--accent);
+}
+.place-details-empty h2,
+.place-details-card h2,
+.place-details-card h3 {
+  margin: 0;
+}
+.place-details-empty p {
+  max-width: 32rem;
+  margin: 0;
+  color: var(--text-muted);
+}
+.place-details-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.place-details-heading h2 {
+  margin-top: 0.45rem;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+.place-details-address,
+.place-details-rating,
+.place-details-links a {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0;
+}
+.place-details-address {
+  color: var(--text-muted);
+}
+.place-details-address svg,
+.place-details-links svg {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.15rem;
+  flex: none;
+}
+.place-details-rating {
+  align-items: center;
+  color: #a16207;
+  font-weight: 700;
+}
+.dark .place-details-rating { color: #fde047; }
+.place-details-rating span {
+  color: var(--text-muted);
+  font-size: var(--type-small);
+  font-weight: 500;
+}
+.place-details-hours h3 {
+  font-size: var(--type-label);
+}
+.place-details-hours ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.15rem;
+  color: var(--text-muted);
+  font-size: var(--type-small);
+}
+.place-details-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  font-size: var(--type-small);
+}
+.place-details-add {
+  width: 100%;
+  margin-top: auto;
+}
+.place-details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
 .location-sharing-map-status {
   display: grid;
   grid-template-columns: minmax(0, 18rem) auto;

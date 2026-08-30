@@ -1,6 +1,6 @@
 import { Component, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Map, AdvancedMarker, Pin, useMap, useApiLoadingStatus, APILoadingStatus } from "@vis.gl/react-google-maps";
-import { MapPinPlus, X } from "lucide-react";
+import { MapPin, MapPinPlus, X } from "lucide-react";
 import type { LegPreference, Spot } from "../types";
 import { RouteOverlay } from "./RouteOverlay";
 import { CurrentLocation, CurrentLocationControl } from "./CurrentLocation";
@@ -14,6 +14,7 @@ import { LocationSharingMapStatus } from "./LocationSharingMapStatus";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "./ui/context-menu";
 
 export type MapPoint = { lat: number; lng: number };
+export type MapPlaceSelection = MapPoint & { placeId: string };
 
 const DEFAULT_CENTER = { lat: 35.6812, lng: 139.7671 }; // Tokyo Station, fallback only
 
@@ -116,6 +117,21 @@ function FocusSelection({ selection, spots }: { selection: ItinerarySelection; s
   return null;
 }
 
+function FocusPlaceSelection({ selection }: { selection: MapPlaceSelection | null }) {
+  const map = useMap();
+  const insets = useMapViewportInsets();
+  const lastPlaceId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!map || !selection || lastPlaceId.current === selection.placeId) return;
+    lastPlaceId.current = selection.placeId;
+    map.setZoom(Math.max(map.getZoom() ?? 13, 16));
+    panToVisibleCenter(map, selection, insets);
+  }, [insets, map, selection]);
+
+  return null;
+}
+
 // Layout changes preserve the existing focal point, including a manually
 // explored location. They must not reselect or rezoom the itinerary.
 function PreserveVisibleCenter() {
@@ -151,6 +167,8 @@ export function TripMap({
   pointPickActive = false,
   onPickPoint,
   onCancelPointPick,
+  selectedPlace = null,
+  onSelectPlace,
 }: {
   spots: Spot[];
   date: string;
@@ -166,6 +184,8 @@ export function TripMap({
   pointPickActive?: boolean;
   onPickPoint?: (point: MapPoint) => void;
   onCancelPointPick?: () => void;
+  selectedPlace?: MapPlaceSelection | null;
+  onSelectPlace?: (place: MapPlaceSelection) => void;
 }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
   // Numbered in visiting order (spot.order), not raw array order, so the
@@ -209,10 +229,17 @@ export function TripMap({
                   if (event.detail.latLng) setContextPoint(event.detail.latLng);
                 }}
                 onClick={(event) => {
-                  if (pointPickActive && event.detail.latLng) onPickPoint?.(event.detail.latLng);
+                  if (pointPickActive && event.detail.latLng) {
+                    onPickPoint?.(event.detail.latLng);
+                    return;
+                  }
+                  if (event.detail.placeId && event.detail.latLng) {
+                    event.stop();
+                    onSelectPlace?.({ placeId: event.detail.placeId, ...event.detail.latLng });
+                  }
                 }}
               >
-                <MapContent spots={spots} located={located} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} sharedLocations={sharedLocations} focusedSharedUserId={focusedSharedUserId} onFocusSharedLocation={onFocusSharedLocation} locationSharing={locationSharing} onOpenLocationSharing={onOpenLocationSharing} />
+                <MapContent spots={spots} located={located} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} selectedPlace={selectedPlace} onSelectPlace={onSelectPlace} sharedLocations={sharedLocations} focusedSharedUserId={focusedSharedUserId} onFocusSharedLocation={onFocusSharedLocation} locationSharing={locationSharing} onOpenLocationSharing={onOpenLocationSharing} />
               </Map>
             </MapFailureBoundary>
           </div>
@@ -249,6 +276,8 @@ function MapContent({
   legPreferences,
   selection,
   onSelect,
+  selectedPlace,
+  onSelectPlace,
   sharedLocations,
   focusedSharedUserId,
   onFocusSharedLocation,
@@ -262,6 +291,8 @@ function MapContent({
   legPreferences: LegPreference[];
   selection: ItinerarySelection;
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
+  selectedPlace: MapPlaceSelection | null;
+  onSelectPlace?: (place: MapPlaceSelection) => void;
   sharedLocations: SharedMapLocation[];
   focusedSharedUserId: string | null;
   onFocusSharedLocation?: (userId: string | null) => void;
@@ -277,6 +308,13 @@ function MapContent({
 
   return (
     <>
+      {selectedPlace && (
+        <AdvancedMarker position={selectedPlace} title="선택한 Google 지도 장소">
+          <Button type="button" variant="secondary" size="icon-lg" className="place-discovery-marker" aria-label="선택한 장소 정보 보기" aria-pressed="true" onClick={() => onSelectPlace?.(selectedPlace)}>
+            <MapPin aria-hidden="true" />
+          </Button>
+        </AdvancedMarker>
+      )}
       {located.map((s, i) => {
         const selected =
           (selection?.kind === "spot" && selection.spotId === s.id) ||
@@ -301,6 +339,7 @@ function MapContent({
       <RouteOverlay spots={spots} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} />
       <FitToSpots spots={located} />
       <FocusSelection selection={selection} spots={located} />
+      <FocusPlaceSelection selection={selectedPlace} />
       <PreserveVisibleCenter />
       {status === APILoadingStatus.LOADED && <>
         <SharedLocationMarkers locations={sharedLocations} focusedUserId={focusedSharedUserId} onFocus={onFocusSharedLocation} />

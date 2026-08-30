@@ -5,7 +5,7 @@ import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { getTrip, saveTrip } from "../api";
 import type { Item, Spot, Trip } from "../types";
-import { TripMap, type ItinerarySelection, type MapPoint } from "../components/TripMap";
+import { TripMap, type ItinerarySelection, type MapPlaceSelection, type MapPoint } from "../components/TripMap";
 import { MapsScope } from "../components/MapsScope";
 import { SplitMapShell, type TripPanelActions } from "../components/SplitMapShell";
 import { SpotCard } from "../components/SpotCard";
@@ -21,6 +21,9 @@ import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from
 import type { PersistedLegMode } from "../types";
 import type { Me } from "../api";
 import { downloadTripExchange } from "../tripExchange";
+import { PlaceDetailsPanel } from "../components/PlaceDetailsPanel";
+import type { PlaceSelection } from "../components/PlaceAutocompleteInput";
+import { PlannerPanelTabs, type PlannerPanelTab } from "../components/system/PlannerPanelTabs";
 
 function nextDate(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -66,6 +69,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [legSaveError, setLegSaveError] = useState<string | null>(null);
   const [pointPickActive, setPointPickActive] = useState(false);
   const [pendingCoordinate, setPendingCoordinate] = useState<MapPoint | null>(null);
+  const [pendingPlace, setPendingPlace] = useState<PlaceSelection | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<MapPlaceSelection | null>(null);
+  const [panelTab, setPanelTab] = useState<PlannerPanelTab>("itinerary");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreNextDayClick = useRef(false);
@@ -79,9 +85,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   const clearSelection = useCallback(() => {
     setSelection(null);
+    setSelectedPlace(null);
+    setPanelTab("itinerary");
     setSharedLocationFocus(null);
     removeSelectionHistoryState();
-  }, [setSharedLocationFocus]);
+  }, [setPanelTab, setSelectedPlace, setSharedLocationFocus]);
 
   function selectItinerary(next: Exclude<ItinerarySelection, null>) {
     const isSameSelection =
@@ -95,6 +103,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return;
     }
     setSharedLocationFocus(null);
+    setSelectedPlace(null);
+    setPanelTab("itinerary");
     setSelection(next);
   }
 
@@ -104,8 +114,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return;
     }
     setSelection(null);
+    setSelectedPlace(null);
+    setPanelTab("itinerary");
     setSharedLocationFocus(userId);
-  }, [clearSelection, setSharedLocationFocus]);
+  }, [clearSelection, setPanelTab, setSelectedPlace, setSharedLocationFocus]);
 
   const handleSharedLocations = useCallback((locations: SharedLocationWithName[]) => {
     setSharedLocations(locations);
@@ -122,16 +134,16 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   });
 
   useEffect(() => {
-    if (!selection && !focusedSharedUserId && !pointPickActive && !addingSpot) return;
+    if (!selection && !focusedSharedUserId && !selectedPlace && !pointPickActive && !addingSpot) return;
     const state = (window.history.state ?? {}) as Record<string, unknown>;
     const nextState = { ...state, [SELECTION_HISTORY_KEY]: true };
     if (state[SELECTION_HISTORY_KEY]) window.history.replaceState(nextState, "", window.location.href);
     else window.history.pushState(nextState, "", window.location.href);
-  }, [addingSpot, focusedSharedUserId, pointPickActive, selection]);
+  }, [addingSpot, focusedSharedUserId, pointPickActive, selectedPlace, selection]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape" || (!selection && !focusedSharedUserId && !pointPickActive && !addingSpot)) return;
+      if (event.key !== "Escape" || (!selection && !focusedSharedUserId && !selectedPlace && !pointPickActive && !addingSpot)) return;
       event.preventDefault();
       if (pointPickActive || addingSpot) {
         setPointPickActive(false);
@@ -141,12 +153,15 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       clearSelection();
     }
     function onPopState() {
-      if (selection || focusedSharedUserId || pointPickActive || addingSpot) {
+      if (selection || focusedSharedUserId || selectedPlace || pointPickActive || addingSpot) {
         setSelection(null);
         setSharedLocationFocus(null);
         setPointPickActive(false);
         setAddingSpot(false);
         setPendingCoordinate(null);
+        setPendingPlace(null);
+        setSelectedPlace(null);
+        setPanelTab("itinerary");
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -155,7 +170,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("popstate", onPopState);
     };
-  }, [addingSpot, clearSelection, focusedSharedUserId, pointPickActive, selection, setSharedLocationFocus]);
+  }, [addingSpot, clearSelection, focusedSharedUserId, pointPickActive, selectedPlace, selection, setSharedLocationFocus]);
 
   const mutation = useMutation({
     mutationFn: (next: Trip) => {
@@ -314,7 +329,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     saveNow({ ...trip, days });
     setAddingSpot(false);
     setPendingCoordinate(null);
+    setPendingPlace(null);
     setPointPickActive(false);
+    setSelectedPlace(null);
+    setPanelTab("itinerary");
     setSelection({ kind: "spot", spotId: spot.id });
   }
 
@@ -322,6 +340,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     clearSelection();
     setAddingSpot(false);
     setPendingCoordinate(null);
+    setPendingPlace(null);
     setPointPickActive(true);
   }
 
@@ -333,7 +352,28 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   function pickMapPoint(point: MapPoint) {
     setPointPickActive(false);
     setPendingCoordinate(point);
+    setPendingPlace(null);
+    setSelectedPlace(null);
+    setPanelTab("itinerary");
     setAddingSpot(true);
+    panelActionsRef.current?.setPanelVisible(true);
+  }
+
+  function selectMapPlace(place: MapPlaceSelection) {
+    setSelection(null);
+    setSharedLocationFocus(null);
+    setPointPickActive(false);
+    setPendingCoordinate(null);
+    setSelectedPlace(place);
+    setPanelTab("places");
+    panelActionsRef.current?.setPanelVisible(true);
+  }
+
+  function addSelectedPlace(place: PlaceSelection) {
+    setPendingCoordinate(null);
+    setPendingPlace(place);
+    setAddingSpot(true);
+    setPanelTab("itinerary");
     panelActionsRef.current?.setPanelVisible(true);
   }
 
@@ -455,6 +495,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             pointPickActive={pointPickActive}
             onPickPoint={pickMapPoint}
             onCancelPointPick={cancelPointPick}
+            selectedPlace={selectedPlace}
+            onSelectPlace={selectMapPlace}
           />
         }
         headerLeft={
@@ -486,7 +528,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
           </>
         }
         panel={
-          <>
+          <PlannerPanelTabs
+            value={panelTab}
+            onValueChange={setPanelTab}
+            placeSelected={!!selectedPlace}
+            itinerary={<>
             <div className="day-tabs-wrap">
               <div className="day-tabs">
                 {trip.days.map((d, i) => (
@@ -623,8 +669,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                         <li>
                           <SpotForm
                             initialLocation={pendingCoordinate ?? undefined}
+                            initialPlace={pendingPlace ?? undefined}
                             onSubmit={addSpot}
-                            onCancel={() => { setAddingSpot(false); setPendingCoordinate(null); }}
+                            onCancel={() => { setAddingSpot(false); setPendingCoordinate(null); setPendingPlace(null); }}
                           />
                         </li>
                       )}
@@ -633,7 +680,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 </DndContext>
                 {!addingSpot && (
                   <div className="add-spot-actions">
-                    <Button type="button" variant="outline" className="add-spot-button" onClick={() => { setPendingCoordinate(null); setAddingSpot(true); }}>
+                    <Button type="button" variant="outline" className="add-spot-button" onClick={() => { setPendingCoordinate(null); setPendingPlace(null); setAddingSpot(true); }}>
                       + 스팟 추가
                     </Button>
                     <Button type="button" variant="outline" className="add-spot-button" aria-pressed={pointPickActive} onClick={pointPickActive ? cancelPointPick : startPointPick}>
@@ -647,7 +694,16 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 일자가 없습니다. 위 <strong>+ 날짜</strong> 버튼으로 추가하세요.
               </p>
             )}
-          </>
+            </>}
+            places={
+              <PlaceDetailsPanel
+                selection={selectedPlace}
+                onAdd={addSelectedPlace}
+                onClose={() => { setSelectedPlace(null); setPanelTab("itinerary"); }}
+                canAdd={!!day}
+              />
+            }
+          />
         }
       />
     </MapsScope>
