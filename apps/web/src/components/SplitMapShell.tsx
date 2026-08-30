@@ -310,7 +310,11 @@ export function SplitMapShell({
   }
 
   function setPanelVisible(visible: boolean) {
-    setLayout((current) => ({ ...current, collapsed: !visible }));
+    setLayout((current) => ({
+      ...current,
+      collapsed: !visible,
+      sheetState: visible && !isWide && current.sheetState === "collapsed" ? "intermediate" : current.sheetState,
+    }));
   }
 
   const floating = normalizeFloating(layout.floating);

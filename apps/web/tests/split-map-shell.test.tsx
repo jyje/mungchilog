@@ -50,6 +50,17 @@ beforeEach(() => {
 });
 
 describe("adaptive map shell", () => {
+  it("expands a collapsed phone panel when a map action requests its editor", () => {
+    viewport(390);
+    const { container } = shell();
+    fireEvent.click(screen.getByRole("button", { name: "지도" }));
+    expect(container.firstChild).toHaveAttribute("data-sheet-state", "collapsed");
+
+    act(() => panelActions.setPanelVisible(true));
+    expect(container.firstChild).toHaveAttribute("data-sheet-state", "intermediate");
+    expect(screen.getByRole("textbox", { name: "메모" })).toBeVisible();
+  });
+
   it.each([360, 390, 600, 768, 840])("uses an operable bottom sheet at %ipx without overwriting desktop preference", (width) => {
     savedLayout("right");
     viewport(width);

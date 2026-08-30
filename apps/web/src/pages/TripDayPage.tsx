@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MapPinPlus } from "lucide-react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { getTrip, saveTrip } from "../api";
 import type { Item, Spot, Trip } from "../types";
-import { TripMap, type ItinerarySelection } from "../components/TripMap";
+import { TripMap, type ItinerarySelection, type MapPoint } from "../components/TripMap";
 import { MapsScope } from "../components/MapsScope";
-import { SplitMapShell } from "../components/SplitMapShell";
+import { SplitMapShell, type TripPanelActions } from "../components/SplitMapShell";
 import { SpotCard } from "../components/SpotCard";
 import { LegInfo } from "../components/LegInfo";
 import { SpotForm, type SpotFormValues } from "../components/SpotForm";
@@ -64,10 +64,13 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [focusedSharedUserId, setFocusedSharedUserId] = useState<string | null>(null);
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const [legSaveError, setLegSaveError] = useState<string | null>(null);
+  const [pointPickActive, setPointPickActive] = useState(false);
+  const [pendingCoordinate, setPendingCoordinate] = useState<MapPoint | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreNextDayClick = useRef(false);
   const focusedSharedUserIdRef = useRef<string | null>(null);
+  const panelActionsRef = useRef<TripPanelActions | null>(null);
 
   const setSharedLocationFocus = useCallback((userId: string | null) => {
     focusedSharedUserIdRef.current = userId;
@@ -119,23 +122,31 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   });
 
   useEffect(() => {
-    if (!selection && !focusedSharedUserId) return;
+    if (!selection && !focusedSharedUserId && !pointPickActive && !addingSpot) return;
     const state = (window.history.state ?? {}) as Record<string, unknown>;
     const nextState = { ...state, [SELECTION_HISTORY_KEY]: true };
     if (state[SELECTION_HISTORY_KEY]) window.history.replaceState(nextState, "", window.location.href);
     else window.history.pushState(nextState, "", window.location.href);
-  }, [focusedSharedUserId, selection]);
+  }, [addingSpot, focusedSharedUserId, pointPickActive, selection]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape" || (!selection && !focusedSharedUserId)) return;
+      if (event.key !== "Escape" || (!selection && !focusedSharedUserId && !pointPickActive && !addingSpot)) return;
       event.preventDefault();
+      if (pointPickActive || addingSpot) {
+        setPointPickActive(false);
+        setAddingSpot(false);
+        setPendingCoordinate(null);
+      }
       clearSelection();
     }
     function onPopState() {
-      if (selection || focusedSharedUserId) {
+      if (selection || focusedSharedUserId || pointPickActive || addingSpot) {
         setSelection(null);
         setSharedLocationFocus(null);
+        setPointPickActive(false);
+        setAddingSpot(false);
+        setPendingCoordinate(null);
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -144,7 +155,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("popstate", onPopState);
     };
-  }, [clearSelection, focusedSharedUserId, selection, setSharedLocationFocus]);
+  }, [addingSpot, clearSelection, focusedSharedUserId, pointPickActive, selection, setSharedLocationFocus]);
 
   const mutation = useMutation({
     mutationFn: (next: Trip) => {
@@ -302,6 +313,28 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     const days = trip.days.map((d, i) => (i === dayIndex ? { ...d, spots: [...d.spots, spot] } : d));
     saveNow({ ...trip, days });
     setAddingSpot(false);
+    setPendingCoordinate(null);
+    setPointPickActive(false);
+    setSelection({ kind: "spot", spotId: spot.id });
+  }
+
+  function startPointPick() {
+    clearSelection();
+    setAddingSpot(false);
+    setPendingCoordinate(null);
+    setPointPickActive(true);
+  }
+
+  function cancelPointPick() {
+    setPointPickActive(false);
+    setPendingCoordinate(null);
+  }
+
+  function pickMapPoint(point: MapPoint) {
+    setPointPickActive(false);
+    setPendingCoordinate(point);
+    setAddingSpot(true);
+    panelActionsRef.current?.setPanelVisible(true);
   }
 
   function editSpot(spotId: string, updates: SpotFormValues) {
@@ -419,6 +452,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             onFocusSharedLocation={selectSharedLocation}
             locationSharing={locationSharing}
             onOpenLocationSharing={() => setSharePanelOpen(true)}
+            pointPickActive={pointPickActive}
+            onPickPoint={pickMapPoint}
+            onCancelPointPick={cancelPointPick}
           />
         }
         headerLeft={
@@ -428,8 +464,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             </a>
           </Button>
         }
-        headerRight={(panelActions) => (
-          <>
+        headerRight={(panelActions) => {
+          panelActionsRef.current = panelActions;
+          return <>
             <TripShareButton
               tripId={id}
               me={me}
@@ -440,8 +477,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               onFocusLocation={selectSharedLocation}
             />
             <TripActionsMenu trip={trip} onSave={saveNow} onExport={() => downloadTripExchange(trip)} saving={mutation.isPending} panelActions={panelActions} />
-          </>
-        )}
+          </>;
+        }}
         title={trip.title}
         subtitle={
           <>
@@ -584,16 +621,25 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                         })}
                       {addingSpot && (
                         <li>
-                          <SpotForm onSubmit={addSpot} onCancel={() => setAddingSpot(false)} />
+                          <SpotForm
+                            initialLocation={pendingCoordinate ?? undefined}
+                            onSubmit={addSpot}
+                            onCancel={() => { setAddingSpot(false); setPendingCoordinate(null); }}
+                          />
                         </li>
                       )}
                     </ul>
                   </SortableContext>
                 </DndContext>
                 {!addingSpot && (
-                  <Button type="button" variant="outline" className="add-spot-button" onClick={() => setAddingSpot(true)}>
-                    + 스팟 추가
-                  </Button>
+                  <div className="add-spot-actions">
+                    <Button type="button" variant="outline" className="add-spot-button" onClick={() => { setPendingCoordinate(null); setAddingSpot(true); }}>
+                      + 스팟 추가
+                    </Button>
+                    <Button type="button" variant="outline" className="add-spot-button" aria-pressed={pointPickActive} onClick={pointPickActive ? cancelPointPick : startPointPick}>
+                      <MapPinPlus aria-hidden="true" /> {pointPickActive ? "지도 선택 취소" : "지도에서 선택"}
+                    </Button>
+                  </div>
                 )}
               </>
             ) : (
