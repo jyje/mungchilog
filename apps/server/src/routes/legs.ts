@@ -2,32 +2,56 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { db } from "../db.js";
 import { requireAuth, requireApproved, type AuthEnv } from "../auth.js";
+import {
+  bucketFor,
+  cacheKey,
+  resolveTiming,
+  RouteRequestError,
+  routeFingerprint,
+  toRoutesApiWaypoint,
+  TIMING_KINDS,
+  TRAVEL_MODES,
+  type TravelMode,
+  type Waypoint,
+  WaypointSchema,
+  waypointRef,
+} from "../route-planning.js";
 
 export const legs = new Hono<AuthEnv>();
-// Not trip-scoped (keyed by placeId pairs, cached across all trips), so
+// Not trip-scoped (keyed by endpoint pairs, cached across all trips), so
 // just login+approval is required here - no per-trip membership check.
 legs.use("*", requireAuth, requireApproved);
 
-const TRAVEL_MODES = ["DRIVE", "WALK", "BICYCLE", "TRANSIT", "TWO_WHEELER"] as const;
-// A route shape is cached alongside its journey summary. Bump this whenever
-// the requested geometry changes so an old overview polyline cannot conceal a
-// newly available, more accurate route for the entire 30-day TTL.
-const ROUTE_GEOMETRY_VERSION = "alternatives-v1";
-
-const ComputeLegSchema = z.object({
-  fromPlaceId: z.string(),
-  toPlaceId: z.string(),
-  mode: z.enum(TRAVEL_MODES),
-  alternatives: z.boolean().default(true),
-  trafficAware: z.boolean().default(false),
-  // ISO 8601. Defaults to "now": only matters for picking the cache
-  // bucket and (for TRANSIT) which timetable Google quotes.
-  when: z.string().datetime().optional(),
-  // IANA timezone name the cache bucket's weekday/hour are computed in -
-  // should be the trip's own timezone (destination), not the server's
-  // or the caller's. Not locked to any one region.
-  timezone: z.string().default("Asia/Tokyo"),
-});
+const ComputeLegSchema = z
+  .object({
+    // Preferred endpoint form: a Place ID or a bare coordinate.
+    from: WaypointSchema.optional(),
+    to: WaypointSchema.optional(),
+    // Legacy fields kept readable so a browser still running the previous
+    // bundle keeps routing while the new one rolls out.
+    fromPlaceId: z.string().min(1).optional(),
+    toPlaceId: z.string().min(1).optional(),
+    mode: z.enum(TRAVEL_MODES),
+    alternatives: z.boolean().default(true),
+    trafficAware: z.boolean().default(false),
+    timingKind: z.enum(TIMING_KINDS).default("AUTO"),
+    // ISO 8601. Interpreted as a departure instant unless timingKind is
+    // ARRIVE_BY. Defaults to "now".
+    when: z.string().datetime().optional(),
+    // IANA timezone name the cache bucket's weekday/hour are computed in -
+    // should be the trip's own timezone (destination), not the server's
+    // or the caller's. Not locked to any one region.
+    timezone: z.string().default("Asia/Tokyo"),
+  })
+  .transform((body, ctx) => {
+    const from = body.from ?? (body.fromPlaceId ? { placeId: body.fromPlaceId } : null);
+    const to = body.to ?? (body.toPlaceId ? { placeId: body.toPlaceId } : null);
+    if (!from || !to) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "from and to endpoints are required" });
+      return z.NEVER;
+    }
+    return { ...body, from: from as Waypoint, to: to as Waypoint };
+  });
 
 const TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days, per PLAN.md's caching policy
 const TRAFFIC_TTL_MS = 5 * 60 * 1000;
@@ -43,25 +67,6 @@ type LegRow = {
   fetched_at: string;
 };
 
-// (day-of-week, 4-hour-of-day block) in the trip's own timezone: coarse
-// enough that a handful of trip days share cache entries, fine enough
-// that morning vs. evening transit schedules don't collide.
-function bucketFor(when: Date, timezone: string): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    weekday: "short",
-    hour: "numeric",
-    hour12: false,
-  }).formatToParts(when);
-  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "Unk";
-  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
-  return `${weekday}-${Math.floor(hour / 4)}`;
-}
-
-function cacheKey(fromPlaceId: string, toPlaceId: string, mode: string, bucket: string, alternatives: boolean, trafficAware: boolean): string {
-  return `${fromPlaceId}:${toPlaceId}:${mode}:${bucket}:${alternatives ? "alternatives" : "primary"}:${trafficAware ? "traffic" : "standard"}:${ROUTE_GEOMETRY_VERSION}`;
-}
-
 legs.post("/compute", async (c) => {
   const body = await c.req.json().catch(() => null);
   if (body === null) return c.json({ error: "invalid JSON body" }, 400);
@@ -69,11 +74,25 @@ legs.post("/compute", async (c) => {
   const parsed = ComputeLegSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: "validation failed", issues: parsed.error.issues }, 400);
 
-  const { fromPlaceId, toPlaceId, mode, timezone, alternatives, trafficAware } = parsed.data;
+  const { from, to, mode, timezone, alternatives, trafficAware, timingKind } = parsed.data;
   if (trafficAware && mode !== "DRIVE") return c.json({ error: "traffic-aware routing is only available for driving legs" }, 400);
+
   const when = parsed.data.when ? new Date(parsed.data.when) : new Date();
+  let timing;
+  try {
+    timing = resolveTiming({ mode, timingKind, when, trafficAware });
+  } catch (e) {
+    if (e instanceof RouteRequestError) return c.json({ error: e.message }, 400);
+    throw e;
+  }
+
+  const fromRef = waypointRef(from);
+  const toRef = waypointRef(to);
   const bucket = bucketFor(when, timezone);
-  const id = cacheKey(fromPlaceId, toPlaceId, mode, bucket, alternatives, trafficAware);
+  const id = cacheKey({ fromRef, toRef, mode, bucket, timingKind, alternatives, trafficAware });
+  // Traffic-aware driving is the only route whose answer goes stale in
+  // minutes. Everything else keeps the long TTL, so a cached entry is never
+  // presented as live traffic after its short window has passed.
   const ttl = trafficAware ? TRAFFIC_TTL_MS : TTL_MS;
 
   const cached = await db.get<LegRow>("SELECT * FROM legs WHERE id = ?", [id]);
@@ -93,7 +112,7 @@ legs.post("/compute", async (c) => {
 
   let fetched;
   try {
-    fetched = await callRoutesApi(apiKey, fromPlaceId, toPlaceId, mode, when, alternatives, trafficAware);
+    fetched = await callRoutesApi(apiKey, from, to, mode, timing, alternatives, trafficAware);
   } catch (e) {
     // Serve a stale cache entry rather than nothing, if one exists.
     if (cached) return c.json(toLegResponse(cached), 200, { "X-Cache": "stale" });
@@ -115,8 +134,12 @@ legs.post("/compute", async (c) => {
        fetched_at = excluded.fetched_at`,
     [
       id,
-      fromPlaceId,
-      toPlaceId,
+      // These columns predate coordinate endpoints and are diagnostic only -
+      // the cache identity lives in `id`. They now hold the endpoint ref
+      // ("place:X" or "ll:lat,lng") so a coordinate leg stays representable
+      // without a migration on a NOT NULL column.
+      fromRef,
+      toRef,
       mode,
       bucket,
       primary?.distanceM ?? null,
@@ -129,11 +152,7 @@ legs.post("/compute", async (c) => {
     ],
   );
 
-  return c.json(
-    { fromPlaceId, toPlaceId, mode, routes: fetched.routes, fetchedAt: now },
-    200,
-    { "X-Cache": "miss" },
-  );
+  return c.json({ routes: fetched.routes, fetchedAt: now }, 200, { "X-Cache": "miss" });
 });
 
 function toLegResponse(row: LegRow) {
@@ -144,19 +163,21 @@ function toLegResponse(row: LegRow) {
     fareCurrency: row.fare_currency,
     polyline: row.polyline,
     label: "DEFAULT_ROUTE",
+    key: routeFingerprint({ polyline: row.polyline, durationS: row.duration_s, distanceM: row.distance_m }),
   }];
   let routes = fallback;
   try {
     const parsed = row.routes_json ? JSON.parse(row.routes_json) : null;
-    if (Array.isArray(parsed) && parsed.length > 0) routes = parsed;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      // Entries cached before route keys existed still deserve a stable
+      // identity, so derive it on read rather than discarding the entry.
+      routes = parsed.map((route) => ({ ...route, key: route.key ?? routeFingerprint(route) }));
+    }
   } catch {
     // A malformed legacy cache entry should not prevent the basic route from
     // being served. The next cache refresh replaces it.
   }
-  return {
-    routes,
-    fetchedAt: row.fetched_at,
-  };
+  return { routes, fetchedAt: row.fetched_at };
 }
 
 // NOTE: written against the documented Routes API v2 `computeRoutes`
@@ -166,10 +187,10 @@ function toLegResponse(row: LegRow) {
 // across API versions.
 async function callRoutesApi(
   apiKey: string,
-  fromPlaceId: string,
-  toPlaceId: string,
-  mode: (typeof TRAVEL_MODES)[number],
-  when: Date,
+  from: Waypoint,
+  to: Waypoint,
+  mode: TravelMode,
+  timing: { departureTime?: string; arrivalTime?: string },
   alternatives: boolean,
   trafficAware: boolean,
 ) {
@@ -182,10 +203,12 @@ async function callRoutesApi(
         "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.travelAdvisory.transitFare,routes.routeLabels",
     },
     body: JSON.stringify({
-      origin: { placeId: fromPlaceId },
-      destination: { placeId: toPlaceId },
+      origin: toRoutesApiWaypoint(from),
+      destination: toRoutesApiWaypoint(to),
       travelMode: mode,
-      ...(mode === "TRANSIT" || trafficAware ? { departureTime: when.toISOString() } : {}),
+      // Exactly one of departureTime / arrivalTime, or neither - Google
+      // rejects a request carrying both (see resolveTiming).
+      ...timing,
       ...(alternatives ? { computeAlternativeRoutes: true } : {}),
       ...(trafficAware ? { routingPreference: "TRAFFIC_AWARE" } : {}),
       // OVERVIEW is the API default and can reduce a short urban route to
@@ -194,8 +217,8 @@ async function callRoutesApi(
       polylineQuality: "HIGH_QUALITY",
       polylineEncoding: "ENCODED_POLYLINE",
       // languageCode is the user's language preference, not tied to the
-      // destination. No regionCode - every call here uses placeId, which
-      // is already unambiguous, so region biasing has nothing to do.
+      // destination. No regionCode - a placeId is already unambiguous, and a
+      // coordinate endpoint is literal, so region biasing has nothing to do.
       languageCode: "ko",
       units: "METRIC",
     }),
@@ -220,7 +243,7 @@ async function callRoutesApi(
   return {
     routes: data.routes.slice(0, 4).map((route) => {
       const fare = route.travelAdvisory?.transitFare;
-      return {
+      const summary = {
         distanceM: route.distanceMeters ?? null,
         durationS: route.duration ? Number(route.duration.replace(/s$/, "")) : null,
         fareAmount: fare?.units != null ? Number(fare.units) : null,
@@ -228,6 +251,7 @@ async function callRoutesApi(
         polyline: route.polyline?.encodedPolyline ?? null,
         label: route.routeLabels?.includes("DEFAULT_ROUTE_ALTERNATE") ? "DEFAULT_ROUTE_ALTERNATE" : "DEFAULT_ROUTE",
       };
+      return { ...summary, key: routeFingerprint(summary) };
     }),
   };
 }
