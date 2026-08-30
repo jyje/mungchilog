@@ -21,7 +21,16 @@ function InsetProbe() {
 }
 
 function shell() {
-  return render(<SplitMapShell map={<InsetProbe />} title="여행 일정" subtitle="8월 24일 (월) · Asia/Seoul" panel={<textarea aria-label="메모" defaultValue="저장 전 메모" />} />);
+  return render(
+    <SplitMapShell
+      map={<InsetProbe />}
+      headerLeft={<button type="button" aria-label="여행 목록으로" />}
+      headerRight={<><button type="button" aria-label="같이 보는 사람" /><button type="button" aria-label="여행 더보기" /></>}
+      title="여행 일정"
+      subtitle="8월 24일 (월) · Asia/Seoul"
+      panel={<textarea aria-label="메모" defaultValue="저장 전 메모" />}
+    />,
+  );
 }
 
 beforeEach(() => {
@@ -89,11 +98,11 @@ describe("adaptive map shell", () => {
     shell();
     fireEvent.click(screen.getByRole("button", { name: "접힘" }));
     viewport(1200);
-    fireEvent.click(screen.getByRole("button", { name: "보기 설정" }));
-    fireEvent.click(screen.getByRole("button", { name: "목록 접기" }));
+    fireEvent.click(screen.getByRole("button", { name: "일정 목록 보기 설정" }));
+    fireEvent.click(screen.getByRole("button", { name: "일정 목록 접기" }));
     expect(screen.getByRole("complementary", { hidden: true })).toHaveAttribute("hidden");
-    fireEvent.click(screen.getByRole("button", { name: "보기 설정" }));
-    fireEvent.click(screen.getByRole("button", { name: "목록 보이기" }));
+    fireEvent.click(screen.getByRole("button", { name: "일정 목록 보기 설정" }));
+    fireEvent.click(screen.getByRole("button", { name: "일정 목록 보이기" }));
     expect(screen.getByRole("complementary")).not.toHaveAttribute("hidden");
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).sheetState).toBe("collapsed");
   });
@@ -119,7 +128,7 @@ describe("adaptive map shell", () => {
     const panel = screen.getByRole("complementary");
     fireEvent.keyDown(screen.getByRole("button", { name: "일정 패널 너비 조절" }), { key: "ArrowLeft" });
     expect(panel.style.width).toContain("404px");
-    fireEvent.click(screen.getByRole("button", { name: "보기 설정" }));
+    fireEvent.click(screen.getByRole("button", { name: "일정 목록 보기 설정" }));
     fireEvent.click(screen.getByRole("button", { name: /플로팅 패널/ }));
     const originalWidth = parseFloat(panel.style.width);
     fireEvent.keyDown(screen.getByRole("button", { name: "패널 left 경계 크기 조절" }), { key: "ArrowLeft" });
@@ -128,15 +137,27 @@ describe("adaptive map shell", () => {
 
   it("dismisses the layout menu with Escape and restores focus without forwarding the key", () => {
     shell();
-    const menu = screen.getByRole("button", { name: "보기 설정" });
+    const menu = screen.getByRole("button", { name: "일정 목록 보기 설정" });
     const selectionEscape = vi.fn();
     window.addEventListener("keydown", selectionEscape);
     fireEvent.click(menu);
     fireEvent.keyDown(window, { key: "Escape" });
     expect(menu).toHaveFocus();
-    expect(screen.queryByRole("group", { name: "패널 배치" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "일정 목록 및 패널 배치" })).not.toBeInTheDocument();
     expect(selectionEscape).not.toHaveBeenCalled();
     window.removeEventListener("keydown", selectionEscape);
+  });
+
+  it("places the itinerary control immediately before people and overflow actions", () => {
+    const { container } = shell();
+    const actions = container.querySelector(".trip-header-actions");
+
+    expect(actions).not.toBeNull();
+    expect(Array.from(actions!.querySelectorAll("button"), (button) => button.getAttribute("aria-label"))).toEqual([
+      "일정 목록 보기 설정",
+      "같이 보는 사람",
+      "여행 더보기",
+    ]);
   });
 
   it("still renders when layout storage is unavailable or corrupt", () => {

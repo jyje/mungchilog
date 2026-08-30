@@ -396,7 +396,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
           </Button>
         }
         headerRight={
-          <div className="trip-header-actions">
+          <>
             <TripShareButton
               tripId={id}
               me={me}
@@ -405,7 +405,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               onFocusLocation={setFocusedSharedUserId}
             />
             <TripActionsMenu trip={trip} onSave={saveNow} onExport={() => downloadTripExchange(trip)} saving={mutation.isPending} />
-          </div>
+          </>
         }
         title={trip.title}
         subtitle={

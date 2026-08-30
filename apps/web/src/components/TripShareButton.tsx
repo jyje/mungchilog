@@ -58,7 +58,7 @@ export function TripShareButton({
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="같이 보는 사람" aria-haspopup="dialog" aria-expanded={open}>
+        <Button type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="같이 보는 사람" title="같이 보는 사람" aria-haspopup="dialog" aria-expanded={open}>
           <Users aria-hidden="true" />
         </Button>
       </SheetTrigger>
