@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { logout, type Me } from "../api";
-import { ThemeMenu } from "./system/ThemeMenu";
+import { ThemeToggleButton } from "./system/ThemeToggle";
 
 // Systematic top nav for every "normal" (non-map) page: brand/home,
 // admin link when applicable, and a user menu with logout. TripDayPage
@@ -35,7 +35,7 @@ export function AppNav({ me, navigate }: { me: Me; navigate: (path: string) => v
           관리자
         </a>
       )}
-      <ThemeMenu />
+      <ThemeToggleButton />
       <div className="menu-anchor">
         <button type="button" className="app-nav-avatar" aria-label="사용자 메뉴" onClick={() => setMenuOpen((o) => !o)}>
           {initial}

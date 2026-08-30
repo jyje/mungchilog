@@ -1,6 +1,6 @@
 import { useLayoutEffect, type ReactNode } from "react";
 
-import { ThemeMenu } from "./ThemeMenu";
+import { ThemeToggleButton } from "./ThemeToggle";
 import "./auth-shell.css";
 
 type AuthShellProps = {
@@ -34,7 +34,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
       </section>
 
       <section className="auth-shell-panel" aria-labelledby="auth-shell-title">
-        <ThemeMenu className="auth-theme-menu" />
+        <ThemeToggleButton className="auth-theme-toggle" />
         <div className="auth-shell-panel-inner">
           <div className="auth-shell-mobile-brand" aria-label="뭉치로그">
             <img src="/pwa-192.png" width="36" height="36" alt="" />
