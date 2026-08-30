@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { AlertCircle, ArrowRight, LoaderCircle, LogOut } from "lucide-react";
+import { ArrowRight, LoaderCircle, LogOut } from "lucide-react";
+import { toast } from "sonner";
 
 import { beginFreshLogin, logout, type Me } from "../api";
 import { restartAfterProviderLogout } from "../auth/providerLogout";
@@ -7,7 +8,6 @@ import { AuthShell } from "../components/system/AuthShell";
 
 export function PendingPage({ me }: { me: Me }) {
   const [isRestartingLogin, setIsRestartingLogin] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleLogout() {
     await logout();
@@ -15,13 +15,12 @@ export function PendingPage({ me }: { me: Me }) {
   }
 
   async function handleRestartLogin() {
-    setError(null);
     setIsRestartingLogin(true);
     try {
       await restartAfterProviderLogout(await beginFreshLogin());
     } catch {
       setIsRestartingLogin(false);
-      setError("로그인을 다시 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      toast.error("로그인을 다시 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
     }
   }
 
@@ -51,12 +50,6 @@ export function PendingPage({ me }: { me: Me }) {
         <p className="auth-status" role="status" aria-live="polite">
           <LoaderCircle className="auth-spinner" aria-hidden="true" />
           인증 공급자의 기존 세션을 종료하고 있습니다.
-        </p>
-      )}
-      {error && (
-        <p className="auth-error" role="alert">
-          <AlertCircle aria-hidden="true" />
-          {error}
         </p>
       )}
     </AuthShell>

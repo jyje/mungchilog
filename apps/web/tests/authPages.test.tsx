@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { beginFreshLogin, logout, pingBackend } from "../src/api";
 import { restartAfterProviderLogout } from "../src/auth/providerLogout";
+import { Toaster } from "../src/components/ui/sonner";
 import { LoginPage } from "../src/pages/LoginPage";
 import { PendingPage } from "../src/pages/PendingPage";
 
@@ -56,13 +57,18 @@ describe("authentication pages", () => {
     await waitFor(() => expect(window.location.assign).toHaveBeenCalledWith("/auth/login"));
   });
 
-  it("keeps the user on the page and offers a retry when the backend can't be reached", async () => {
+  it("keeps the user on the page and toasts a retry hint when the backend can't be reached", async () => {
     vi.mocked(pingBackend).mockRejectedValue(new Error("timeout"));
-    render(<LoginPage />);
+    render(
+      <>
+        <LoginPage />
+        <Toaster />
+      </>,
+    );
 
     fireEvent.click(screen.getByRole("button", { name: "Authentik으로 계속하기" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+    expect(await screen.findByText("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.")).toBeInTheDocument();
     expect(window.location.assign).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Authentik으로 계속하기" })).not.toBeDisabled();
   });

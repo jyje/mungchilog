@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getMe } from "./api";
 import { TripListPage } from "./pages/TripListPage";
@@ -10,6 +10,7 @@ import { PendingPage } from "./pages/PendingPage";
 import { AdminPage } from "./pages/AdminPage";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { AppNav } from "./components/AppNav";
+import { Toaster } from "./components/ui/sonner";
 import { GalleryPage } from "./pages/GalleryPage";
 import { canAccessCurrentGallery } from "./galleryAccess";
 
@@ -58,30 +59,43 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me, isGalleryRoute, isLoading, isFetchedAfterMount, path]);
 
-  if (isGalleryRoute) return <GalleryPage />;
-  if (path === "/login") return <LoginPage />;
-  if (isLoading || !isFetchedAfterMount) return <p className="meta page">불러오는 중...</p>;
-  if (!me) return null; // redirecting to /login
-  if (path === "/pending" || me.status === "pending") return <PendingPage me={me} />;
+  // Every branch below funnels through this single return so the toaster -
+  // used by the auth pages' own error handling, and available to any page -
+  // stays mounted no matter which route/loading state is showing.
+  let content: ReactNode;
+  if (isGalleryRoute) content = <GalleryPage />;
+  else if (path === "/login") content = <LoginPage />;
+  else if (isLoading || !isFetchedAfterMount) content = <p className="meta page">불러오는 중...</p>;
+  else if (!me) content = null; // redirecting to /login
+  else if (path === "/pending" || me.status === "pending") content = <PendingPage me={me} />;
+  else {
+    const dayMatch = path.match(/^\/trips\/([^/]+)$/);
+    if (dayMatch) {
+      // TripDayPage owns its own full-viewport layout (SplitMapShell) with a
+      // floating header - it deliberately doesn't get the standard AppNav,
+      // to keep the map as the dominant element there.
+      content = <TripDayPage id={dayMatch[1]} navigate={navigate} me={me} />;
+    } else {
+      let page;
+      if (path === "/import") page = <ImportPage navigate={navigate} />;
+      else if (path === "/new") page = <NewTripPage navigate={navigate} />;
+      else if (path === "/admin") page = me.role === "admin" ? <AdminPage /> : <TripListPage navigate={navigate} />;
+      else page = <TripListPage navigate={navigate} />;
 
-  const dayMatch = path.match(/^\/trips\/([^/]+)$/);
-
-  // TripDayPage owns its own full-viewport layout (SplitMapShell) with a
-  // floating header - it deliberately doesn't get the standard AppNav, to
-  // keep the map as the dominant element there.
-  if (dayMatch) return <TripDayPage id={dayMatch[1]} navigate={navigate} me={me} />;
-
-  let page;
-  if (path === "/import") page = <ImportPage navigate={navigate} />;
-  else if (path === "/new") page = <NewTripPage navigate={navigate} />;
-  else if (path === "/admin") page = me.role === "admin" ? <AdminPage /> : <TripListPage navigate={navigate} />;
-  else page = <TripListPage navigate={navigate} />;
+      content = (
+        <>
+          <AppNav me={me} navigate={navigate} />
+          {page}
+          <ThemeToggle />
+        </>
+      );
+    }
+  }
 
   return (
     <>
-      <AppNav me={me} navigate={navigate} />
-      {page}
-      <ThemeToggle />
+      {content}
+      <Toaster />
     </>
   );
 }

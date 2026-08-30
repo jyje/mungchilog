@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { AlertCircle, ArrowRight, LoaderCircle, LogIn } from "lucide-react";
+import { ArrowRight, LoaderCircle, LogIn } from "lucide-react";
+import { toast } from "sonner";
 
 import { beginFreshLogin, pingBackend } from "../api";
 import { restartAfterProviderLogout } from "../auth/providerLogout";
@@ -7,7 +8,6 @@ import { AuthShell } from "../components/system/AuthShell";
 
 export function LoginPage() {
   const [loginState, setLoginState] = useState<"idle" | "standard" | "fresh">("idle");
-  const [error, setError] = useState<string | null>(null);
   const isLoggingIn = loginState !== "idle";
 
   // A bare `window.location.assign` hands control to the browser's own page
@@ -16,26 +16,29 @@ export function LoginPage() {
   // no way for this component to recover. Confirming the backend answers
   // first keeps the failure inside React state, where it can show an error
   // and let the user retry instead of leaving them staring at a spinner.
+  //
+  // The failure itself surfaces as a toast, not inline copy: an inline error
+  // block pushes the layout down right as the user is about to retry, which
+  // reads as the page itself breaking. A toast says the same thing without
+  // moving anything else on the page.
   async function handleLogin() {
-    setError(null);
     setLoginState("standard");
     try {
       await pingBackend();
       window.location.assign("/auth/login");
     } catch {
       setLoginState("idle");
-      setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+      toast.error("서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.");
     }
   }
 
   async function handleFreshLogin() {
-    setError(null);
     setLoginState("fresh");
     try {
       await restartAfterProviderLogout(await beginFreshLogin());
     } catch {
       setLoginState("idle");
-      setError("로그인을 다시 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      toast.error("로그인을 다시 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
     }
   }
 
@@ -58,12 +61,6 @@ export function LoginPage() {
         <p className="auth-status" role="status" aria-live="polite">
           <LoaderCircle className="auth-spinner" aria-hidden="true" />
           기존 인증 세션을 종료한 뒤 다른 계정으로 로그인하고 있습니다.
-        </p>
-      )}
-      {error && (
-        <p className="auth-error" role="alert">
-          <AlertCircle aria-hidden="true" />
-          {error}
         </p>
       )}
     </AuthShell>
