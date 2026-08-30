@@ -13,7 +13,7 @@ import { LegInfo } from "../components/LegInfo";
 import { SpotForm, type SpotFormValues } from "../components/SpotForm";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { TripShareButton } from "../components/TripShareButton";
-import type { SharedLocationWithName } from "../components/LocationSharingControl";
+import { useTripLocationSharing, type SharedLocationWithName } from "../hooks/useTripLocationSharing";
 import { TripActionsMenu } from "../components/TripActionsMenu";
 import { Button } from "../components/ui/button";
 import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
@@ -39,6 +39,13 @@ function formatScheduleDate(date: string) {
 
 const SELECTION_HISTORY_KEY = "mungchilog:itinerary-selection";
 
+function removeSelectionHistoryState() {
+  const state = (window.history.state ?? {}) as Record<string, unknown>;
+  if (!state[SELECTION_HISTORY_KEY]) return;
+  const { [SELECTION_HISTORY_KEY]: _selection, ...nextState } = state;
+  window.history.replaceState(nextState, "", window.location.href);
+}
+
 export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path: string) => void; me: Me }) {
   const qc = useQueryClient();
   const queryKey = ["trip", id];
@@ -54,22 +61,23 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [selection, setSelection] = useState<ItinerarySelection>(null);
   const [sharedLocations, setSharedLocations] = useState<SharedLocationWithName[]>([]);
   const [focusedSharedUserId, setFocusedSharedUserId] = useState<string | null>(null);
+  const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const [legSaveError, setLegSaveError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreNextDayClick = useRef(false);
+  const focusedSharedUserIdRef = useRef<string | null>(null);
 
-  function removeSelectionHistoryState() {
-    const state = (window.history.state ?? {}) as Record<string, unknown>;
-    if (!state[SELECTION_HISTORY_KEY]) return;
-    const { [SELECTION_HISTORY_KEY]: _selection, ...nextState } = state;
-    window.history.replaceState(nextState, "", window.location.href);
-  }
+  const setSharedLocationFocus = useCallback((userId: string | null) => {
+    focusedSharedUserIdRef.current = userId;
+    setFocusedSharedUserId(userId);
+  }, []);
 
-  function clearSelection() {
+  const clearSelection = useCallback(() => {
     setSelection(null);
+    setSharedLocationFocus(null);
     removeSelectionHistoryState();
-  }
+  }, [setSharedLocationFocus]);
 
   function selectItinerary(next: Exclude<ItinerarySelection, null>) {
     const isSameSelection =
@@ -82,30 +90,52 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       clearSelection();
       return;
     }
+    setSharedLocationFocus(null);
     setSelection(next);
   }
 
+  const selectSharedLocation = useCallback((userId: string | null) => {
+    if (!userId || focusedSharedUserIdRef.current === userId) {
+      clearSelection();
+      return;
+    }
+    setSelection(null);
+    setSharedLocationFocus(userId);
+  }, [clearSelection, setSharedLocationFocus]);
+
   const handleSharedLocations = useCallback((locations: SharedLocationWithName[]) => {
     setSharedLocations(locations);
-    setFocusedSharedUserId((current) => (current && !locations.some((location) => location.userId === current) ? null : current));
-  }, []);
+    const focusedUserId = focusedSharedUserIdRef.current;
+    if (focusedUserId && !locations.some((location) => location.userId === focusedUserId)) {
+      setSharedLocationFocus(null);
+      removeSelectionHistoryState();
+    }
+  }, [setSharedLocationFocus]);
+  const locationSharing = useTripLocationSharing({
+    tripId: id,
+    onLocationsChange: handleSharedLocations,
+    onFocus: selectSharedLocation,
+  });
 
   useEffect(() => {
-    if (!selection) return;
+    if (!selection && !focusedSharedUserId) return;
     const state = (window.history.state ?? {}) as Record<string, unknown>;
     const nextState = { ...state, [SELECTION_HISTORY_KEY]: true };
     if (state[SELECTION_HISTORY_KEY]) window.history.replaceState(nextState, "", window.location.href);
     else window.history.pushState(nextState, "", window.location.href);
-  }, [selection]);
+  }, [focusedSharedUserId, selection]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape" || !selection) return;
+      if (event.key !== "Escape" || (!selection && !focusedSharedUserId)) return;
       event.preventDefault();
       clearSelection();
     }
     function onPopState() {
-      if (selection) setSelection(null);
+      if (selection || focusedSharedUserId) {
+        setSelection(null);
+        setSharedLocationFocus(null);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("popstate", onPopState);
@@ -113,7 +143,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("popstate", onPopState);
     };
-  }, [selection]);
+  }, [clearSelection, focusedSharedUserId, selection, setSharedLocationFocus]);
 
   const mutation = useMutation({
     mutationFn: (next: Trip) => {
@@ -385,7 +415,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             onSelect={selectItinerary}
             sharedLocations={sharedLocations}
             focusedSharedUserId={focusedSharedUserId}
-            onFocusSharedLocation={setFocusedSharedUserId}
+            onFocusSharedLocation={selectSharedLocation}
+            locationSharing={locationSharing}
+            onOpenLocationSharing={() => setSharePanelOpen(true)}
           />
         }
         headerLeft={
@@ -400,9 +432,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             <TripShareButton
               tripId={id}
               me={me}
+              open={sharePanelOpen}
+              onOpenChange={setSharePanelOpen}
+              locationSharing={locationSharing}
               sharedLocations={sharedLocations}
-              onLocationsChange={handleSharedLocations}
-              onFocusLocation={setFocusedSharedUserId}
+              onFocusLocation={selectSharedLocation}
             />
             <TripActionsMenu trip={trip} onSave={saveNow} onExport={() => downloadTripExchange(trip)} saving={mutation.isPending} />
           </>

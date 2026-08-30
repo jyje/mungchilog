@@ -73,7 +73,7 @@ export default function App() {
       // TripDayPage owns its own full-viewport layout (SplitMapShell) with a
       // floating header - it deliberately doesn't get the standard AppNav,
       // to keep the map as the dominant element there.
-      content = <TripDayPage id={dayMatch[1]} navigate={navigate} me={me} />;
+      content = <TripDayPage key={dayMatch[1]} id={dayMatch[1]} navigate={navigate} me={me} />;
     } else {
       let page;
       if (path === "/import") page = <ImportPage navigate={navigate} />;

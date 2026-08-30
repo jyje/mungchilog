@@ -164,6 +164,7 @@ describe("adaptive map shell", () => {
 
     expect(actions).not.toBeNull();
     expect(Array.from(actions!.querySelectorAll("button"), (button) => button.getAttribute("aria-label"))).toEqual([
+      "화면 테마 메뉴",
       "일정 목록 보기 설정",
       "같이 보는 사람",
       "여행 더보기",

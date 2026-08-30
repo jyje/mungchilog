@@ -6,6 +6,7 @@ import { ItineraryFollowControl } from "../src/components/ItineraryFollowControl
 import { TripMap } from "../src/components/TripMap";
 import { MapViewportProvider } from "../src/components/MapViewportContext";
 import { TooltipProvider } from "../src/components/ui/tooltip";
+import type { TripLocationSharingController } from "../src/hooks/useTripLocationSharing";
 
 const maps = vi.hoisted(() => ({
   map: { panTo: vi.fn(), panBy: vi.fn(), fitBounds: vi.fn(), setZoom: vi.fn(), setCenter: vi.fn(), getZoom: vi.fn(() => 15) },
@@ -228,5 +229,69 @@ describe("current location control", () => {
     expect(screen.getByText("지도를 불러오지 못했습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "현재 위치" })).not.toBeInTheDocument();
     expect(watchPosition).not.toHaveBeenCalled();
+  });
+
+  it("keeps active sharing status and stop reachable when the map fails", () => {
+    maps.status = "FAILED";
+    vi.stubEnv("VITE_GOOGLE_MAPS_API_KEY", "synthetic-test-key");
+    const stopSharing = vi.fn();
+    const locationSharing = {
+      localActive: true,
+      remoteActive: false,
+      remoteOnOtherTrip: false,
+      active: true,
+      starting: false,
+      interrupted: false,
+      remaining: "42분 남음",
+      pending: false,
+      stopSharing,
+    } as unknown as TripLocationSharingController;
+    renderWithTooltips(<TripMap
+      spots={[]}
+      selection={null}
+      date="2026-09-07"
+      timezone="Asia/Seoul"
+      onSelect={vi.fn()}
+      locationSharing={locationSharing}
+      onOpenLocationSharing={vi.fn()}
+    />);
+    expect(screen.getByText("지도를 불러오지 못했습니다.")).toBeInTheDocument();
+    expect(screen.getByText(/공유 중.*42분 남음/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "중지" }));
+    expect(stopSharing).toHaveBeenCalledTimes(1);
+  });
+
+  it("selects and clears a shared participant marker without changing its order", () => {
+    vi.stubEnv("VITE_GOOGLE_MAPS_API_KEY", "synthetic-test-key");
+    const onFocusSharedLocation = vi.fn();
+    const props = {
+      spots: [],
+      date: "2026-09-07",
+      timezone: "Asia/Seoul",
+      legPreferences: [],
+      selection: null,
+      onSelect: vi.fn(),
+      sharedLocations: [{
+        userId: "other",
+        name: "동행자",
+        lat: 37.5,
+        lng: 127,
+        accuracy: 12,
+        measuredAt: NOW,
+      }],
+      onFocusSharedLocation,
+    } satisfies React.ComponentProps<typeof TripMap>;
+    const { rerender } = renderWithTooltips(<TripMap {...props} focusedSharedUserId={null} />);
+
+    const marker = screen.getByRole("button", { name: "동행자 위치 보기" });
+    expect(marker).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(marker);
+    expect(onFocusSharedLocation).toHaveBeenLastCalledWith("other");
+
+    rerender(<TooltipProvider delayDuration={0}><TripMap {...props} focusedSharedUserId="other" /></TooltipProvider>);
+    const selectedMarker = screen.getByRole("button", { name: "동행자 위치 보기" });
+    expect(selectedMarker).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(selectedMarker);
+    expect(onFocusSharedLocation).toHaveBeenLastCalledWith(null);
   });
 });

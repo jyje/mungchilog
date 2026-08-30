@@ -1,6 +1,6 @@
 # Trip location sharing: server contract
 
-Location sharing is **disabled by default**. This document describes the phase-one server boundary, not a released sharing UI. Current-location display and itinerary following do not implicitly enable sharing.
+Location sharing is **disabled by default**. The trip UI exposes the feature only when the server release gate is enabled. Current-location display and itinerary following do not implicitly enable sharing.
 
 ## Deployment release gate
 
@@ -76,8 +76,21 @@ A stop body contains only `sharingSessionId`. It deletes the sender, latest posi
 
 Location sharing sends voluntarily shared coordinates to the application server and the selected trip's participants. Any participant can view without sharing their own location. Do not imply reciprocal sharing or that already viewed information can be recalled from recipients.
 
+## Client experience
+
+- The trip page owns the sharing session. Closing the participant sheet does not stop an active share, and a persistent map status keeps the state and stop action reachable.
+- Starting, actively publishing, temporarily interrupted, and another-tab or device states use distinct text. The UI does not claim that a position is shared until the first update has been accepted by the server.
+- Polling continues while the visible trip page is mounted, even when the participant sheet is closed. Markers also expire locally from the server-adjusted deadline when polling cannot refresh them.
+- Selecting a participant in the sheet or on the map focuses the same marker. Selecting it again, pressing Escape, or using the first app-level Back action clears that focus without changing itinerary order.
+- Itinerary and participant focus are mutually exclusive. Every selected marker has a visible treatment and `aria-pressed`; selection is never conveyed by color alone.
+- A trip-page unmount attempts to stop a locally owned sharing session. Reloading or opening another tab never restores the sender capability silently.
+- The client sends at most one accepted device fix every two seconds, matching the server update contract.
+- If the map provider fails, the itinerary remains usable and the sharing state and stop action remain available over the fallback.
+
 ## Verification
 
 `apps/server/src/location-sharing.test.ts` uses Hono requests, synthetic sessions, a temporary SQLite database and controlled time. It covers trip isolation, nonparticipant administrators, approval state, CSRF, payload limits, recipient confirmation, single-device takeover, expiry, stale measurements, rate limits, membership changes, account removal, logout, trip deletion, late streamed bodies, concurrent start requests and persistent-storage exclusion.
 
-The tests exercise the existing authentication/session checks but do not perform a real IdP sign-in or logout. Real OIDC UX, reverse-proxy behavior, multi-device browser behavior, service-worker exclusions and deployment topology require integration verification before exposing the sharing toggle in phase two.
+Web tests cover consent, takeover, panel-independent lifecycle, update throttling, local marker expiry, persistent map state, map-provider failure, stop access, and participant marker selection. The generated service worker check confirms location-sharing responses cannot enter persistent runtime caches.
+
+The tests exercise the existing authentication/session checks but do not perform a real IdP sign-in or logout. Real OIDC UX, reverse-proxy behavior, two-device movement, background behavior, GPS permission prompts, and deployment topology still require integration verification before the feature is enabled outside a controlled single-process environment.
