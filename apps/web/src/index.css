@@ -1941,11 +1941,14 @@ input[type="text"]::placeholder {
 }
 @media (min-width: 48rem) {
   .share-sheet {
-    inset: 50% auto auto 50%;
+    /* Keep the dialog centered without a transform. SheetContent animates
+       with transform while opening, which otherwise drops the horizontal
+       centering and can leave a tablet dialog outside the viewport. */
+    inset: 1rem;
     width: min(32rem, calc(100vw - 2rem));
+    height: fit-content;
     max-height: min(38rem, calc(100dvh - 2rem));
-    margin: 0;
-    transform: translate(-50%, -50%);
+    margin: auto;
     border-bottom: 1px solid var(--border);
     border-radius: 1.25rem;
     padding-bottom: 1.25rem;
