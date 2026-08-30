@@ -23,7 +23,7 @@ export function mapViewportInsets(map: Rect, header: Rect, floating?: Rect): Map
 
 export type SheetState = "collapsed" | "intermediate" | "expanded";
 export const SHEET_STATES: SheetState[] = ["collapsed", "intermediate", "expanded"];
-export const SHEET_LABELS: Record<SheetState, string> = { collapsed: "접힘", intermediate: "중간", expanded: "펼침" };
+export const SHEET_LABELS: Record<SheetState, string> = { collapsed: "지도", intermediate: "분할", expanded: "일정" };
 
 export function closestSheetState(height: number, availableHeight: number): SheetState {
   const ratio = height / Math.max(1, availableHeight);

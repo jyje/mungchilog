@@ -428,7 +428,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             </a>
           </Button>
         }
-        headerRight={
+        headerRight={(panelActions) => (
           <>
             <TripShareButton
               tripId={id}
@@ -439,9 +439,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               sharedLocations={sharedLocations}
               onFocusLocation={selectSharedLocation}
             />
-            <TripActionsMenu trip={trip} onSave={saveNow} onExport={() => downloadTripExchange(trip)} saving={mutation.isPending} />
+            <TripActionsMenu trip={trip} onSave={saveNow} onExport={() => downloadTripExchange(trip)} saving={mutation.isPending} panelActions={panelActions} />
           </>
-        }
+        )}
         title={trip.title}
         subtitle={
           <>
