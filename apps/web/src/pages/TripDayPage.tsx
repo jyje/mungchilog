@@ -14,7 +14,7 @@ import { SpotForm, type SpotFormValues } from "../components/SpotForm";
 import { MarkdownEditor } from "../components/MarkdownEditor";
 import { TripShareButton } from "../components/TripShareButton";
 import type { SharedLocationWithName } from "../components/LocationSharingControl";
-import { TripCoverSettingsButton } from "../components/TripCoverSettingsButton";
+import { TripActionsMenu } from "../components/TripActionsMenu";
 import { Button } from "../components/ui/button";
 import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
 import type { PersistedLegMode } from "../types";
@@ -390,16 +390,13 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         }
         headerLeft={
           <Button asChild variant="ghost" size="icon-lg" className="map-hero-back">
-            <a href="/trips" aria-label="목록으로" onClick={(e) => { e.preventDefault(); navigate("/trips"); }}>
+            <a href="/trips" aria-label="여행 목록으로" title="여행 목록으로" onClick={(e) => { e.preventDefault(); navigate("/trips"); }}>
               <ArrowLeft aria-hidden="true" />
             </a>
           </Button>
         }
         headerRight={
           <div className="trip-header-actions">
-            <Button type="button" variant="secondary" onClick={() => downloadTripExchange(trip)}>
-              내보내기
-            </Button>
             <TripShareButton
               tripId={id}
               me={me}
@@ -407,7 +404,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               onLocationsChange={handleSharedLocations}
               onFocusLocation={setFocusedSharedUserId}
             />
-            <TripCoverSettingsButton trip={trip} onSave={saveNow} saving={mutation.isPending} />
+            <TripActionsMenu trip={trip} onSave={saveNow} onExport={() => downloadTripExchange(trip)} saving={mutation.isPending} />
           </div>
         }
         title={trip.title}
