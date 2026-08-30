@@ -261,7 +261,6 @@ ul {
   flex-wrap: wrap;
   gap: 0.5rem;
 }
-.trip-library-actions a,
 .trip-cover-actions button {
   min-height: 40px;
   display: inline-flex;
@@ -274,10 +273,6 @@ ul {
   color: var(--accent);
   font-size: var(--type-label);
   font-weight: 600;
-}
-.trip-library-actions a:hover {
-  border-color: var(--accent);
-  text-decoration: none;
 }
 .trip-library-grid {
   display: grid;
@@ -441,7 +436,10 @@ ul {
   .trip-library-actions {
     width: 100%;
   }
-  .trip-library-actions a {
+  .trip-new-trip-group {
+    width: 100%;
+  }
+  .trip-new-trip-group .trip-new-trip-primary {
     flex: 1;
   }
   .trip-library-place {
