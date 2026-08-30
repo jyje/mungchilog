@@ -645,7 +645,7 @@ ul {
   z-index: 6;
   padding: 0.5rem;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.5rem;
   background: var(--surface);
@@ -1076,7 +1076,7 @@ body.trip-panel-resizing { cursor: col-resize; }
 @media (max-width: 56.249rem) {
   .map-hero-header { gap: 0.25rem 0.5rem; }
   .map-hero-title { grid-column: 1 / -1; grid-row: 2; padding: 0.1rem 0.5rem 0.35rem; }
-  .trip-header-actions { grid-column: 4; grid-row: 1; }
+  .trip-header-actions { grid-column: 3; grid-row: 1; }
   .map-hero-title h1 { font-size: 1.125rem; }
   .map-hero-title .meta { font-size: var(--type-label); }
 }

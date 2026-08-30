@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreVertical, X } from "lucide-react";
+import { Download, Image, MoreVertical, X } from "lucide-react";
 import type { Trip } from "../types";
 import { TripCoverEditor } from "./TripCoverEditor";
 import { Button } from "./ui/button";
@@ -15,6 +15,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
@@ -22,7 +23,17 @@ function hasUnsavedChanges(trip: Trip, spotId: string, imageDataUrl: string) {
   return (trip.cover?.spotId ?? "") !== spotId || (trip.cover?.imageDataUrl ?? "") !== imageDataUrl;
 }
 
-export function TripCoverSettingsButton({ trip, onSave, saving }: { trip: Trip; onSave: (trip: Trip) => void; saving: boolean }) {
+export function TripActionsMenu({
+  trip,
+  onSave,
+  onExport,
+  saving,
+}: {
+  trip: Trip;
+  onSave: (trip: Trip) => void;
+  onExport: () => void;
+  saving: boolean;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [unsaved, setUnsaved] = useState(false);
@@ -37,12 +48,20 @@ export function TripCoverSettingsButton({ trip, onSave, saving }: { trip: Trip; 
     <>
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="여행 더보기">
+          <Button type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="여행 더보기" title="여행 더보기">
             <MoreVertical aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="trip-actions-menu">
-          <DropdownMenuItem onSelect={() => setEditorOpen(true)}>대표 화면 설정</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setEditorOpen(true)}>
+            <Image aria-hidden="true" />
+            대표 화면 설정
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onExport}>
+            <Download aria-hidden="true" />
+            여행 내보내기 (.json)
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
