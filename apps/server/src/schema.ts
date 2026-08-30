@@ -93,16 +93,54 @@ export const SpotSchema = z.object({
 // This is a user decision for an itinerary edge, not the `legs` database
 // cache entry that stores a Google Routes response. Pairing both spot IDs
 // means reordering cannot accidentally apply a mode to a new destination.
+// DIRECT is a legacy value: a straight line is a drawing, not a route, so it
+// stays readable for existing itineraries but is never offered as a new
+// choice. Clients show it as an unavailable fallback and require a real mode
+// once the user edits that leg.
+export const SELECTABLE_LEG_MODES = ["WALK", "TRANSIT", "DRIVE"] as const;
 export const PersistedLegModeSchema = z.enum(["DIRECT", "TRANSIT", "DRIVE", "WALK"]);
-export const LegPreferenceSchema = z.object({
-  fromSpotId: z.string().min(1),
-  toSpotId: z.string().min(1),
-  mode: PersistedLegModeSchema,
-  routeIndex: z.number().int().min(0).max(3).default(0),
-  // Traffic-aware Routes requests use the higher Pro SKU. Keep this opt-in
-  // and meaningful only for road routes.
-  trafficAware: z.boolean().default(false),
+
+// When the leg should happen, in the trip's own local time. AUTO is derived
+// from the preceding stop's planned arrival plus its dwell time, so it stores
+// no clock of its own.
+export const LegTimingSchema = z.object({
+  kind: z.enum(["AUTO", "DEPART_AT", "ARRIVE_BY"]).default("AUTO"),
+  // "YYYY-MM-DD" / "HH:mm" in the trip timezone. The date is optional and
+  // defaults to the day the leg belongs to; an overnight transit leg is what
+  // makes it worth storing at all.
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
 });
+
+export const LegPreferenceSchema = z
+  .object({
+    fromSpotId: z.string().min(1),
+    toSpotId: z.string().min(1),
+    mode: PersistedLegModeSchema,
+    // Legacy positional selection. Retained so existing itineraries keep
+    // resolving, but `routeKey` wins whenever it is present.
+    routeIndex: z.number().int().min(0).max(3).default(0),
+    // Fingerprint of the chosen alternative (see route-planning.ts). Google
+    // may reorder alternatives between cache refreshes, so an index alone
+    // would silently select a different journey than the saved one.
+    routeKey: z.string().min(1).optional(),
+    timing: LegTimingSchema.default({ kind: "AUTO" }),
+    // Traffic-aware Routes requests use the higher Pro SKU. Keep this opt-in
+    // and meaningful only for road routes.
+    trafficAware: z.boolean().default(false),
+  })
+  .superRefine((preference, ctx) => {
+    const { kind, date, time } = preference.timing;
+    if (kind === "ARRIVE_BY" && preference.mode !== "TRANSIT") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing", "kind"], message: "arrive-by timing is only available for transit legs" });
+    }
+    if (kind === "AUTO" && (time != null || date != null)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing"], message: "automatic timing cannot carry a stored date or time" });
+    }
+    if (kind !== "AUTO" && time == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing", "time"], message: "a chosen departure or arrival needs a time" });
+    }
+  });
 
 export const DaySchema = z
   .object({

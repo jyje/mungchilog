@@ -68,14 +68,49 @@ export const SpotSchema = z.object({
 
 // Mirrors the server schema. The preference belongs to a directed pair of
 // spots so it cannot silently move to a different destination after reorder.
+// DIRECT is a legacy value: a straight line is a drawing, not a route, so it
+// stays readable for existing itineraries but is never offered as a new
+// choice. The picker shows it as an unavailable fallback and requires a real
+// mode once the user edits that leg.
+export const SELECTABLE_LEG_MODES = ["WALK", "TRANSIT", "DRIVE"] as const;
 export const PersistedLegModeSchema = z.enum(["DIRECT", "TRANSIT", "DRIVE", "WALK"]);
-export const LegPreferenceSchema = z.object({
-  fromSpotId: z.string().min(1),
-  toSpotId: z.string().min(1),
-  mode: PersistedLegModeSchema,
-  routeIndex: z.number().int().min(0).max(3).default(0),
-  trafficAware: z.boolean().default(false),
+
+// When the leg should happen, in the trip's own local time. AUTO is derived
+// from the preceding stop's planned arrival plus its dwell time, so it stores
+// no clock of its own.
+export const LegTimingSchema = z.object({
+  kind: z.enum(["AUTO", "DEPART_AT", "ARRIVE_BY"]).default("AUTO"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
 });
+
+export const LegPreferenceSchema = z
+  .object({
+    fromSpotId: z.string().min(1),
+    toSpotId: z.string().min(1),
+    mode: PersistedLegModeSchema,
+    // Legacy positional selection. Retained so existing itineraries keep
+    // resolving, but `routeKey` wins whenever it is present.
+    routeIndex: z.number().int().min(0).max(3).default(0),
+    // Fingerprint of the chosen alternative, from the server. Google may
+    // reorder alternatives between cache refreshes, so an index alone would
+    // silently select a different journey than the saved one.
+    routeKey: z.string().min(1).optional(),
+    timing: LegTimingSchema.default({ kind: "AUTO" }),
+    trafficAware: z.boolean().default(false),
+  })
+  .superRefine((preference, ctx) => {
+    const { kind, date, time } = preference.timing;
+    if (kind === "ARRIVE_BY" && preference.mode !== "TRANSIT") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing", "kind"], message: "도착 시각 지정은 대중교통 동선에서만 사용할 수 있습니다." });
+    }
+    if (kind === "AUTO" && (time != null || date != null)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing"], message: "자동 시각에는 날짜나 시각을 저장할 수 없습니다." });
+    }
+    if (kind !== "AUTO" && time == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing", "time"], message: "출발 또는 도착 시각을 입력해주세요." });
+    }
+  });
 
 export const DaySchema = z
   .object({
@@ -134,6 +169,8 @@ export type Item = z.infer<typeof ItemSchema>;
 export type Spot = z.infer<typeof SpotSchema>;
 export type SpotTimeKind = z.infer<typeof SpotTimeKindSchema>;
 export type PersistedLegMode = z.infer<typeof PersistedLegModeSchema>;
+export type SelectableLegMode = (typeof SELECTABLE_LEG_MODES)[number];
+export type LegTiming = z.infer<typeof LegTimingSchema>;
 export type LegPreference = z.infer<typeof LegPreferenceSchema>;
 export type Day = z.infer<typeof DaySchema>;
 export type TripData = z.infer<typeof TripDataSchema>;
