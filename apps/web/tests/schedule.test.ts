@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effectiveTimeKind, routeDepartureIso, scheduleWarnings, spotScheduleDisplay } from "../src/schedule";
+import { effectiveTimeKind, resolveTripWallClock, routeDepartureIso, scheduleWarnings, spotScheduleDisplay } from "../src/schedule";
 
 describe("itinerary schedule semantics", () => {
   it("treats legacy arrival times as approximate without rewriting them", () => {
@@ -46,5 +46,20 @@ describe("itinerary schedule semantics", () => {
       "Europe/Paris",
     )).toBe("2026-10-01T10:00:00.000Z");
     expect(routeDepartureIso("2026-10-01", {}, "Asia/Seoul")).toBe("2026-10-01T03:00:00.000Z");
+  });
+
+  it("detects a nonexistent daylight-saving wall time without moving it backwards", () => {
+    expect(resolveTripWallClock("2026-03-08", "02:30", "America/New_York")).toEqual({
+      iso: "2026-03-08T07:30:00.000Z",
+      exact: false,
+    });
+    expect(scheduleWarnings([
+      { id: "gap", plannedArrival: "02:30" },
+    ], "2026-03-08", "America/New_York")).toEqual([
+      {
+        spotId: "gap",
+        message: "이 시각은 여행지 표준시의 일광 절약 시간 전환으로 존재하지 않습니다. 다른 시각을 선택해주세요.",
+      },
+    ]);
   });
 });

@@ -6,6 +6,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { resolveTripWallClock } from "../schedule";
 
 export type SpotFormValues = {
   name: string;
@@ -35,6 +36,8 @@ export function SpotForm({
   initial,
   initialLocation,
   initialPlace,
+  date,
+  timezone,
   submitLabel = "스팟 추가",
   onSubmit,
   onCancel,
@@ -42,6 +45,8 @@ export function SpotForm({
   initial?: Pick<Spot, "name" | "nameLocal" | "plannedArrival" | "timeKind" | "dwellMinutes" | "note" | "placeId" | "lat" | "lng" | "category">;
   initialLocation?: CoordinateSelection;
   initialPlace?: PlaceSelection;
+  date?: string;
+  timezone?: string;
   submitLabel?: string;
   onSubmit: (spot: SpotFormValues) => void;
   onCancel: () => void;
@@ -91,6 +96,10 @@ export function SpotForm({
     if (!name.trim()) return;
     if (timeChoice !== "NONE" && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(plannedArrival)) {
       setScheduleError("일정 시각을 24시간제로 입력해주세요.");
+      return;
+    }
+    if (timeChoice !== "NONE" && date && timezone && !resolveTripWallClock(date, plannedArrival, timezone).exact) {
+      setScheduleError("이 시각은 여행지 표준시의 일광 절약 시간 전환으로 존재하지 않습니다. 다른 시각을 선택해주세요.");
       return;
     }
     const parsedDwell = dwellMinutes === "" ? undefined : Number(dwellMinutes);

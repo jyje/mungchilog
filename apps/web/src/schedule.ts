@@ -48,13 +48,25 @@ export function spotScheduleDisplay(spot: Pick<Spot, "plannedArrival" | "timeKin
 
 export type ScheduleWarning = { spotId: string; message: string };
 
-export function scheduleWarnings(spots: Array<Pick<Spot, "id" | "plannedArrival" | "dwellMinutes">>): ScheduleWarning[] {
+export function scheduleWarnings(
+  spots: Array<Pick<Spot, "id" | "plannedArrival" | "dwellMinutes">>,
+  date?: string,
+  timeZone?: string,
+): ScheduleWarning[] {
   const warnings: ScheduleWarning[] = [];
   let previous: { start: number; end: number } | null = null;
 
   for (const spot of spots) {
     const start = wallClockMinutes(spot.plannedArrival);
     if (start == null) {
+      previous = null;
+      continue;
+    }
+    if (date && timeZone && spot.plannedArrival && !resolveTripWallClock(date, spot.plannedArrival, timeZone).exact) {
+      warnings.push({
+        spotId: spot.id,
+        message: "이 시각은 여행지 표준시의 일광 절약 시간 전환으로 존재하지 않습니다. 다른 시각을 선택해주세요.",
+      });
       previous = null;
       continue;
     }
@@ -86,12 +98,16 @@ function localDateTime(date: string, time: string, minuteOffset: number) {
   };
 }
 
-export function tripWallClockIso(date: string, time: string, timeZone: string, minuteOffset = 0): string {
+export function resolveTripWallClock(date: string, time: string, timeZone: string, minuteOffset = 0): {
+  iso: string;
+  exact: boolean;
+} {
   const target = localDateTime(date, time, minuteOffset);
   const targetMs = Date.UTC(target.year, target.month - 1, target.day, target.hour, target.minute, 0);
   let candidate = targetMs;
+  const alternatives: Array<{ candidate: number; renderedMs: number }> = [];
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     const parts = Object.fromEntries(
       new Intl.DateTimeFormat("en-US", {
         timeZone,
@@ -114,10 +130,23 @@ export function tripWallClockIso(date: string, time: string, timeZone: string, m
       Number(parts.minute),
       Number(parts.second),
     );
+    if (renderedMs === targetMs) return { iso: new Date(candidate).toISOString(), exact: true };
+    alternatives.push({ candidate, renderedMs });
     candidate -= renderedMs - targetMs;
   }
 
-  return new Date(candidate).toISOString();
+  // A spring-forward gap has no exact instant. Follow the conventional
+  // compatible behavior and move to the first representable local time after
+  // the gap, while exposing `exact: false` so editors can reject it instead
+  // of silently showing the user a different clock time.
+  const later = alternatives
+    .filter((alternative) => alternative.renderedMs > targetMs)
+    .sort((a, b) => a.renderedMs - b.renderedMs)[0];
+  return { iso: new Date(later?.candidate ?? candidate).toISOString(), exact: false };
+}
+
+export function tripWallClockIso(date: string, time: string, timeZone: string, minuteOffset = 0): string {
+  return resolveTripWallClock(date, time, timeZone, minuteOffset).iso;
 }
 
 export function routeDepartureIso(date: string, spot: Pick<Spot, "plannedArrival" | "dwellMinutes">, timeZone: string): string {

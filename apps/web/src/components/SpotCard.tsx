@@ -88,6 +88,7 @@ export function SpotCard({
   selected,
   onSelect,
   date,
+  timezone = "Asia/Seoul",
   scheduleWarning,
 }: {
   spot: Spot;
@@ -99,6 +100,7 @@ export function SpotCard({
   selected: boolean;
   onSelect: () => void;
   date: string;
+  timezone?: string;
   scheduleWarning?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: spot.id });
@@ -123,6 +125,8 @@ export function SpotCard({
         <div className="spot-body">
           <SpotForm
             initial={spot}
+            date={date}
+            timezone={timezone}
             submitLabel="저장"
             onSubmit={(updates) => {
               onEditSpot(updates);

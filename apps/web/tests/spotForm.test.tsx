@@ -141,4 +141,24 @@ describe("spot schedule editor", () => {
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByRole("alert")).toHaveTextContent("일정 시각을 24시간제로 입력해주세요.");
   });
+
+  it("rejects a local time that does not exist during daylight-saving transition", () => {
+    const onSubmit = vi.fn();
+    render(
+      <SpotForm
+        initial={{ name: "새벽 이동" }}
+        date="2026-03-08"
+        timezone="America/New_York"
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: "대략적인 시각" }));
+    fireEvent.change(screen.getByLabelText("예상 시각 입력"), { target: { value: "02:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("일광 절약 시간 전환으로 존재하지 않습니다");
+  });
 });

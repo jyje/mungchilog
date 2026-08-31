@@ -208,7 +208,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   const day = trip.days[dayIndex];
   const orderedSpots = [...(day?.spots ?? [])].sort((a, b) => a.order - b.order);
-  const scheduleWarningBySpotId = new Map(scheduleWarnings(orderedSpots).map((warning) => [warning.spotId, warning.message]));
+  const scheduleWarningBySpotId = new Map(scheduleWarnings(orderedSpots, day?.date, trip.timezone).map((warning) => [warning.spotId, warning.message]));
 
   function defaultNewDayDate() {
     if (!trip) return "";
@@ -660,6 +660,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                               }
                               onSelect={() => selectItinerary({ kind: "spot", spotId: spot.id })}
                               date={day.date}
+                              timezone={trip.timezone}
                               scheduleWarning={scheduleWarningBySpotId.get(spot.id)}
                             />
                           );
@@ -695,6 +696,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                           <SpotForm
                             initialLocation={pendingCoordinate ?? undefined}
                             initialPlace={pendingPlace ?? undefined}
+                            date={day.date}
+                            timezone={trip.timezone}
                             onSubmit={addSpot}
                             onCancel={() => { setAddingSpot(false); setPendingCoordinate(null); setPendingPlace(null); }}
                           />
