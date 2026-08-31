@@ -1728,6 +1728,219 @@ input[type="text"]::placeholder {
   flex: none;
 }
 
+.admin-page-heading {
+  margin-bottom: 1.25rem;
+}
+.admin-page-heading h1 {
+  margin: 0.15rem 0 0.25rem;
+}
+.admin-page-heading .eyebrow {
+  margin: 0;
+  color: var(--primary);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.14em;
+}
+.admin-tabs > [data-slot="tabs-list"] {
+  margin-bottom: 1.25rem;
+}
+.admin-tabs [data-slot="tabs-trigger"] {
+  min-width: 7rem;
+  min-height: 44px;
+  padding-inline: 1rem;
+}
+.admin-users,
+.admin-usage,
+.usage-sections {
+  display: grid;
+  gap: 1.5rem;
+}
+.admin-users {
+  gap: 1.75rem;
+}
+.usage-toolbar,
+.usage-window-picker,
+.usage-section-heading,
+.usage-section-heading > div,
+.usage-metric-heading,
+.usage-service-card header {
+  display: flex;
+  align-items: center;
+}
+.usage-toolbar,
+.usage-section-heading,
+.usage-service-card header {
+  justify-content: space-between;
+}
+.usage-toolbar {
+  gap: 0.75rem;
+}
+.usage-window-picker {
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.usage-section-heading {
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.usage-section-heading > div,
+.usage-metric-heading {
+  gap: 0.45rem;
+}
+.usage-section-heading h2,
+.usage-service-card h3,
+.usage-provider-state h2,
+.usage-provider-state h3 {
+  margin: 0;
+}
+.usage-section-heading svg,
+.usage-metric-heading svg,
+.usage-provider-state > svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: var(--primary);
+}
+.usage-source {
+  color: var(--text-muted);
+  font-size: var(--type-label);
+  text-align: right;
+}
+.usage-card-grid,
+.usage-service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.75rem;
+}
+.usage-metric-card,
+.usage-service-card,
+.usage-provider-state {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+}
+.usage-metric-card,
+.usage-service-card {
+  padding: 1rem;
+}
+.usage-metric-heading {
+  color: var(--text-muted);
+  font-size: var(--type-label);
+}
+.usage-metric-card strong {
+  display: block;
+  margin-top: 0.65rem;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  line-height: 1;
+}
+.usage-metric-card p,
+.usage-provider-state p {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--type-label);
+}
+.usage-service-card header {
+  gap: 0.75rem;
+}
+.usage-service-card header span {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.usage-service-card dl {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.8rem 0 0;
+  font-size: var(--type-label);
+}
+.usage-service-card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.usage-service-card dt {
+  color: var(--text-muted);
+}
+.usage-service-card dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.usage-sparkline {
+  display: flex;
+  align-items: end;
+  gap: 3px;
+  height: 4.5rem;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  border-radius: 0.6rem;
+  background: color-mix(in srgb, var(--primary) 7%, transparent);
+}
+.usage-sparkline-bar {
+  flex: 1;
+  min-width: 3px;
+  max-width: 1.25rem;
+  border-radius: 3px 3px 1px 1px;
+  background: var(--primary);
+}
+.usage-sparkline-bar.has-errors {
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--surface) 55%, transparent) 3px 5px);
+}
+.usage-sparkline-empty {
+  width: 100%;
+  border-bottom: 1px dashed var(--border);
+}
+.usage-provider-state {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+  padding: 1rem;
+}
+.usage-provider-state.error-state {
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+}
+.usage-delay-note,
+.usage-loading {
+  margin-top: -0.4rem;
+}
+.usage-delay-note.is-delayed {
+  color: color-mix(in srgb, var(--danger) 76%, var(--text));
+}
+.usage-empty-state {
+  margin-top: 0.75rem;
+}
+.usage-refreshing {
+  animation: usage-spin 0.8s linear infinite;
+}
+
+@keyframes usage-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 560px) {
+  .usage-toolbar,
+  .usage-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .usage-source {
+    text-align: left;
+  }
+  .usage-provider-state {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .usage-provider-state > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .usage-window-picker {
+    width: 100%;
+  }
+  .usage-window-picker > button {
+    flex: 1;
+  }
+}
+
 /* Trip sharing uses an app-level sheet instead of a map-header popover. The
    fixed layer prevents narrow viewports from clipping controls off-screen. */
 .share-sheet {

@@ -2,6 +2,16 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
+    "serviceAccount": {
+      "type": "object",
+      "required": ["create", "name", "annotations", "automountServiceAccountToken"],
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean" }
+      }
+    },
     "database": {
       "type": "object",
       "required": ["provider", "sqlite", "postgres"],
@@ -37,6 +47,67 @@
             "existingSecret": { "type": "string" },
             "key": { "type": "string", "minLength": 1 }
           }
+        }
+      }
+    },
+    "usageMonitoring": {
+      "type": "object",
+      "required": ["googleCloud"],
+      "properties": {
+        "googleCloud": {
+          "type": "object",
+          "required": ["enabled", "projectId", "monitoredServices", "workloadIdentity"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "projectId": { "type": "string" },
+            "monitoredServices": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^[a-z0-9.-]+\\.googleapis\\.com$" },
+              "maxItems": 12,
+              "uniqueItems": true
+            },
+            "workloadIdentity": {
+              "type": "object",
+              "required": ["enabled", "audience", "credentialConfigMap", "credentialConfigKey", "tokenExpirationSeconds"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "audience": { "type": "string" },
+                "credentialConfigMap": { "type": "string" },
+                "credentialConfigKey": { "type": "string", "minLength": 1 },
+                "tokenExpirationSeconds": { "type": "integer", "minimum": 600, "maximum": 86400 }
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "enabled": { "const": true } } },
+              "then": {
+                "properties": {
+                  "projectId": { "minLength": 1 },
+                  "monitoredServices": { "minItems": 1 }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "workloadIdentity": {
+                    "properties": { "enabled": { "const": true } }
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "workloadIdentity": {
+                    "properties": {
+                      "audience": { "minLength": 1 },
+                      "credentialConfigMap": { "minLength": 1 }
+                    }
+                  }
+                }
+              }
+            }
+          ]
         }
       }
     }

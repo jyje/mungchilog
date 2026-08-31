@@ -117,6 +117,39 @@ export function adminRejectUser(id: string): Promise<{ removed: boolean }> {
   return fetch(`/api/admin/users/${id}`, { method: "DELETE" }).then((r) => json(r));
 }
 
+export type AdminUsageWindow = "24h" | "7d" | "30d";
+
+export type AdminUsageService = {
+  service: string;
+  label: string;
+  requests: number;
+  errors: number;
+  errorRate: number;
+  latencyMs: { p50: number | null; p95: number | null };
+  quota: { usage: number; limit: number; ratio: number } | null;
+  trend: Array<{ at: string; requests: number; errors: number }>;
+};
+
+export type AdminUsage = {
+  window: AdminUsageWindow;
+  generatedAt: string;
+  application: {
+    users: { pending: number; approved: number };
+    trips: number;
+    memberships: number;
+    routeCache: { entries: number; freshEntries: number };
+    placeCache: { entries: number; freshEntries: number };
+  };
+  google:
+    | { status: "disabled"; reason: "not-configured" }
+    | { status: "unavailable"; reason: "provider-error" }
+    | { status: "available"; sampledUntil: string; services: AdminUsageService[] };
+};
+
+export function adminGetUsage(window: AdminUsageWindow, refresh = false): Promise<AdminUsage> {
+  return fetchWithTimeout(`/api/admin/usage?window=${window}${refresh ? "&refresh=1" : ""}`).then((r) => json(r));
+}
+
 export type TripMember = { id: string; email: string; name: string | null; role: "owner" | "editor" };
 
 export function listTripMembers(tripId: string): Promise<TripMember[]> {
