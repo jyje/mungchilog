@@ -21,16 +21,24 @@ export type PlaceDetails = {
   googleMapsUri: string | null;
 };
 
-type PlaceDetailsResponse = { details: PlaceDetails; fetchedAt: string } | null;
+type PlaceDetailsResponse = {
+  details: PlaceDetails;
+  fetchedAt: string;
+  freshness: "current" | "stale";
+} | null;
 
 async function fetchPlaceDetails(placeId: string): Promise<PlaceDetailsResponse> {
   const response = await fetch(`/api/places/${encodeURIComponent(placeId)}/details`);
   if (response.status === 501) {
     const body = await response.json().catch(() => ({}));
-    return body.cached ?? null;
+    return body.cached ? { ...body.cached, freshness: "stale" as const } : null;
   }
   if (!response.ok) throw new Error("장소 정보를 불러오지 못했습니다.");
-  return response.json();
+  const body = await response.json();
+  return {
+    ...body,
+    freshness: response.headers.get("X-Cache") === "stale" ? "stale" : "current",
+  };
 }
 
 function safeExternalUrl(value: string | null): string | null {
@@ -104,6 +112,11 @@ export function PlaceDetailsPanel({ selection, onAdd, onClose, canAdd = true }: 
         <Button type="button" variant="ghost" size="icon" aria-label="선택한 장소 닫기" onClick={onClose}><X aria-hidden="true" /></Button>
       </div>
       {details.formattedAddress && <p className="place-details-address"><MapPin aria-hidden="true" /> {details.formattedAddress}</p>}
+      {query.data?.freshness === "stale" && (
+        <p className="meta place-details-stale" role="status">
+          저장된 장소 정보입니다. 제공자 연결이 복구되면 최신 정보로 갱신됩니다.
+        </p>
+      )}
       {(details.rating != null || details.userRatingCount != null) && (
         <p className="place-details-rating" aria-label={`평점 ${details.rating ?? "정보 없음"}, 리뷰 ${details.userRatingCount ?? "정보 없음"}개`}>
           ★ {details.rating?.toFixed(1) ?? "-"} {details.userRatingCount != null && <span>리뷰 {details.userRatingCount.toLocaleString()}개</span>}

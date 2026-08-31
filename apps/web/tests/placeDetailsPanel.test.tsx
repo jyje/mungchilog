@@ -53,6 +53,29 @@ describe("place discovery panel", () => {
     });
   });
 
+  it("labels cached details when the provider fallback is stale", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      details: {
+        id: "tokyo-station",
+        displayName: "도쿄역",
+        formattedAddress: "1 Chome Marunouchi",
+        location: { latitude: 35.6812, longitude: 139.7671 },
+        category: "기차역",
+        rating: null,
+        userRatingCount: null,
+        regularOpeningHours: null,
+        websiteUri: null,
+        nationalPhoneNumber: null,
+        googleMapsUri: null,
+      },
+      fetchedAt: "2026-07-01T00:00:00.000Z",
+    }), { status: 200, headers: { "X-Cache": "stale" } })));
+
+    renderDetails();
+
+    expect(await screen.findByRole("status")).toHaveTextContent("저장된 장소 정보");
+  });
+
   it("keeps itinerary and place content in accessible tabs", () => {
     const onValueChange = vi.fn();
     render(
