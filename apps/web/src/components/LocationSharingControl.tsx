@@ -26,6 +26,11 @@ export function LocationSharingControl({ controller }: { controller: TripLocatio
     cancelConsent,
   } = controller;
 
+  // The server release gate is authoritative. Do not leave a disabled
+  // sharing action in the participant sheet when the deployment cannot make
+  // the in-memory revocation guarantees required by this feature.
+  if (unavailable && !localActive && !remoteActive) return null;
+
   return <section className="location-sharing-control" aria-label="내 위치 공유">
     <div className="location-sharing-heading">
       <div><strong>내 위치 공유</strong><p className="meta">동행자는 위치를 공유하지 않아도 볼 수 있습니다.</p></div>
