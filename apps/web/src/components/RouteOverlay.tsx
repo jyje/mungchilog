@@ -196,15 +196,36 @@ function RouteLeg({
   if (!isLegacyLegMode(mode) && selectedRoute?.polyline) {
     // Real road/rail-following route from the Routes API - what "the
     // route between stops" actually means once a server key exists.
+    //
+    // A transit journey arrives split into steps, which is the only way to
+    // draw the walk to the station differently from the ride. Everything else
+    // - a walk or drive leg, or an entry cached before step geometry was
+    // requested - is one uniform line.
+    const segments = selectedRoute.segments;
     return (
       <>
-        <CasedRoute
-          encodedPath={selectedRoute.polyline}
-          kind={routeSegmentKind(mode)}
-          emphasis={emphasis}
-          onSelect={onSelect}
-        />
+        {segments?.length ? (
+          segments.map((segment, index) => (
+            <CasedRoute
+              key={`${index}:${segment.polyline.slice(0, 16)}`}
+              encodedPath={segment.polyline}
+              kind={routeSegmentKind(mode, segment.travelMode)}
+              emphasis={emphasis}
+              onSelect={onSelect}
+            />
+          ))
+        ) : (
+          <CasedRoute
+            encodedPath={selectedRoute.polyline}
+            kind={routeSegmentKind(mode)}
+            emphasis={emphasis}
+            onSelect={onSelect}
+          />
+        )}
         <RouteAccessConnectors
+          // Deliberately the whole-journey line, not a segment: the connectors
+          // bridge the gap between the route's real ends and the stops, and
+          // the first and last segments are the same ends.
           encodedPath={selectedRoute.polyline}
           from={from}
           to={to}
