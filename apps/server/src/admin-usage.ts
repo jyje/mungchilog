@@ -11,10 +11,9 @@ export type ApplicationUsage = {
   placeCache: { entries: number; freshEntries: number };
 };
 
-export type GoogleUsageUnavailable = {
-  status: "disabled" | "unavailable";
-  reason: "not-configured" | "provider-error";
-};
+export type GoogleUsageUnavailable =
+  | { status: "disabled"; reason: "not-configured" }
+  | { status: "unavailable"; reason: "provider-error" };
 
 export type GoogleUsageService = {
   service: string;
