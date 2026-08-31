@@ -1,0 +1,25 @@
+.theme-toggle-trigger[data-slot="button"] {
+  flex: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 2px 10px var(--shadow-color);
+}
+
+.theme-toggle-trigger[data-slot="button"]:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.theme-toggle-state {
+  margin-left: auto;
+  padding-left: 1rem;
+  color: var(--text-muted);
+  font-size: var(--type-label);
+}
+
+.gallery-theme-toggle[data-slot="button"] {
+  position: absolute;
+  top: 0;
+  right: 0;
+}

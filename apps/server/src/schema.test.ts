@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MAX_COVER_IMAGE_BYTES, TripImportSchema } from "./schema.js";
+import { DEFAULT_TIMEZONE, MAX_COVER_IMAGE_BYTES, TripImportSchema } from "./schema.js";
 
 function tripWithCover(cover: unknown) {
   return {
@@ -40,4 +40,54 @@ test("a trip cover rejects unsupported and oversized Base64 images", () => {
   const encodedTooLarge = "A".repeat(Math.ceil(((MAX_COVER_IMAGE_BYTES + 1) * 4) / 3));
   const oversized = TripImportSchema.safeParse(tripWithCover({ imageDataUrl: `data:image/jpeg;base64,${encodedTooLarge}` }));
   assert.equal(oversized.success, false);
+});
+
+test("a blank or omitted trip timezone defaults to Seoul", () => {
+  const blank = TripImportSchema.parse({ ...tripWithCover({ spotId: "tokyo-station" }), timezone: "" });
+  const omitted = TripImportSchema.parse(tripWithCover({ spotId: "tokyo-station" }));
+
+  assert.equal(blank.timezone, DEFAULT_TIMEZONE);
+  assert.equal(omitted.timezone, DEFAULT_TIMEZONE);
+});
+
+test("leg preferences are optional for existing trips and validate their spot pairs", () => {
+  const legacy = TripImportSchema.safeParse(tripWithCover(undefined));
+  assert.equal(legacy.success, true);
+  if (legacy.success) assert.deepEqual(legacy.data.days[0].legPreferences, []);
+
+  const drivingWithTraffic = TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{
+      date: "2026-09-07",
+      spots: [
+        { id: "station", order: 0, name: "역", items: [] },
+        { id: "hotel", order: 1, name: "호텔", items: [] },
+      ],
+      legPreferences: [{ fromSpotId: "station", toSpotId: "hotel", mode: "DRIVE", routeIndex: 2, trafficAware: true }],
+    }],
+  });
+  assert.equal(drivingWithTraffic.success, true);
+
+  const invalid = TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{
+      date: "2026-09-07",
+      spots: [{ id: "station", order: 0, name: "역", items: [] }],
+      legPreferences: [{ fromSpotId: "station", toSpotId: "missing", mode: "WALK" }],
+    }],
+  });
+  assert.equal(invalid.success, false);
+
+  const invalidTraffic = TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{
+      date: "2026-09-07",
+      spots: [
+        { id: "station", order: 0, name: "역", items: [] },
+        { id: "hotel", order: 1, name: "호텔", items: [] },
+      ],
+      legPreferences: [{ fromSpotId: "station", toSpotId: "hotel", mode: "TRANSIT", trafficAware: true }],
+    }],
+  });
+  assert.equal(invalidTraffic.success, false);
 });

@@ -2,28 +2,39 @@ name: Build and push app image
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
+    paths:
+      - "apps/**"
+      - ".dockerignore"
+      - ".github/workflows/build.yml"
+  pull_request:
+    branches: [dev, stg, prd]
     paths:
       - "apps/**"
       - ".dockerignore"
       - ".github/workflows/build.yml"
   workflow_dispatch: {}
 
-# A later build must not finish after a newer main commit and become Image
+# A later dev build must not finish after a newer dev commit and become Image
 # Updater's newest-build candidate. Cancel superseded work so the newest
-# completed run represents the newest main revision.
+# completed run represents the newest development revision.
 concurrency:
-  group: build-main
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  IMAGE: ghcr.io/${{ github.repository }}
+  IMAGE: ghcr.io/${{ github.repository }}-dev
 
 jobs:
   metadata:
     runs-on: ubuntu-26.04
     outputs:
       image_tag: ${{ steps.image_tag.outputs.value }}
+      build_env: ${{ steps.build_info.outputs.environment }}
+      build_number: ${{ github.run_number }}
+      commit_sha: ${{ steps.build_info.outputs.commit_sha }}
+      build_branch: ${{ github.ref_name }}
+      build_time: ${{ steps.build_info.outputs.build_time }}
       publish: ${{ steps.publish.outputs.value }}
     steps:
       - uses: actions/checkout@v4
@@ -33,13 +44,29 @@ jobs:
         shell: bash
         run: |
           short_sha="$(git rev-parse --short=7 "$GITHUB_SHA")"
-          echo "value=${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_OUTPUT"
+          echo "value=r${GITHUB_RUN_NUMBER}-${short_sha}" >> "$GITHUB_OUTPUT"
 
-      # workflow_dispatch can run from a feature branch for build validation,
-      # but only main may publish a tag that Image Updater could deploy.
+      - name: Compute public build metadata
+        id: build_info
+        shell: bash
+        run: |
+          case "$GITHUB_REF_NAME" in
+            dev) environment=dev ;;
+            stg) environment=stg ;;
+            prd|main) environment=prd ;;
+            *) environment=local ;;
+          esac
+          short_sha="$(git rev-parse --short=7 "$GITHUB_SHA")"
+          echo "environment=$environment" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
+      # Pull requests and manual dispatches only validate. New deployable
+      # images originate exclusively from the development package. Promotion
+      # copies the same OCI manifest to staging and production without rebuilding it.
       - name: Decide whether this run may publish
         id: publish
-        run: echo "value=${{ github.ref == 'refs/heads/main' }}" >> "$GITHUB_OUTPUT"
+        run: echo "value=${{ github.ref == 'refs/heads/dev' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}" >> "$GITHUB_OUTPUT"
 
   validate:
     needs: metadata
@@ -75,6 +102,12 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
           build-args: |
             VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+            VITE_BUILD_ENV=${{ needs.metadata.outputs.build_env }}
+            VITE_BUILD_NUMBER=${{ needs.metadata.outputs.build_number }}
+            VITE_IMAGE_TAG=${{ needs.metadata.outputs.image_tag }}
+            VITE_COMMIT_SHA=${{ needs.metadata.outputs.commit_sha }}
+            VITE_BUILD_BRANCH=${{ needs.metadata.outputs.build_branch }}
+            VITE_BUILD_TIME=${{ needs.metadata.outputs.build_time }}
 
   build:
     needs: metadata
@@ -122,6 +155,12 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
           build-args: |
             VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+            VITE_BUILD_ENV=${{ needs.metadata.outputs.build_env }}
+            VITE_BUILD_NUMBER=${{ needs.metadata.outputs.build_number }}
+            VITE_IMAGE_TAG=${{ needs.metadata.outputs.image_tag }}
+            VITE_COMMIT_SHA=${{ needs.metadata.outputs.commit_sha }}
+            VITE_BUILD_BRANCH=${{ needs.metadata.outputs.build_branch }}
+            VITE_BUILD_TIME=${{ needs.metadata.outputs.build_time }}
 
       - name: Export platform digest
         run: |

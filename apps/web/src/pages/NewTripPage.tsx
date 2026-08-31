@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { saveTrip } from "../api";
+import { lookupTimezone, saveTrip } from "../api";
 import { MapsScope } from "../components/MapsScope";
 import { PlaceAutocompleteInput, type PlaceSelection } from "../components/PlaceAutocompleteInput";
+import { DEFAULT_TIMEZONE } from "../types";
 
 // Full IANA list where the browser supports it (Chrome/Safari 15.4+);
 // a short curated fallback everywhere else. Not locked to any one
@@ -50,7 +51,10 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
   const [title, setTitle] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [timezone, setTimezone] = useState("Asia/Tokyo");
+  const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
+  const [timezoneManuallySelected, setTimezoneManuallySelected] = useState(false);
+  const [timezoneMessage, setTimezoneMessage] = useState<string | null>(null);
+  const timezoneLookupVersion = useRef(0);
   const [currency, setCurrency] = useState("JPY");
   const [representativePlaceName, setRepresentativePlaceName] = useState("");
   const [representativePlace, setRepresentativePlace] = useState<PlaceSelection | null>(null);
@@ -84,11 +88,11 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
         : null;
       const { id } = await saveTrip({
         title: title.trim(),
-        timezone,
+        timezone: timezone.trim() || DEFAULT_TIMEZONE,
         currency: currency.trim() || "JPY",
         startDate,
         endDate,
-        days: representativeSpot ? [{ date: startDate, spots: [representativeSpot] }] : [],
+        days: representativeSpot ? [{ date: startDate, spots: [representativeSpot], legPreferences: [] }] : [],
         ...(representativeSpot ? { cover: { spotId: representativeSpot.id } } : {}),
       });
       await qc.invalidateQueries({ queryKey: ["trips"] });
@@ -115,7 +119,7 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
         </a>
       </p>
       <h1>새 여행 만들기</h1>
-      <p className="meta">대표 장소를 선택하면 여행 첫날 일정에 바로 추가합니다. 나머지 날짜와 스팟은 다음 화면에서 추가하세요.</p>
+      <p className="meta">대표 장소를 선택하면 여행 첫날 일정에 바로 추가합니다. 장소의 시간대를 찾지 못했거나 비워두면 서울 시간(Asia/Seoul)을 사용합니다.</p>
       <form onSubmit={handleSubmit}>
         <label className="field">
           <span className="field-label">제목</span>
@@ -131,7 +135,7 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
         </label>
         <label className="field">
           <span className="field-label">목적지 시간대</span>
-          <select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+          <select value={timezone} onChange={(e) => { timezoneLookupVersion.current += 1; setTimezone(e.target.value); setTimezoneManuallySelected(true); setTimezoneMessage(null); }}>
             {timezoneOptions().map((tz) => (
               <option key={tz} value={tz}>
                 {tz}
@@ -139,6 +143,7 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
             ))}
           </select>
         </label>
+        {timezoneMessage && <p className="meta" role="status">{timezoneMessage}</p>}
         <label className="field">
           <span className="field-label">통화</span>
           <input
@@ -162,6 +167,26 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
             onSelect={(place) => {
               setRepresentativePlace(place);
               setRepresentativePlaceName(place.name);
+              if (timezoneManuallySelected || !Number.isFinite(place.lat) || !Number.isFinite(place.lng) || (place.lat === 0 && place.lng === 0)) return;
+              const lookupVersion = timezoneLookupVersion.current + 1;
+              timezoneLookupVersion.current = lookupVersion;
+              setTimezoneMessage("대표 장소의 시간대를 확인하는 중...");
+              lookupTimezone(place.lat, place.lng, startDate)
+                .then(({ timezone: resolvedTimezone }) => {
+                  if (timezoneLookupVersion.current !== lookupVersion) return;
+                  if (resolvedTimezone) {
+                    setTimezone(resolvedTimezone);
+                    setTimezoneMessage(`${resolvedTimezone} 시간대로 설정했습니다.`);
+                  } else {
+                    setTimezone(DEFAULT_TIMEZONE);
+                    setTimezoneMessage("시간대를 찾지 못해 서울 시간(Asia/Seoul)을 사용합니다.");
+                  }
+                })
+                .catch(() => {
+                  if (timezoneLookupVersion.current !== lookupVersion) return;
+                  setTimezone(DEFAULT_TIMEZONE);
+                  setTimezoneMessage("시간대를 찾지 못해 서울 시간(Asia/Seoul)을 사용합니다.");
+                });
             }}
           />
         </label>

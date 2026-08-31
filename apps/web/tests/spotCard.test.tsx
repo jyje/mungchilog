@@ -1,0 +1,82 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SpotCard } from "../src/components/SpotCard";
+
+vi.mock("@dnd-kit/sortable", () => ({
+  useSortable: () => ({
+    attributes: { "data-sortable": "true" },
+    listeners: {},
+    setNodeRef: vi.fn(),
+    transform: null,
+    transition: undefined,
+    isDragging: false,
+  }),
+}));
+
+vi.mock("../src/components/OpeningHours", () => ({ OpeningHours: () => null }));
+vi.mock("../src/components/MarkdownView", () => ({ MarkdownView: () => null }));
+vi.mock("../src/components/SpotForm", () => ({ SpotForm: ({ onCancel }: { onCancel: () => void }) => <button type="button" onClick={onCancel}>편집 취소</button> }));
+
+const spot = {
+  id: "spot-1",
+  order: 0,
+  name: "남산",
+  placeId: "place-1",
+  lat: 37.55,
+  lng: 126.98,
+  bufferMinutes: 10,
+  items: [{ id: "item-1", kind: "todo" as const, title: "예약 확인", done: false }],
+};
+
+function renderCard(overrides: Partial<React.ComponentProps<typeof SpotCard>> = {}) {
+  return render(
+    <SpotCard
+      spot={spot}
+      onToggleItem={vi.fn()}
+      onDeleteItem={vi.fn()}
+      onAddItem={vi.fn()}
+      onDeleteSpot={vi.fn()}
+      onEditSpot={vi.fn()}
+      selected={false}
+      onSelect={vi.fn()}
+      date="2026-08-29"
+      {...overrides}
+    />,
+  );
+}
+
+function openMenu() {
+  fireEvent.pointerDown(screen.getByRole("button", { name: "남산 더보기" }), { button: 0 });
+}
+
+beforeEach(() => vi.clearAllMocks());
+
+describe("spot card actions", () => {
+  it("uses shadcn menu and dialog primitives for edit and deletion", async () => {
+    const onDeleteSpot = vi.fn();
+    renderCard({ onDeleteSpot });
+
+    expect(screen.getByRole("link", { name: /Google 지도에서 열기/ })).toHaveAttribute("target", "_blank");
+    openMenu();
+    expect(await screen.findByRole("menuitem", { name: "수정" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "삭제" }));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent("이 장소와 목록을 삭제할까요?");
+    fireEvent.click(screen.getByRole("button", { name: "취소" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    openMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "삭제" }));
+    fireEvent.click(await screen.findByRole("button", { name: "삭제" }));
+    expect(onDeleteSpot).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps item creation and deletion controls as configured Buttons", () => {
+    const onDeleteItem = vi.fn();
+    renderCard({ onDeleteItem });
+    fireEvent.click(screen.getByRole("button", { name: "예약 확인 삭제" }));
+    expect(onDeleteItem).toHaveBeenCalledWith("item-1");
+    fireEvent.click(screen.getByRole("button", { name: "+ 살 것/먹을 것 추가" }));
+    expect(screen.getByRole("button", { name: "추가" })).toBeDisabled();
+  });
+});

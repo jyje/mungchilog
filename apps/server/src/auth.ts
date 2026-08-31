@@ -14,7 +14,9 @@ import {
   shouldSeedInitialAdminCandidates,
 } from "./initial-admin.js";
 import { canAllowUnverifiedEmailForLocalOidc, canAuthenticateWithUnverifiedEmailClaim } from "./local-oidc-email-verification.js";
+import { allowedSameOrigins, localWebRedirect } from "./local-web-origin.js";
 import { sessionStorageId } from "./session-security.js";
+import { locationSharingStore } from "./location-sharing-store.js";
 
 // Standard OIDC login, configured entirely via env vars so this works with
 // any compliant provider (Authentik, Keycloak, Google Workspace, ...) -
@@ -263,7 +265,10 @@ async function createSession(userId: string): Promise<string> {
 async function deleteSession(token: string) {
   // The raw token branch keeps logout and session rotation compatible with
   // sessions created before database-side hashing was introduced.
-  await db.run("DELETE FROM sessions WHERE id IN (?, ?)", [sessionStorageId(token), token]);
+  await locationSharingStore.lock(async () => {
+    locationSharingStore.revokeAuthSession(sessionStorageId(token));
+    await db.run("DELETE FROM sessions WHERE id IN (?, ?)", [sessionStorageId(token), token]);
+  });
 }
 
 async function getUserBySession(token: string): Promise<User | null> {
@@ -413,7 +418,7 @@ auth.get("/callback", async (c) => {
     path: "/",
   });
 
-  return c.redirect(user.status === "pending" ? "/pending" : "/trips");
+  return c.redirect(localWebRedirect(user.status === "pending" ? "/pending" : "/trips"));
 });
 
 auth.post("/logout", requireSameOrigin, async (c) => {
@@ -444,7 +449,21 @@ export async function listUsers(): Promise<User[]> {
 }
 
 export async function setUserStatus(id: string, status: "pending" | "approved") {
-  await db.run("UPDATE users SET status = ? WHERE id = ?", [status, id]);
+  await locationSharingStore.lock(async () => {
+    locationSharingStore.revokeUser(id);
+    const memberships = await db.all<{ trip_id: string }>("SELECT trip_id FROM trip_members WHERE user_id = ?", [id]);
+    for (const membership of memberships) locationSharingStore.revokeTrip(membership.trip_id);
+    await db.run("UPDATE users SET status = ? WHERE id = ?", [status, id]);
+  });
+}
+
+// Sharing requires a real authenticated browser session, even when the rest
+// of the app uses its local-only pseudo-user. This identifier never leaves
+// the server and cannot be supplied through a request body.
+export function getCurrentSessionStorageId(c: Context): string | null {
+  if (LOCAL_DEV_AUTH) return null;
+  const token = getCookie(c, SESSION_COOKIE);
+  return token ? sessionStorageId(token) : null;
 }
 
 export async function getCurrentUser(c: Context): Promise<User | null> {
@@ -481,19 +500,14 @@ export async function requireAdmin(c: Context, next: Next) {
 }
 
 // SameSite=Lax cookies can still be sent by a same-site subdomain. Protect
-// every state-changing production request with the configured public origin.
+// every state-changing request with the OIDC callback origin, plus an explicit
+// loopback Vite origin during local development.
 export async function requireSameOrigin(c: Context, next: Next) {
   if (LOCAL_DEV_AUTH || !["POST", "PUT", "PATCH", "DELETE"].includes(c.req.method)) {
     await next();
     return;
   }
-  let expectedOrigin: string | null = null;
-  try {
-    expectedOrigin = REDIRECT_URI ? new URL(REDIRECT_URI).origin : null;
-  } catch {
-    expectedOrigin = null;
-  }
-  if (!expectedOrigin || c.req.header("origin") !== expectedOrigin) {
+  if (!allowedSameOrigins().includes(c.req.header("origin") ?? "")) {
     return c.json({ error: "same-origin request required" }, 403);
   }
   await next();
