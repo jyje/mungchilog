@@ -5,6 +5,14 @@ image:
 
 replicaCount: 1
 
+serviceAccount:
+  # Create a dedicated Kubernetes ServiceAccount when the workload needs
+  # federated access to Google Cloud. No Google service account key is used.
+  create: false
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
 resources:
   requests:
     cpu: 100m
@@ -51,6 +59,25 @@ auth:
     # Reference a Secret instead of placing the value in Helm values or Git.
     existingSecret: ""
     key: INITIAL_ADMIN_EMAIL
+
+usageMonitoring:
+  googleCloud:
+    enabled: false
+    projectId: ""
+    monitoredServices:
+      - maps-backend.googleapis.com
+      - places.googleapis.com
+      - routes.googleapis.com
+      - timezone-backend.googleapis.com
+    workloadIdentity:
+      enabled: false
+      # The audience expected by the Google Cloud workload identity provider.
+      audience: ""
+      # A gcloud-generated external-account credential configuration contains
+      # no private key and can be stored in a ConfigMap.
+      credentialConfigMap: ""
+      credentialConfigKey: credential-configuration.json
+      tokenExpirationSeconds: 3600
 
 persistence:
   enabled: true
