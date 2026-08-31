@@ -49,6 +49,22 @@ export const ROUTE_LINE_COLORS = {
 } as const;
 
 /**
+ * Visible route widths in CSS pixels.
+ *
+ * Google Maps defines `PolylineOptions.strokeWeight` in screen pixels, not
+ * metres on the ground. Keeping these values independent from map zoom is an
+ * intentional product contract: the map geometry scales while the route's
+ * visual hierarchy remains stable. Mode changes colour, never thickness.
+ */
+export const ROUTE_LINE_WIDTH_PX = {
+  dimmed: { casing: null, core: 3 },
+  default: { casing: 7, core: 4 },
+  selected: { casing: 11, core: 6 },
+  fallback: { casing: 5, core: 3 },
+  connector: { default: 3, selected: 4 },
+} as const;
+
+/**
  * Google reports a per-step `travelMode` for transit journeys, which is the
  * only way to tell the walk to the station from the ride. It wins when
  * present; otherwise the leg's own mode decides.
@@ -95,14 +111,29 @@ export function routeStrokeLayers(input: {
     // instead, and the core keeps more opacity than it did with a casing.
     return {
       casing: null,
-      core: { strokeColor: color, strokeOpacity: 0.4, strokeWeight: 3, zIndex: Z.dimmedCore },
+      core: {
+        strokeColor: color,
+        strokeOpacity: 0.4,
+        strokeWeight: ROUTE_LINE_WIDTH_PX.dimmed.core,
+        zIndex: Z.dimmedCore,
+      },
     };
   }
 
   if (input.emphasis === "selected") {
     return {
-      casing: { strokeColor: ROUTE_LINE_COLORS.selected, strokeOpacity: 1, strokeWeight: 11, zIndex: Z.selectedCasing },
-      core: { strokeColor: color, strokeOpacity: 1, strokeWeight: 6, zIndex: Z.selectedCore },
+      casing: {
+        strokeColor: ROUTE_LINE_COLORS.selected,
+        strokeOpacity: 1,
+        strokeWeight: ROUTE_LINE_WIDTH_PX.selected.casing,
+        zIndex: Z.selectedCasing,
+      },
+      core: {
+        strokeColor: color,
+        strokeOpacity: 1,
+        strokeWeight: ROUTE_LINE_WIDTH_PX.selected.core,
+        zIndex: Z.selectedCore,
+      },
     };
   }
 
@@ -111,12 +142,32 @@ export function routeStrokeLayers(input: {
   // white worm when zoomed in.
   return input.fallback
     ? {
-        casing: { strokeColor: ROUTE_LINE_COLORS.casing, strokeOpacity: 0.8, strokeWeight: 5, zIndex: Z.defaultCasing },
-        core: { strokeColor: color, strokeOpacity: 0.75, strokeWeight: 3, zIndex: Z.defaultCore },
+        casing: {
+          strokeColor: ROUTE_LINE_COLORS.casing,
+          strokeOpacity: 0.8,
+          strokeWeight: ROUTE_LINE_WIDTH_PX.fallback.casing,
+          zIndex: Z.defaultCasing,
+        },
+        core: {
+          strokeColor: color,
+          strokeOpacity: 0.75,
+          strokeWeight: ROUTE_LINE_WIDTH_PX.fallback.core,
+          zIndex: Z.defaultCore,
+        },
       }
     : {
-        casing: { strokeColor: ROUTE_LINE_COLORS.casing, strokeOpacity: 0.9, strokeWeight: 7, zIndex: Z.defaultCasing },
-        core: { strokeColor: color, strokeOpacity: 1, strokeWeight: 4, zIndex: Z.defaultCore },
+        casing: {
+          strokeColor: ROUTE_LINE_COLORS.casing,
+          strokeOpacity: 0.9,
+          strokeWeight: ROUTE_LINE_WIDTH_PX.default.casing,
+          zIndex: Z.defaultCasing,
+        },
+        core: {
+          strokeColor: color,
+          strokeOpacity: 1,
+          strokeWeight: ROUTE_LINE_WIDTH_PX.default.core,
+          zIndex: Z.defaultCore,
+        },
       };
 }
 
@@ -138,7 +189,8 @@ export function connectorStroke(
           ? ROUTE_LINE_COLORS.walk
           : ROUTE_LINE_COLORS.ride,
     strokeOpacity: emphasis === "selected" ? 1 : emphasis === "dimmed" ? 0.4 : 0.85,
-    strokeWeight: emphasis === "selected" ? 4 : 3,
+    strokeWeight:
+      emphasis === "selected" ? ROUTE_LINE_WIDTH_PX.connector.selected : ROUTE_LINE_WIDTH_PX.connector.default,
     zIndex: Z.connector,
   };
 }

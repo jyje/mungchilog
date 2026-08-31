@@ -4,6 +4,7 @@ import {
   connectorStroke,
   ROUTE_LINE_COLORS,
   ROUTE_LINE_LEGEND,
+  ROUTE_LINE_WIDTH_PX,
   routeDirectionIcons,
   routeEmphasis,
   routeSegmentKind,
@@ -41,6 +42,31 @@ describe("emphasis", () => {
 });
 
 describe("the casing that lifts a route off the basemap", () => {
+  it("keeps every visible width in named screen-pixel tokens", () => {
+    expect(ROUTE_LINE_WIDTH_PX).toEqual({
+      dimmed: { casing: null, core: 3 },
+      default: { casing: 7, core: 4 },
+      selected: { casing: 11, core: 6 },
+      fallback: { casing: 5, core: 3 },
+      connector: { default: 3, selected: 4 },
+    });
+  });
+
+  it("changes route mode with colour, not thickness", () => {
+    for (const emphasis of ["selected", "default", "dimmed"] as const) {
+      const ride = routeStrokeLayers({ kind: "RIDE", emphasis });
+      const walk = routeStrokeLayers({ kind: "WALK", emphasis });
+      expect(walk.core.strokeWeight).toBe(ride.core.strokeWeight);
+      expect(walk.casing?.strokeWeight ?? null).toBe(ride.casing?.strokeWeight ?? null);
+    }
+  });
+
+  it("does not accept zoom as a styling input", () => {
+    // A one-argument style resolver cannot accidentally convert metres to
+    // pixels or grow the stroke as the map zoom changes.
+    expect(routeStrokeLayers.length).toBe(1);
+  });
+
   it("draws white under the colour, wider than it", () => {
     const { casing, core } = routeStrokeLayers({ kind: "RIDE", emphasis: "default" });
     expect(casing?.strokeColor).toBe(ROUTE_LINE_COLORS.casing);
