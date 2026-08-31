@@ -9,27 +9,27 @@ import { ROUTE_LINE_WIDTH_PX } from "@/routeStyles";
 import type { ItinerarySelection } from "@/components/TripMap";
 import type { LegPreference, PersistedLegMode, Spot } from "@/types";
 
-const SEOUL_STATION: Spot = {
-  id: "gallery-seoul-station",
+const WESTMINSTER: Spot = {
+  id: "gallery-westminster",
   order: 0,
-  name: "서울역",
-  lat: 37.5547,
-  lng: 126.9707,
+  name: "웨스트민스터 궁전",
+  lat: 51.5007,
+  lng: -0.1246,
   bufferMinutes: 10,
   items: [],
 };
 
-const N_SEOUL_TOWER: Spot = {
-  id: "gallery-n-seoul-tower",
+const BRITISH_MUSEUM: Spot = {
+  id: "gallery-british-museum",
   order: 1,
-  name: "N서울타워",
-  lat: 37.5512,
-  lng: 126.9882,
+  name: "영국 박물관",
+  lat: 51.5194,
+  lng: -0.127,
   bufferMinutes: 10,
   items: [],
 };
 
-const GALLERY_SPOTS = [SEOUL_STATION, N_SEOUL_TOWER];
+const GALLERY_SPOTS = [WESTMINSTER, BRITISH_MUSEUM];
 const ROUTE_MODES: ReadonlyArray<{ mode: Exclude<PersistedLegMode, "DIRECT">; label: string }> = [
   { mode: "WALK", label: "도보" },
   { mode: "TRANSIT", label: "대중교통" },
@@ -41,10 +41,10 @@ const ZOOM_PRESETS = [
   { zoom: 16, label: "거리" },
 ] as const;
 
-function seoulDepartureAfter(minutes: number): { date: string; time: string } {
+function serviceWindowDeparture(timeZone: string): { date: string; time: string } {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Seoul",
+      timeZone,
       hourCycle: "h23",
       year: "numeric",
       month: "2-digit",
@@ -52,9 +52,15 @@ function seoulDepartureAfter(minutes: number): { date: string; time: string } {
       hour: "2-digit",
       minute: "2-digit",
     })
-      .formatToParts(new Date(Date.now() + minutes * 60_000))
+      .formatToParts(new Date(Date.now() + 15 * 60_000))
       .map((part) => [part.type, part.value]),
   );
+  const hour = Number(parts.hour);
+  if (hour < 6 || hour >= 21) {
+    const localDate = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+    const serviceDate = new Date(localDate + (hour >= 21 ? 86_400_000 : 0)).toISOString().slice(0, 10);
+    return { date: serviceDate, time: "10:00" };
+  }
   return {
     date: `${parts.year}-${parts.month}-${parts.day}`,
     time: `${parts.hour}:${parts.minute}`,
@@ -63,8 +69,8 @@ function seoulDepartureAfter(minutes: number): { date: string; time: string } {
 
 function routePreference(mode: Exclude<PersistedLegMode, "DIRECT">, date: string, time: string): LegPreference {
   return {
-    fromSpotId: SEOUL_STATION.id,
-    toSpotId: N_SEOUL_TOWER.id,
+    fromSpotId: WESTMINSTER.id,
+    toSpotId: BRITISH_MUSEUM.id,
     mode,
     routeIndex: 0,
     timing: { kind: "DEPART_AT", date, time },
@@ -77,21 +83,21 @@ function GalleryRouteMapContent() {
   const [zoom, setZoom] = useState(13);
   const [selection, setSelection] = useState<ItinerarySelection>({
     kind: "leg",
-    fromId: SEOUL_STATION.id,
-    toId: N_SEOUL_TOWER.id,
+    fromId: WESTMINSTER.id,
+    toId: BRITISH_MUSEUM.id,
   });
-  const departure = useMemo(() => seoulDepartureAfter(15), []);
+  const departure = useMemo(() => serviceWindowDeparture("Europe/London"), []);
   const preference = useMemo(
     () => routePreference(mode, departure.date, departure.time),
     [departure.date, departure.time, mode],
   );
   const leg = useLeg(
-    SEOUL_STATION,
-    N_SEOUL_TOWER,
+    WESTMINSTER,
+    BRITISH_MUSEUM,
     mode,
     preference.trafficAware,
     departure.date,
-    "Asia/Seoul",
+    "Europe/London",
     preference.timing,
   );
   const routeReady = Boolean(leg.data?.routes.some((route) => route.polyline));
@@ -101,7 +107,7 @@ function GalleryRouteMapContent() {
       <div className="flex flex-col gap-4 border-b p-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold">서울역 → N서울타워</h3>
+            <h3 className="text-base font-semibold">웨스트민스터 궁전 → 영국 박물관</h3>
             <Badge variant={routeReady ? "default" : "secondary"}>
               {leg.isPending
                 ? "실제 경로 불러오는 중"
@@ -135,7 +141,7 @@ function GalleryRouteMapContent() {
       <div className="relative h-[28rem] min-h-80 bg-muted">
         <Map
           mapId="mungchilog-trip-map"
-          defaultCenter={{ lat: 37.5531, lng: 126.9794 }}
+          defaultCenter={{ lat: 51.5101, lng: -0.1258 }}
           zoom={zoom}
           onZoomChanged={(event) => setZoom(event.detail.zoom)}
           gestureHandling="cooperative"
@@ -169,7 +175,7 @@ function GalleryRouteMapContent() {
           <RouteOverlay
             spots={GALLERY_SPOTS}
             date={departure.date}
-            timezone="Asia/Seoul"
+            timezone="Europe/London"
             legPreferences={[preference]}
             selection={selection}
             onSelect={setSelection}
@@ -216,7 +222,7 @@ export function GalleryRouteMap() {
       >
         <p className="font-medium">실제 지도 길찾기</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          로컬 환경에 Google Maps 브라우저 키를 설정하면 서울역에서 N서울타워까지의 경로와 줌별 고정 두께를 확인할 수 있습니다.
+          로컬 환경에 Google Maps 브라우저 키를 설정하면 웨스트민스터 궁전에서 영국 박물관까지의 경로와 줌별 고정 두께를 확인할 수 있습니다.
         </p>
       </div>
     );
