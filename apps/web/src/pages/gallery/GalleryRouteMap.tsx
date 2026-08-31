@@ -47,30 +47,21 @@ const ZOOM_PRESETS = [
   { zoom: 16, label: "거리" },
 ] as const;
 
-function serviceWindowDeparture(timeZone: string): { date: string; time: string } {
+function nextServiceDeparture(timeZone: string): { date: string; time: string } {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", {
       timeZone,
-      hourCycle: "h23",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
     })
-      .formatToParts(new Date(Date.now() + 15 * 60_000))
+      .formatToParts(new Date())
       .map((part) => [part.type, part.value]),
   );
-  const hour = Number(parts.hour);
-  if (hour < 6 || hour >= 21) {
-    const localDate = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
-    const serviceDate = new Date(localDate + (hour >= 21 ? 86_400_000 : 0)).toISOString().slice(0, 10);
-    return { date: serviceDate, time: "10:00" };
-  }
-  return {
-    date: `${parts.year}-${parts.month}-${parts.day}`,
-    time: `${parts.hour}:${parts.minute}`,
-  };
+  const localDate = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+  // A stable future service window keeps the gallery useful overnight and
+  // avoids creating a new transit cache key every minute it is opened.
+  return { date: new Date(localDate + 86_400_000).toISOString().slice(0, 10), time: "10:00" };
 }
 
 function routePreference(mode: Exclude<PersistedLegMode, "DIRECT">, date: string, time: string): LegPreference {
@@ -170,7 +161,7 @@ function GalleryRouteMapContent() {
     fromId: WESTMINSTER.id,
     toId: BRITISH_MUSEUM.id,
   });
-  const departure = useMemo(() => serviceWindowDeparture("Europe/London"), []);
+  const departure = useMemo(() => nextServiceDeparture("Europe/London"), []);
   const preference = useMemo(
     () => routePreference(mode, departure.date, departure.time),
     [departure.date, departure.time, mode],
