@@ -123,6 +123,27 @@ jobs:
             BUILD_TIME=${{ needs.metadata.outputs.build_time }}
             RELEASE_VERSION=${{ needs.metadata.outputs.release_version }}
 
+      - name: Validate thin promotion identity layer
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/server/Dockerfile.release
+          platforms: ${{ matrix.platform }}
+          # A public base exercises the release Dockerfile without requiring
+          # package-read permission or creating an environment image in a PR.
+          build-args: |
+            BASE_IMAGE=node:22-alpine
+            BUILD_ENV=stg
+            BUILD_NUMBER=${{ needs.metadata.outputs.build_number }}
+            IMAGE_TAG=r${{ needs.metadata.outputs.build_number }}-${{ needs.metadata.outputs.commit_sha }}
+            COMMIT_SHA=${{ needs.metadata.outputs.commit_sha }}
+            BUILD_BRANCH=stg
+            BUILD_TIME=${{ needs.metadata.outputs.build_time }}
+            RELEASE_VERSION=
+            SOURCE_IMAGE=ghcr.io/${{ github.repository }}-dev
+            SOURCE_TAG=r${{ needs.metadata.outputs.build_number }}-${{ needs.metadata.outputs.commit_sha }}
+            SOURCE_REVISION=${{ needs.metadata.outputs.commit_sha }}
+
   build:
     needs: metadata
     if: needs.metadata.outputs.publish == 'true'
