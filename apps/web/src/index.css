@@ -1164,6 +1164,44 @@ body.trip-panel-resizing { cursor: col-resize; }
   font-size: var(--type-small);
   overflow-wrap: anywhere;
 }
+.spot-schedule {
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-muted);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
+}
+.spot-schedule > svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+.spot-schedule-range {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spot-schedule.unscheduled {
+  opacity: 0.75;
+}
+.spot-schedule-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0.45rem 0 0;
+  color: var(--warning-text, #92400e);
+  font-size: var(--type-small);
+  line-height: 1.45;
+}
+.dark .spot-schedule-warning { color: #fcd34d; }
+.spot-schedule-warning svg {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.1rem;
+  flex: none;
+}
 .spot-actions {
   position: relative;
   display: flex;
@@ -1367,9 +1405,64 @@ body.trip-panel-resizing { cursor: col-resize; }
   flex: 1;
   min-width: 0;
 }
+.spot-schedule-editor {
+  min-width: 0;
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.spot-schedule-editor legend {
+  padding: 0 0.25rem;
+  color: var(--text);
+  font-size: var(--type-label);
+  font-weight: 700;
+}
+.spot-time-kind {
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.35rem;
+}
+.spot-time-kind label {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--type-small);
+}
+.spot-time-kind label:has([data-state="checked"]) {
+  border-color: var(--accent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.spot-schedule-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+.spot-schedule-fields label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: var(--type-small);
+}
 .spot-time-input {
-  align-self: flex-start;
-  min-width: 140px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.spot-schedule-error {
+  margin: 0.55rem 0 0;
+  color: var(--destructive, #b91c1c);
+  font-size: var(--type-small);
+}
+@media (max-width: 520px) {
+  .spot-schedule-fields { grid-template-columns: 1fr; }
+  .spot-schedule-range { white-space: normal; }
 }
 
 /* markdown editor: a Notion-ish write/preview toggle over a plain

@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ExternalLink, GripVertical, MoreVertical, X } from "lucide-react";
+import { Clock3, ExternalLink, GripVertical, MoreVertical, TriangleAlert, X } from "lucide-react";
 import type { Item, Spot } from "../types";
+import { spotScheduleDisplay } from "../schedule";
 import { OpeningHours } from "./OpeningHours";
 import { SpotForm, type SpotFormValues } from "./SpotForm";
 import { MarkdownView } from "./MarkdownView";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
 import {
   Dialog,
   DialogClose,
@@ -86,6 +88,8 @@ export function SpotCard({
   selected,
   onSelect,
   date,
+  timezone = "Asia/Seoul",
+  scheduleWarning,
 }: {
   spot: Spot;
   onToggleItem: (itemId: string) => void;
@@ -96,12 +100,15 @@ export function SpotCard({
   selected: boolean;
   onSelect: () => void;
   date: string;
+  timezone?: string;
+  scheduleWarning?: string;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: spot.id });
   const [addingItem, setAddingItem] = useState(false);
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingDeletion, setConfirmingDeletion] = useState(false);
+  const schedule = spotScheduleDisplay(spot);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -118,6 +125,8 @@ export function SpotCard({
         <div className="spot-body">
           <SpotForm
             initial={spot}
+            date={date}
+            timezone={timezone}
             submitLabel="저장"
             onSubmit={(updates) => {
               onEditSpot(updates);
@@ -138,7 +147,17 @@ export function SpotCard({
       <div className="spot-body">
         <div className="spot-header">
           <Button type="button" variant={selected ? "secondary" : "ghost"} className="spot-select" onClick={onSelect} aria-pressed={selected} aria-label={`${spot.name} 지도에서 보기`}>
-            {spot.plannedArrival && <span className="meta">{spot.plannedArrival}</span>}
+            <span className={`spot-schedule${schedule ? ` ${schedule.kind.toLowerCase()}` : " unscheduled"}`}>
+              <Clock3 aria-hidden="true" />
+              <Badge variant={schedule?.kind === "RESERVATION" ? "default" : "outline"}>
+                {schedule ? `${schedule.label} ${schedule.start}` : "시간 미정"}
+              </Badge>
+              {schedule?.end && (
+                <span className="spot-schedule-range">
+                  {schedule.start}-{schedule.end}{schedule.crossesMidnight ? " (다음 날)" : ""} · {schedule.durationMinutes}분
+                </span>
+              )}
+            </span>
             <span className="spot-name">{spot.name}</span>
             {spot.nameLocal && <span className="spot-local">{spot.nameLocal}</span>}
           </Button>
@@ -179,6 +198,11 @@ export function SpotCard({
             </Dialog>
           </div>
         </div>
+        {scheduleWarning && (
+          <p className="spot-schedule-warning" role="status">
+            <TriangleAlert aria-hidden="true" /> {scheduleWarning}
+          </p>
+        )}
         {spot.note && <MarkdownView text={spot.note} className="spot-note" />}
         <OpeningHours placeId={spot.placeId} date={date} />
         {(spot.items.length > 0 || addingItem) && (

@@ -39,6 +39,9 @@ export const ItemSchema = z.object({
   photoUrl: z.string().url().optional(),
 });
 
+export const SpotTimeKindSchema = z.enum(["APPROXIMATE", "RESERVATION"]);
+const WALL_CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
 export const SpotSchema = z.object({
   id: z.string(),
   order: z.number().int().nonnegative(),
@@ -48,7 +51,8 @@ export const SpotSchema = z.object({
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
   category: z.string().optional(),
-  plannedArrival: z.string().optional(),
+  plannedArrival: z.string().regex(WALL_CLOCK_TIME, "시간은 24시간제 HH:mm 형식이어야 합니다.").optional(),
+  timeKind: SpotTimeKindSchema.optional(),
   dwellMinutes: z.number().int().nonnegative().optional(),
   bufferMinutes: z.number().int().nonnegative().default(10),
   note: z.string().optional(),
@@ -56,6 +60,9 @@ export const SpotSchema = z.object({
 }).superRefine((spot, ctx) => {
   if ((spot.lat == null) !== (spot.lng == null)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: [spot.lat == null ? "lat" : "lng"], message: "위도와 경도는 함께 저장해야 합니다." });
+  }
+  if (spot.timeKind && !spot.plannedArrival) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["plannedArrival"], message: "시간 유형을 선택하면 시각도 입력해야 합니다." });
   }
 });
 
@@ -125,6 +132,7 @@ export const TripImportSchema = z.object({ id: z.string().optional() }).and(Trip
 
 export type Item = z.infer<typeof ItemSchema>;
 export type Spot = z.infer<typeof SpotSchema>;
+export type SpotTimeKind = z.infer<typeof SpotTimeKindSchema>;
 export type PersistedLegMode = z.infer<typeof PersistedLegModeSchema>;
 export type LegPreference = z.infer<typeof LegPreferenceSchema>;
 export type Day = z.infer<typeof DaySchema>;
