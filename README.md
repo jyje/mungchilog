@@ -131,8 +131,11 @@ production releases remain easy to identify and retain independently:
 - Production: `ghcr.io/jyje/mungchilog:v<major>.<minor>.<patch>` and
   `ghcr.io/jyje/mungchilog:v<major>.<minor>.<patch>-r<run>-<sha>`
 
-Promotion copies the verified multi-architecture OCI manifest from development
-to staging and then production. It does not rebuild the image. GitOps must pin
-an explicit production version or immutable digest and never use `latest`.
+Promotion derives a thin multi-architecture image from the verified preceding
+environment image. It does not recompile the application bundle: its final
+filesystem layer replaces only the public build-identity file. Staging displays
+`STG · Build <run>` and production displays its exact semantic version. GitOps
+must pin an explicit production version or immutable digest and never use
+`latest`.
 
 See [`PLAN.md`](PLAN.md) for architecture decisions and [`TASK.md`](TASK.md) for the milestone checklist.

@@ -62,6 +62,20 @@ Google Maps **Routes/Places API 키**(과금 대상)는 로컬에서 `kubeseal`�
 
 → **결정: 컨테이너 1개(`mungchilog`), Hono가 `/api/*`는 API로, 나머지는 정적 파일로 서빙.** 이미지도 1개면 충분 (3.2의 web/server 분리는 철회).
 
+### 3.4.1 배포 식별 메타데이터
+
+개발 이미지는 애플리케이션 번들을 한 번 빌드한다. 스테이징과 운영 승격은 그
+검증된 이미지를 기반으로 하되, 마지막 파일 레이어의 `/app/public/build-info.js`만
+교체한다. 이 파일은 `Cache-Control: no-store`로 서빙하고 PWA precache에서 제외한다.
+
+- 개발: `DEV · Build <run>`
+- 스테이징: `STG · Build <run>`
+- 운영: `vMAJOR.MINOR.PATCH`
+
+이미지 내부의 `ENV`, Kubernetes Pod 정보, ServiceAccount 또는 Kubernetes API는 사용하지
+않는다. 빌드 인수는 마지막 레이어에서만 사용하며, 운영 빌드는 유효한 semantic version이
+없으면 실패한다. 각 파생 이미지에는 원본 이미지와 태그를 OCI 라벨로 남겨 추적한다.
+
 ### 3.5 스토리지 - `subdir-usb` NFS와 SQLite rollback journal
 
 클러스터에 사용할 수 있는 `longhorn` StorageClass가 없어서 실제 배포는 기본 `subdir-usb` NFS PVC를 사용한다. SQLite WAL은 NFS의 공유 메모리와 파일 잠금 특성에 맞지 않으므로 서버는 `PRAGMA journal_mode = DELETE`를 강제한다. Deployment는 단일 replica와 단일 writer를 유지하고, 여러 Pod가 같은 DB를 동시에 열지 않게 한다. PVC 용량은 1Gi로 시작한다.
