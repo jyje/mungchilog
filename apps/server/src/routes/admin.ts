@@ -3,6 +3,7 @@ import { db } from "../db.js";
 import { requireAuth, requireApproved, requireAdmin, listUsers, setUserStatus, findUserById, type AuthEnv } from "../auth.js";
 import { locationSharingStore } from "../location-sharing-store.js";
 import { readApplicationUsage, USAGE_WINDOWS, type AdminUsageResponse, type UsageWindow } from "../admin-usage.js";
+import { googleUsageProvider } from "../google-monitoring.js";
 
 export const admin = new Hono<AuthEnv>();
 admin.use("*", requireAuth, requireApproved, requireAdmin);
@@ -22,7 +23,7 @@ admin.get("/usage", async (c) => {
     window: window as UsageWindow,
     generatedAt: generatedAt.toISOString(),
     application: await readApplicationUsage(db, generatedAt),
-    google: { status: "disabled", reason: "not-configured" },
+    google: await googleUsageProvider.get(window as UsageWindow),
   };
   c.header("Cache-Control", "private, no-store");
   return c.json(response);
