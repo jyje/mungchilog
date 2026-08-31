@@ -16,7 +16,7 @@ export type TravelMode = (typeof TRAVEL_MODES)[number];
 // the requested geometry, the endpoint encoding, or the timing semantics
 // change, so an old cache entry cannot conceal a newly correct route for the
 // entire 30-day TTL. Keep in sync with apps/web/src/hooks/useLeg.ts.
-export const ROUTE_GEOMETRY_VERSION = "endpoints-timing-v3";
+export const ROUTE_GEOMETRY_VERSION = "route-segments-v4";
 
 // An endpoint is either a Place ID or a bare coordinate. Coordinates are what
 // make map-picked stops (issue 46) routable at all - they have no placeId.
@@ -138,4 +138,72 @@ export function resolveTiming(input: {
     return { departureTime: input.when.toISOString() };
   }
   return {};
+}
+
+// --- Routes API response parsing -------------------------------------------
+// Pure, so it can be tested without a network call or an API key. The handler
+// that owns the fetch (routes/legs.ts) does not export anything.
+
+/** One drawable piece of a journey, in the order it is travelled. */
+export type RouteSegment = {
+  travelMode: "WALK" | "TRANSIT" | "DRIVE" | "OTHER";
+  polyline: string;
+};
+
+type ApiStep = {
+  travelMode?: string;
+  polyline?: { encodedPolyline?: string };
+  transitDetails?: { stopDetails?: { departureTime?: string; arrivalTime?: string } };
+};
+type ApiLeg = { steps?: ApiStep[] };
+
+// The journey's own boundaries: when the first vehicle leaves and when the
+// last one lands. Walking steps carry no transitDetails and are skipped, so
+// this is the scheduled part of the trip rather than the door-to-door span.
+export function transitSchedule(legs: ApiLeg[] | undefined): {
+  departureTime: string | null;
+  arrivalTime: string | null;
+} {
+  const departures: string[] = [];
+  const arrivals: string[] = [];
+  for (const leg of legs ?? []) {
+    for (const step of leg.steps ?? []) {
+      const stop = step.transitDetails?.stopDetails;
+      if (stop?.departureTime) departures.push(stop.departureTime);
+      if (stop?.arrivalTime) arrivals.push(stop.arrivalTime);
+    }
+  }
+  departures.sort();
+  arrivals.sort();
+  return {
+    departureTime: departures[0] ?? null,
+    arrivalTime: arrivals[arrivals.length - 1] ?? null,
+  };
+}
+
+/**
+ * Per-step geometry, which is the only way to tell the walk to the station
+ * from the ride once they are drawn on a map.
+ *
+ * Returns null rather than [] when nothing usable came back, so "we did not
+ * ask for steps" and "the provider sent none" look identical to the client -
+ * both mean "draw the whole-journey line instead".
+ */
+export function routeSegments(legs: ApiLeg[] | undefined): RouteSegment[] | null {
+  const segments: RouteSegment[] = [];
+  for (const leg of legs ?? []) {
+    for (const step of leg.steps ?? []) {
+      const polyline = step.polyline?.encodedPolyline;
+      if (!polyline) continue;
+      const mode = step.travelMode;
+      segments.push({
+        // Anything that is not plainly walking is drawn as riding. Bicycle and
+        // two-wheeler legs reach this through imports, and drawing them as
+        // walking would be a lie.
+        travelMode: mode === "WALK" || mode === "TRANSIT" || mode === "DRIVE" ? mode : "OTHER",
+        polyline,
+      });
+    }
+  }
+  return segments.length > 0 ? segments : null;
 }

@@ -8,7 +8,7 @@ import type { LegTiming, PersistedLegMode, Spot } from "../types";
 // route geometry, endpoint encoding, or timing semantics change. Keep this in
 // sync with ROUTE_GEOMETRY_VERSION in apps/server/src/route-planning.ts so a
 // change invalidates both the browser query cache and the server cache.
-const ROUTE_GEOMETRY_VERSION = "endpoints-timing-v3";
+const ROUTE_GEOMETRY_VERSION = "route-segments-v4";
 
 // A Place ID is preferred where one exists: it survives a venue moving a few
 // metres and lets Google snap to the right entrance. A map-picked stop has

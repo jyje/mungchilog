@@ -46,3 +46,52 @@ describe("gallery light theme", () => {
     expect(screen.getByRole("alert")).toBeVisible();
   });
 });
+
+describe("route line legend", () => {
+  it("documents riding and walking as visibly different lines", () => {
+    render(
+      <TooltipProvider>
+        <GalleryPage />
+      </TooltipProvider>,
+    );
+    const gallery = screen.getByRole("main");
+
+    const ride = gallery.querySelector('[data-route-legend-row="transit-ride"]');
+    const walk = gallery.querySelector('[data-route-legend-row="transit-walk"]');
+    expect(ride).not.toBeNull();
+    expect(walk).not.toBeNull();
+
+    const rideColor = ride!.getAttribute("data-route-core-color");
+    const walkColor = walk!.getAttribute("data-route-core-color");
+    expect(rideColor).not.toBe(walkColor);
+    // Pinned so a future palette edit has to be deliberate: these are the
+    // values chosen to separate from Google's water and parks.
+    expect(rideColor).toBe("#0284c7");
+    expect(walkColor).toBe("#16a34a");
+  });
+
+  it("keeps the deliberate absence of a casing on the dimmed row", () => {
+    render(
+      <TooltipProvider>
+        <GalleryPage />
+      </TooltipProvider>,
+    );
+    const gallery = screen.getByRole("main");
+    // White at low opacity over a near-white basemap disappears and muddies
+    // the core, so dimmed legs draw the core alone. This is the decision most
+    // likely to be "fixed" back by a later edit.
+    expect(gallery.querySelector('[data-route-legend-row="dimmed"]')).toHaveAttribute("data-route-casing", "none");
+    expect(gallery.querySelector('[data-route-legend-row="transit-ride"]')).toHaveAttribute("data-route-casing", "#ffffff");
+    expect(gallery.querySelector('[data-route-legend-row="selected"]')).toHaveAttribute("data-route-casing", "#f59e0b");
+  });
+
+  it("labels every swatch for screen readers", () => {
+    render(
+      <TooltipProvider>
+        <GalleryPage />
+      </TooltipProvider>,
+    );
+    expect(screen.getByRole("img", { name: /대중교통 · 탑승 구간/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /대중교통 · 도보 구간/ })).toBeInTheDocument();
+  });
+});

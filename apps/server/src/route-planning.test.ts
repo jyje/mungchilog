@@ -7,6 +7,8 @@ import {
   ROUTE_GEOMETRY_VERSION,
   RouteRequestError,
   routeFingerprint,
+  routeSegments,
+  transitSchedule,
   toRoutesApiWaypoint,
   WaypointSchema,
   waypointRef,
@@ -139,4 +141,76 @@ test("timing never yields both a departure and an arrival", () => {
     const timing = resolveTiming({ mode: "TRANSIT", timingKind, when, trafficAware: false });
     assert.ok(!("departureTime" in timing && "arrivalTime" in timing));
   }
+});
+
+test("segments preserve the order the journey is actually travelled", () => {
+  const segments = routeSegments([
+    { steps: [{ travelMode: "WALK", polyline: { encodedPolyline: "a" } }] },
+    {
+      steps: [
+        { travelMode: "TRANSIT", polyline: { encodedPolyline: "b" } },
+        { travelMode: "WALK", polyline: { encodedPolyline: "c" } },
+      ],
+    },
+  ]);
+  assert.deepEqual(segments, [
+    { travelMode: "WALK", polyline: "a" },
+    { travelMode: "TRANSIT", polyline: "b" },
+    { travelMode: "WALK", polyline: "c" },
+  ]);
+});
+
+test("a step with no geometry is dropped rather than drawn as a gap", () => {
+  const segments = routeSegments([
+    { steps: [{ travelMode: "WALK" }, { travelMode: "TRANSIT", polyline: { encodedPolyline: "b" } }] },
+  ]);
+  assert.deepEqual(segments, [{ travelMode: "TRANSIT", polyline: "b" }]);
+});
+
+test("an unfamiliar travel mode is recorded rather than guessed at", () => {
+  // Bicycle and two-wheeler legs reach this through imports. Recording them as
+  // OTHER keeps the drawing decision in one place instead of spreading a
+  // provider enum through the client.
+  const segments = routeSegments([{ steps: [{ travelMode: "BICYCLE", polyline: { encodedPolyline: "a" } }] }]);
+  assert.deepEqual(segments, [{ travelMode: "OTHER", polyline: "a" }]);
+});
+
+test("no usable steps yields null, not an empty list", () => {
+  // null lets the client treat "not requested" and "provider sent none" the
+  // same way: draw the whole-journey line.
+  assert.equal(routeSegments(undefined), null);
+  assert.equal(routeSegments([]), null);
+  assert.equal(routeSegments([{ steps: [] }]), null);
+  assert.equal(routeSegments([{ steps: [{ travelMode: "WALK" }] }]), null);
+});
+
+test("adding segments does not disturb a route's fingerprint", () => {
+  // The fingerprint is the identity every saved itinerary stores. If step
+  // geometry ever leaked into it, every user's chosen alternative would
+  // silently reset to the recommended one with nothing reported.
+  const summary = {
+    polyline: "abc",
+    durationS: 600,
+    distanceM: 1200,
+    departureTime: "2026-09-07T10:00:00Z",
+    arrivalTime: "2026-09-07T10:10:00Z",
+  };
+  const before = routeFingerprint(summary);
+  const withSegments = { ...summary, segments: routeSegments([{ steps: [{ travelMode: "WALK", polyline: { encodedPolyline: "x" } }] }]) };
+  assert.equal(routeFingerprint(withSegments), before);
+});
+
+test("the transit schedule still spans the first departure to the last arrival", () => {
+  const schedule = transitSchedule([
+    { steps: [{ transitDetails: { stopDetails: { departureTime: "2026-09-07T10:30:00Z", arrivalTime: "2026-09-07T10:50:00Z" } } }] },
+    { steps: [{ transitDetails: { stopDetails: { departureTime: "2026-09-07T10:00:00Z", arrivalTime: "2026-09-07T10:20:00Z" } } }] },
+  ]);
+  assert.deepEqual(schedule, { departureTime: "2026-09-07T10:00:00Z", arrivalTime: "2026-09-07T10:50:00Z" });
+});
+
+test("a journey with no scheduled leg reports no schedule", () => {
+  assert.deepEqual(transitSchedule([{ steps: [{ travelMode: "WALK" }] }]), {
+    departureTime: null,
+    arrivalTime: null,
+  });
 });
