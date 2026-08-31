@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GalleryPage } from "../src/pages/GalleryPage";
 import { TooltipProvider } from "../src/components/ui/tooltip";
@@ -30,5 +30,19 @@ describe("gallery light theme", () => {
     expect(outline).toHaveAttribute("data-variant", "outline");
     expect(ghost).toHaveAttribute("data-variant", "ghost");
     expect(gallery.querySelectorAll('[data-slot="button"][data-variant="outline"], [data-slot="button"][data-variant="ghost"]')).not.toHaveLength(0);
+  });
+
+  it("keeps planner alternatives and review states visible in both themes", () => {
+    render(<TooltipProvider><GalleryPage /></TooltipProvider>);
+
+    expect(screen.getByRole("radiogroup", { name: "Route alternatives" })).toBeVisible();
+    expect(screen.getByText("No place selected")).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent("Route unavailable");
+
+    fireEvent.click(screen.getByRole("button", { name: "다크 테마로 전환" }));
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+    expect(document.documentElement).toHaveClass("dark");
+    expect(screen.getByRole("radiogroup", { name: "Route alternatives" })).toBeVisible();
+    expect(screen.getByRole("alert")).toBeVisible();
   });
 });

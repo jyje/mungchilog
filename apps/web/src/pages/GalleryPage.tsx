@@ -1,12 +1,18 @@
 import { useState } from "react";
-import { Bell, CalendarDays, Crosshair, MapPinned, MoreVertical, Navigation, Plus, Route, Users } from "lucide-react";
+import { Bell, CalendarDays, Clock3, Crosshair, MapPin, MapPinned, MoreVertical, Navigation, Plus, RotateCcw, Route, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MapIconButton } from "@/components/system/MapIconButton";
 import { MapControlRail } from "@/components/system/MapControlRail";
@@ -41,6 +47,7 @@ function GallerySection({ title, description, children }: { title: string; descr
 
 export function GalleryPage() {
   const [sharing, setSharing] = useState(false);
+  const [routeMode, setRouteMode] = useState("transit");
 
   return (
     <main className="component-gallery mx-auto min-h-dvh w-full max-w-6xl space-y-6 bg-background py-8 text-foreground">
@@ -132,6 +139,123 @@ export function GalleryPage() {
           </Sheet>
         </GallerySection>
       </div>
+
+      <GallerySection title="Planner foundation" description="Map discovery, place details, schedule meaning, and route choices share one compact interaction language.">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+          <ContextMenu>
+            <ContextMenuTrigger className="relative flex min-h-80 items-center justify-center overflow-hidden rounded-xl border bg-[linear-gradient(35deg,color-mix(in_oklab,var(--muted)_72%,transparent)_25%,transparent_25%,transparent_75%,color-mix(in_oklab,var(--muted)_72%,transparent)_75%),linear-gradient(35deg,color-mix(in_oklab,var(--muted)_72%,transparent)_25%,transparent_25%,transparent_75%,color-mix(in_oklab,var(--muted)_72%,transparent)_75%)] bg-[length:44px_44px] bg-[position:0_0,22px_22px]">
+              <div className="space-y-3 text-center">
+                <MapPinned className="mx-auto size-10 text-primary" aria-hidden="true" />
+                <div>
+                  <p className="font-medium">Map exploration surface</p>
+                  <p className="text-sm text-muted-foreground">Right-click to preview the coordinate action</p>
+                </div>
+              </div>
+              <Badge className="absolute bottom-3 left-3" variant="secondary">35.68124, 139.76712</Badge>
+            </ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuLabel>Selected map point</ContextMenuLabel>
+              <ContextMenuSeparator />
+              <ContextMenuItem><MapPin /> Add a stop here</ContextMenuItem>
+              <ContextMenuItem><Navigation /> Center the map here</ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+
+          <Tabs defaultValue="itinerary" className="min-w-0">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="itinerary">Itinerary</TabsTrigger>
+              <TabsTrigger value="places">Places</TabsTrigger>
+            </TabsList>
+            <TabsContent value="itinerary" className="mt-4">
+              <ScrollArea className="h-72 pr-3">
+                <div className="space-y-3">
+                  <article className="rounded-xl border bg-card p-4 text-card-foreground">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <Badge variant="outline"><Clock3 /> Reservation 10:00</Badge>
+                        <h3 className="font-semibold">Tokyo Station</h3>
+                        <p className="text-sm text-muted-foreground">Planned visit: 45 minutes</p>
+                      </div>
+                      <Badge>1</Badge>
+                    </div>
+                  </article>
+
+                  <div className="space-y-3 rounded-xl border border-dashed p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium">Route to the next stop</span>
+                      <Badge variant="secondary">24 min</Badge>
+                    </div>
+                    <ToggleGroup type="single" value={routeMode} onValueChange={(value) => value && setRouteMode(value)} variant="outline" className="w-full">
+                      <ToggleGroupItem value="walk" className="flex-1 text-foreground data-[state=on]:text-foreground">Walk</ToggleGroupItem>
+                      <ToggleGroupItem value="transit" className="flex-1 text-foreground data-[state=on]:text-foreground">Transit</ToggleGroupItem>
+                      <ToggleGroupItem value="drive" className="flex-1 text-foreground data-[state=on]:text-foreground">Drive</ToggleGroupItem>
+                    </ToggleGroup>
+                    <RadioGroup defaultValue="auto" className="grid gap-2 text-sm">
+                      <label className="flex min-h-11 items-center gap-3 rounded-lg border px-3">
+                        <RadioGroupItem value="auto" /> Auto from stop schedule
+                      </label>
+                      <label className="flex min-h-11 items-center gap-3 rounded-lg border px-3">
+                        <RadioGroupItem value="depart" /> Depart at 10:45
+                      </label>
+                    </RadioGroup>
+                    <RadioGroup defaultValue="route-1" className="grid gap-2 text-sm" aria-label="Route alternatives">
+                      <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3">
+                        <span className="flex items-center gap-3"><RadioGroupItem value="route-1" /> Recommended route</span>
+                        <span className="text-muted-foreground">24 min · ¥210</span>
+                      </label>
+                      <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3">
+                        <span className="flex items-center gap-3"><RadioGroupItem value="route-2" /> Fewer transfers</span>
+                        <span className="text-muted-foreground">29 min · ¥180</span>
+                      </label>
+                    </RadioGroup>
+                  </div>
+
+                  <article className="rounded-xl border bg-card p-4 text-card-foreground">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <Badge variant="outline"><Clock3 /> Approx. 11:10</Badge>
+                        <h3 className="font-semibold">Kitanomaru Park</h3>
+                        <p className="text-sm text-muted-foreground">Arbitrary map coordinate</p>
+                      </div>
+                      <Badge variant="secondary">2</Badge>
+                    </div>
+                  </article>
+                </div>
+              </ScrollArea>
+            </TabsContent>
+            <TabsContent value="places" className="mt-4 space-y-4 rounded-xl border p-4">
+              <div className="space-y-1">
+                <Badge variant="secondary">Museum</Badge>
+                <h3 className="text-lg font-semibold">The National Museum of Modern Art</h3>
+                <p className="text-sm text-muted-foreground">3-1 Kitanomaru Koen, Chiyoda City</p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-sm">
+                <Badge variant="outline">Open until 20:00</Badge>
+                <Badge variant="outline">4.3 · 2,415 reviews</Badge>
+              </div>
+              <Button className="w-full"><Plus /> Add to itinerary</Button>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3" aria-label="Planner loading, empty, and error states">
+          <div className="space-y-3 rounded-xl border p-4" role="status" aria-label="Planner loading state">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="rounded-xl border border-dashed p-4 text-sm">
+            <MapPin className="mb-3 size-5 text-muted-foreground" aria-hidden="true" />
+            <p className="font-medium">No place selected</p>
+            <p className="mt-1 text-muted-foreground">Choose a map place without changing the itinerary.</p>
+          </div>
+          <div className="rounded-xl border p-4 text-sm" role="alert">
+            <p className="font-medium">Route unavailable</p>
+            <p className="mt-1 text-muted-foreground">The saved mode remains selected while the map shows a temporary preview.</p>
+            <Button className="mt-3" variant="outline" size="sm"><RotateCcw /> Retry</Button>
+          </div>
+        </div>
+      </GallerySection>
 
       <GallerySection title="UI storyboard" description="Review the full travel flow in live component compositions before changing a production screen. Each scene uses deterministic sample content only.">
         <GalleryStoryboard />
