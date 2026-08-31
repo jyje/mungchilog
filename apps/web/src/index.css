@@ -17,6 +17,9 @@
  * explicit block is what lets a user's choice win over the OS setting.
  */
 :root {
+  /* "light dark" is only right while the choice is still the OS's. Once the
+     user picks a theme, color-scheme has to be narrowed too - see the
+     [data-theme="light"] rule below and the two dark blocks. */
   color-scheme: light dark;
   --bg: #f5f6f8;
   --surface: #ffffff;
@@ -46,8 +49,22 @@
   --secondary-foreground: var(--text);
   --muted: #eef0f2;
   --muted-foreground: var(--text-muted);
-  --accent-foreground: var(--accent-contrast);
+  /* shadcn's accent is a subtle hover/highlight SURFACE, not the brand color:
+     its components pair `bg-accent` with `text-accent-foreground`. Pointing it
+     at the product's brand --accent made --accent-foreground resolve to white,
+     and the three menu rules that apply that color WITHOUT also painting
+     bg-accent (dropdown-menu's descendant-wide focus rule, and both shortcut
+     spans) then rendered white on white in the light theme.
+     These two are the surface pair, mapped to --color-accent* in the @theme
+     block below. The product --accent stays the brand blue: ~20 rules and
+     --primary / --ring / --sidebar-primary all read it. Both follow --muted
+     and --text, so they adapt per theme with no duplication. */
+  --ui-accent: var(--muted);
+  --ui-accent-foreground: var(--text);
   --destructive: var(--danger);
+  /* Text drawn on top of --destructive. Unused today; defined so the utility
+     is generatable and so the next component to need it gets a real value. */
+  --destructive-foreground: #ffffff;
   --input: var(--border);
   --ring: var(--accent);
   --radius: 0.625rem;
@@ -76,7 +93,18 @@
     --secondary: #22313c;
     --muted: #24262a;
     --sidebar-accent: #24262a;
+    --destructive-foreground: #0b1220;
   }
+}
+
+/* Picking light explicitly has to narrow color-scheme too, not just suppress
+   the dark variable block. On an OS set to dark, leaving "light dark" here
+   left the UA rendering its own defaults in dark mode - near-white
+   ::placeholder, input and select text, and scrollbars - on top of the white
+   surfaces this theme paints. body { color: var(--text) } rescued ordinary
+   inherited text, which is why the failure looked intermittent. */
+:root[data-theme="light"] {
+  color-scheme: light;
 }
 
 :root[data-theme="dark"] {
@@ -93,6 +121,7 @@
   --secondary: #22313c;
   --muted: #24262a;
   --sidebar-accent: #24262a;
+  --destructive-foreground: #0b1220;
 }
 
 * {
@@ -121,7 +150,8 @@ body {
   padding: 1.5rem 1.25rem 4rem;
 }
 
-#root.gallery-root,
+/* .gallery-root was dropped when GalleryPage moved to the .component-gallery
+   class on <main>; nothing adds it any more. */
 #root:has(.component-gallery) {
   max-width: none;
   padding: 0 1.25rem 4rem;
@@ -156,13 +186,12 @@ button {
   font: inherit;
 }
 
-/* The development gallery renders standalone and nested primitives. Its
-   foreground must remain explicit when the selected theme changes. */
+/* The development gallery renders standalone and nested primitives, so it
+   states its own foreground rather than inheriting one from a page shell.
+   The per-variant button overrides that used to live here are gone: they
+   masked the token bugs above (color-scheme and the accent surface pair)
+   inside the gallery only, which is how the same bug survived two fixes. */
 .component-gallery {
-  color: var(--text);
-}
-.component-gallery [data-slot="button"][data-variant="outline"],
-.component-gallery [data-slot="button"][data-variant="ghost"] {
   color: var(--text);
 }
 
@@ -2637,8 +2666,11 @@ input[type="text"]::placeholder {
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
+  --color-destructive-foreground: var(--destructive-foreground);
+  /* Deliberately NOT var(--accent): that is the product brand blue. shadcn's
+     accent is the hover/highlight surface - see --ui-accent above. */
+  --color-accent-foreground: var(--ui-accent-foreground);
+  --color-accent: var(--ui-accent);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
