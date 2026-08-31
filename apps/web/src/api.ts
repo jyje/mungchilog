@@ -221,6 +221,11 @@ export function stopLocationSharing(tripId: string, sharingSessionId: string) {
 
 export type LegMode = "DRIVE" | "WALK" | "BICYCLE" | "TRANSIT" | "TWO_WHEELER";
 
+// A routable endpoint: a Place ID when the stop came from Places, or a bare
+// coordinate for a stop dropped straight onto the map (issue 46), which has
+// no Place ID to offer.
+export type LegWaypoint = { placeId: string } | { latLng: { latitude: number; longitude: number } };
+
 export type LegRoute = {
   distanceM: number | null;
   durationS: number | null;
@@ -228,6 +233,10 @@ export type LegRoute = {
   fareCurrency: string | null;
   polyline: string | null;
   label: "DEFAULT_ROUTE" | "DEFAULT_ROUTE_ALTERNATE";
+  // Server-computed fingerprint of this alternative. Persisted with the
+  // user's choice so a cache refresh that reorders alternatives cannot
+  // silently swap which journey is selected.
+  key: string;
 };
 
 export type Leg = {
@@ -243,18 +252,21 @@ export type Leg = {
 // its cache bucket from it, and TRANSIT schedules genuinely differ by
 // weekday/time. Omitting it defaults to "now", which is wrong for any
 // itinerary day that isn't literally today (see PR jyje/cluster#55).
-export async function computeLeg(
-  fromPlaceId: string,
-  toPlaceId: string,
-  mode: LegMode,
-  when: string | undefined,
-  timezone: string,
-  trafficAware: boolean,
-): Promise<Leg | null> {
+// `timingKind` tells the server which end of the journey `when` describes;
+// ARRIVE_BY is transit-only and rejected for other modes.
+export async function computeLeg(input: {
+  from: LegWaypoint;
+  to: LegWaypoint;
+  mode: LegMode;
+  when: string | undefined;
+  timingKind: "AUTO" | "DEPART_AT" | "ARRIVE_BY";
+  timezone: string;
+  trafficAware: boolean;
+}): Promise<Leg | null> {
   const res = await fetch("/api/legs/compute", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fromPlaceId, toPlaceId, mode, when, timezone, alternatives: true, trafficAware }),
+    body: JSON.stringify({ ...input, alternatives: true }),
   });
   if (res.status === 501) {
     const body = await res.json().catch(() => ({}));

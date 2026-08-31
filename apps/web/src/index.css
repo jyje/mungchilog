@@ -1679,51 +1679,62 @@ button.ghost {
   text-align: left;
   cursor: pointer;
 }
-.leg-mode-picker {
-  display: flex;
+/* Mode picker: one compact segmented control per leg. Each segment keeps a
+   >=36px touch target so it stays usable in the mobile itinerary panel. */
+.leg-mode-toggle {
   flex-wrap: wrap;
-  gap: 0.25rem 0.45rem;
+  width: fit-content;
+  max-width: 100%;
+}
+.leg-mode-toggle [data-slot="toggle-group-item"] {
+  min-height: 36px;
+  padding-inline: 0.6rem;
+  font-size: var(--type-label);
+}
+.leg-timing-trigger {
+  justify-self: start;
+  min-height: 36px;
+}
+.leg-timing-editor {
+  display: grid;
+  gap: 0.6rem;
+  width: min(20rem, calc(100vw - 2rem));
+}
+.leg-timing-kind {
   margin: 0;
   padding: 0;
   border: 0;
 }
-.leg-mode-picker legend {
-  width: 100%;
-  padding: 0;
+.leg-timing-kind legend {
+  padding: 0 0 0.35rem;
   color: var(--text-muted);
   font-size: 0.78rem;
 }
-.leg-mode-picker label {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 0.1rem 0.2rem;
-  cursor: pointer;
+.leg-timing-hint {
+  margin: 0;
 }
-.leg-mode-picker input {
-  inline-size: 1rem;
-  block-size: 1rem;
-  margin: 0 0.25rem 0 0;
-  accent-color: var(--accent);
+.leg-timing-fields {
+  display: grid;
+  gap: 0.4rem;
 }
-.leg-mode-picker input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.leg-timing-fields label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: var(--type-label);
+}
+.leg-timing-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
 }
 .leg-traffic-toggle,
-.leg-route-picker label {
+.leg-timing-option,
+.leg-route-option {
   display: inline-flex;
   align-items: center;
   min-height: 36px;
-  gap: 0.35rem;
+  gap: 0.45rem;
   cursor: pointer;
-}
-.leg-traffic-toggle input,
-.leg-route-picker input {
-  inline-size: 1rem;
-  block-size: 1rem;
-  margin: 0;
-  accent-color: var(--accent);
 }
 .leg-route-picker {
   display: flex;
@@ -1738,10 +1749,17 @@ button.ghost {
   color: var(--text-muted);
   font-size: 0.78rem;
 }
+.leg-legacy-note,
+.leg-traffic-note,
 .leg-route-error,
 .leg-save-error {
   margin: 0;
   font-size: var(--type-small);
+}
+/* The legacy straight-line state is a prompt to fix the leg, not a mode we
+   still offer, so it reads as an alert rather than neutral help text. */
+.leg-legacy-note {
+  color: var(--danger);
 }
 .leg-row:empty {
   display: none;
