@@ -23,7 +23,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
     <main className="auth-shell">
       <section className="auth-shell-brand" aria-label="뭉치로그 소개">
         <div className="auth-shell-brand-mark">
-          <img src="/pwa-192.png" width="64" height="64" alt="" />
+          <img src="/branding/mungchilog-paw.png" width="64" height="64" alt="" />
           <span>뭉치로그</span>
         </div>
         <div className="auth-shell-brand-copy">
@@ -37,7 +37,7 @@ export function AuthShell({ title, description, children }: AuthShellProps) {
         <ThemeToggleButton className="auth-theme-toggle" />
         <div className="auth-shell-panel-inner">
           <div className="auth-shell-mobile-brand" aria-label="뭉치로그">
-            <img src="/pwa-192.png" width="36" height="36" alt="" />
+            <img src="/branding/mungchilog-paw.png" width="36" height="36" alt="" />
             <span>뭉치로그</span>
           </div>
           <header className="auth-shell-heading">
