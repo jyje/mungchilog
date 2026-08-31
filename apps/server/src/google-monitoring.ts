@@ -5,6 +5,7 @@ const REQUEST_METRIC = "serviceruntime.googleapis.com/api/request_count";
 const LATENCY_METRIC = "serviceruntime.googleapis.com/api/request_latencies";
 const CACHE_MS = 5 * 60 * 1000;
 const PROVIDER_TIMEOUT_MS = 7_000;
+const PROVIDER_DEADLINE_MS = 9_000;
 const MAX_PAGES = 5;
 const PAGE_SIZE = 1_000;
 
@@ -242,6 +243,18 @@ export async function readGoogleUsage(
 
 type CacheEntry = { expiresAt: number; value: GoogleUsage };
 
+async function withinDeadline<T>(task: Promise<T>, deadlineMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error("monitoring provider deadline exceeded")), deadlineMs);
+  });
+  try {
+    return await Promise.race([task, deadline]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 export class GoogleUsageProvider {
   private readonly cache = new Map<UsageWindow, CacheEntry>();
   private readonly inflight = new Map<UsageWindow, Promise<GoogleUsage>>();
@@ -251,21 +264,22 @@ export class GoogleUsageProvider {
     private readonly config: GoogleMonitoringConfig,
     client?: MonitoringClient,
     private readonly now: () => Date = () => new Date(),
+    private readonly deadlineMs = PROVIDER_DEADLINE_MS,
   ) {
     this.client = config.enabled && config.projectId && config.services.length > 0
       ? client ?? new GoogleCloudMonitoringClient(config.projectId)
       : null;
   }
 
-  async get(window: UsageWindow): Promise<GoogleUsage> {
+  async get(window: UsageWindow, refresh = false): Promise<GoogleUsage> {
     if (!this.client) return { status: "disabled", reason: "not-configured" };
     const now = this.now();
     const cached = this.cache.get(window);
-    if (cached && cached.expiresAt > now.getTime()) return cached.value;
+    if (!refresh && cached && cached.expiresAt > now.getTime()) return cached.value;
     const current = this.inflight.get(window);
     if (current) return current;
 
-    const request = readGoogleUsage(this.config, this.client, window, now)
+    const request = withinDeadline(readGoogleUsage(this.config, this.client, window, now), this.deadlineMs)
       .then<GoogleUsage>((value) => value)
       .catch<GoogleUsage>(() => ({ status: "unavailable", reason: "provider-error" }))
       .then((value) => {

@@ -90,7 +90,7 @@ Validate before a production rollout:
 5. Confirm a non-admin receives HTTP 403 from `/api/admin/usage`.
 6. Inspect the Pod and verify no Google service account key Secret is mounted.
 
-The server caches provider results for five minutes and coalesces concurrent requests. Browser responses use `Cache-Control: private, no-store` and do not expose provider error details or credentials.
+The server caches provider results for five minutes and coalesces concurrent requests. An administrator's explicit refresh bypasses a completed cache entry while still sharing any in-flight request. The complete provider operation has a bounded deadline. Browser responses use `Cache-Control: private, no-store` and do not expose provider error details or credentials.
 
 ## Rollback
 

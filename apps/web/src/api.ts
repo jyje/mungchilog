@@ -146,8 +146,8 @@ export type AdminUsage = {
     | { status: "available"; sampledUntil: string; services: AdminUsageService[] };
 };
 
-export function adminGetUsage(window: AdminUsageWindow): Promise<AdminUsage> {
-  return fetchWithTimeout(`/api/admin/usage?window=${window}`).then((r) => json(r));
+export function adminGetUsage(window: AdminUsageWindow, refresh = false): Promise<AdminUsage> {
+  return fetchWithTimeout(`/api/admin/usage?window=${window}${refresh ? "&refresh=1" : ""}`).then((r) => json(r));
 }
 
 export type TripMember = { id: string; email: string; name: string | null; role: "owner" | "editor" };

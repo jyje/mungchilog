@@ -76,5 +76,7 @@ test("an administrator receives bounded aggregate usage", async () => {
 
 test("usage accepts only documented windows", async () => {
   assert.equal((await request("admin", "/api/admin/usage?window=1y")).status, 400);
+  assert.equal((await request("admin", "/api/admin/usage?window=24h&refresh=true")).status, 400);
+  assert.equal((await request("admin", "/api/admin/usage?window=24h&refresh=1")).status, 200);
   assert.equal((await request("admin", "/api/admin/usage?window=30d")).status, 200);
 });

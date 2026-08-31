@@ -99,6 +99,7 @@ describe("administrator usage", () => {
     expect(screen.getByRole("heading", { name: "애플리케이션" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(adminGetUsage).toHaveBeenCalledTimes(2);
+    expect(adminGetUsage).toHaveBeenLastCalledWith("24h", true);
   });
 
   it("shows a clear empty state when monitoring has no request series", async () => {

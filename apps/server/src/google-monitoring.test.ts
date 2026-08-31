@@ -121,11 +121,13 @@ test("the provider coalesces concurrent work and caches each window for five min
   assert.equal(calls, 3);
   await provider.get("24h");
   assert.equal(calls, 3);
-  await provider.get("7d");
+  await provider.get("24h", true);
   assert.equal(calls, 6);
+  await provider.get("7d");
+  assert.equal(calls, 9);
   now = new Date("2026-08-31T00:05:01.000Z");
   await provider.get("24h");
-  assert.equal(calls, 9);
+  assert.equal(calls, 12);
 });
 
 test("provider failures are non-sensitive and cached", async () => {
@@ -140,4 +142,13 @@ test("provider failures are non-sensitive and cached", async () => {
   assert.deepEqual(await provider.get("30d"), { status: "unavailable", reason: "provider-error" });
   assert.deepEqual(await provider.get("30d"), { status: "unavailable", reason: "provider-error" });
   assert.equal(calls, 1);
+});
+
+test("an overall deadline bounds a stalled monitoring provider", async () => {
+  const client: MonitoringClient = {
+    listTimeSeries: async () => new Promise<MonitoringTimeSeries[]>(() => {}),
+  };
+  const provider = new GoogleUsageProvider(config, client, () => new Date("2026-08-31T00:00:00.000Z"), 10);
+
+  assert.deepEqual(await provider.get("24h"), { status: "unavailable", reason: "provider-error" });
 });

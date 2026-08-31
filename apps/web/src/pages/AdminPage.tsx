@@ -181,7 +181,12 @@ function GoogleUsageSection({ google, retry }: { google: AdminUsage["google"]; r
 
 function UsageAdmin() {
   const [window, setWindow] = useState<AdminUsageWindow>("24h");
+  const queryClient = useQueryClient();
   const query = useQuery({ queryKey: ["admin", "usage", window], queryFn: () => adminGetUsage(window) });
+  const refresh = useMutation({
+    mutationFn: () => adminGetUsage(window, true),
+    onSuccess: (data) => queryClient.setQueryData(["admin", "usage", window], data),
+  });
 
   return (
     <div className="admin-usage">
@@ -193,18 +198,19 @@ function UsageAdmin() {
             </Button>
           ))}
         </div>
-        <Button type="button" size="sm" variant="ghost" onClick={() => query.refetch()} disabled={query.isFetching}>
-          <RefreshCw className={query.isFetching ? "usage-refreshing" : ""} aria-hidden="true" /> 새로고침
+        <Button type="button" size="sm" variant="ghost" onClick={() => refresh.mutate()} disabled={query.isFetching || refresh.isPending}>
+          <RefreshCw className={query.isFetching || refresh.isPending ? "usage-refreshing" : ""} aria-hidden="true" /> 새로고침
         </Button>
       </div>
 
       {query.isPending ? <p className="meta usage-loading" role="status">사용량을 불러오는 중입니다.</p> : null}
       {query.error ? <div className="usage-provider-state error-state" role="alert"><p>사용량을 불러오지 못했습니다.</p><Button type="button" variant="outline" onClick={() => query.refetch()}>다시 시도</Button></div> : null}
+      {refresh.error ? <p className="error" role="alert">새로고침하지 못했습니다. 기존 지표를 계속 표시합니다.</p> : null}
       {query.data ? (
         <div className="usage-sections">
           <p className="meta">{new Date(query.data.generatedAt).toLocaleString("ko-KR")}에 조회 · {WINDOWS.find((option) => option.value === query.data.window)?.label}</p>
           <ApplicationUsageCards usage={query.data.application} />
-          <GoogleUsageSection google={query.data.google} retry={() => query.refetch()} />
+          <GoogleUsageSection google={query.data.google} retry={() => refresh.mutate()} />
         </div>
       ) : null}
     </div>
