@@ -237,6 +237,19 @@ export type LegRoute = {
   // user's choice so a cache refresh that reorders alternatives cannot
   // silently swap which journey is selected.
   key: string;
+  // The scheduled span of a transit journey. Sent for every mode; null where
+  // nothing is scheduled.
+  departureTime?: string | null;
+  arrivalTime?: string | null;
+  // Per-step geometry, so the walk to the station can be drawn differently
+  // from the ride. Null for non-transit modes, and for entries cached before
+  // step geometry was requested - draw `polyline` as a single line then.
+  segments?: RouteSegment[] | null;
+};
+
+export type RouteSegment = {
+  travelMode: "WALK" | "TRANSIT" | "DRIVE" | "OTHER";
+  polyline: string;
 };
 
 export type Leg = {

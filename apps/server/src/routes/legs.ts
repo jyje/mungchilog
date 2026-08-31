@@ -8,6 +8,8 @@ import {
   resolveTiming,
   RouteRequestError,
   routeFingerprint,
+  routeSegments,
+  transitSchedule,
   toRoutesApiWaypoint,
   TIMING_KINDS,
   TRAVEL_MODES,
@@ -164,14 +166,21 @@ function toLegResponse(row: LegRow) {
     polyline: row.polyline,
     label: "DEFAULT_ROUTE",
     key: routeFingerprint({ polyline: row.polyline, durationS: row.duration_s, distanceM: row.distance_m }),
+    segments: null,
   }];
   let routes = fallback;
   try {
     const parsed = row.routes_json ? JSON.parse(row.routes_json) : null;
     if (Array.isArray(parsed) && parsed.length > 0) {
-      // Entries cached before route keys existed still deserve a stable
-      // identity, so derive it on read rather than discarding the entry.
-      routes = parsed.map((route) => ({ ...route, key: route.key ?? routeFingerprint(route) }));
+      // Entries cached before route keys or segments existed still deserve a
+      // stable identity and a uniform shape, so both are normalized on read
+      // rather than discarding the entry. A row without segments reports null,
+      // and the client draws the whole-journey line for it.
+      routes = parsed.map((route) => ({
+        ...route,
+        key: route.key ?? routeFingerprint(route),
+        segments: route.segments ?? null,
+      }));
     }
   } catch {
     // A malformed legacy cache entry should not prevent the basic route from
@@ -209,7 +218,17 @@ async function callRoutesApi(
         "routes.polyline.encodedPolyline",
         "routes.travelAdvisory.transitFare",
         "routes.routeLabels",
-        ...(mode === "TRANSIT" ? ["routes.legs.steps.transitDetails.stopDetails"] : []),
+        // Per-step geometry and mode, which is what lets the map draw the walk
+        // to the station differently from the ride. Transit only: a walk or
+        // drive leg is uniform by definition, so asking for its steps would be
+        // response weight buying nothing.
+        ...(mode === "TRANSIT"
+          ? [
+              "routes.legs.steps.transitDetails.stopDetails",
+              "routes.legs.steps.polyline.encodedPolyline",
+              "routes.legs.steps.travelMode",
+            ]
+          : []),
       ].join(","),
     },
     body: JSON.stringify({
@@ -248,6 +267,8 @@ async function callRoutesApi(
       routeLabels?: string[];
       legs?: Array<{
         steps?: Array<{
+          travelMode?: string;
+          polyline?: { encodedPolyline?: string };
           transitDetails?: {
             stopDetails?: {
               departureTime?: string;
@@ -277,28 +298,12 @@ async function callRoutesApi(
         departureTime: schedule.departureTime,
         arrivalTime: schedule.arrivalTime,
       };
-      return { ...summary, key: routeFingerprint(summary) };
+      // `segments` is attached AFTER the fingerprint, and is deliberately not
+      // part of `summary`. routeFingerprint hashes the journey's identity;
+      // feeding it geometry we only just started requesting would change every
+      // key, and every saved alternative would silently snap back to the
+      // recommended route with nothing reported anywhere.
+      return { ...summary, key: routeFingerprint(summary), segments: routeSegments(route.legs) };
     }),
-  };
-}
-
-// The journey's own boundaries: when the first vehicle leaves and when the
-// last one lands. Walking steps carry no transitDetails and are skipped, so
-// this is the scheduled part of the trip rather than the door-to-door span.
-function transitSchedule(legs: Array<{ steps?: Array<{ transitDetails?: { stopDetails?: { departureTime?: string; arrivalTime?: string } } }> }> | undefined) {
-  const departures: string[] = [];
-  const arrivals: string[] = [];
-  for (const leg of legs ?? []) {
-    for (const step of leg.steps ?? []) {
-      const stop = step.transitDetails?.stopDetails;
-      if (stop?.departureTime) departures.push(stop.departureTime);
-      if (stop?.arrivalTime) arrivals.push(stop.arrivalTime);
-    }
-  }
-  departures.sort();
-  arrivals.sort();
-  return {
-    departureTime: departures[0] ?? null,
-    arrivalTime: arrivals[arrivals.length - 1] ?? null,
   };
 }
