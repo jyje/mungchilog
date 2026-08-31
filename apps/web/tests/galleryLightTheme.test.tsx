@@ -94,4 +94,32 @@ describe("route line legend", () => {
     expect(screen.getByRole("img", { name: /대중교통 · 탑승 구간/ })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /대중교통 · 도보 구간/ })).toBeInTheDocument();
   });
+
+  it("explains how to enable the real route example when no map key is configured", () => {
+    render(
+      <TooltipProvider>
+        <GalleryPage />
+      </TooltipProvider>,
+    );
+
+    expect(screen.getByRole("status", { name: "실제 지도 길찾기 상태" })).toHaveTextContent("실제 지도 길찾기");
+    expect(screen.getByText(/Google Maps 브라우저 키를 설정하면/)).toBeVisible();
+  });
+
+  it("publishes the screen-pixel widths next to every documented style", () => {
+    render(
+      <TooltipProvider>
+        <GalleryPage />
+      </TooltipProvider>,
+    );
+    const gallery = screen.getByRole("main");
+    expect(gallery.querySelector('[data-route-legend-row="transit-ride"]')).toHaveAttribute(
+      "data-route-core-width",
+      "4",
+    );
+    expect(gallery.querySelector('[data-route-legend-row="selected"]')).toHaveAttribute(
+      "data-route-casing-width",
+      "11",
+    );
+  });
 });

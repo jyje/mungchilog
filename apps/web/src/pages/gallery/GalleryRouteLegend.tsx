@@ -94,6 +94,8 @@ export function GalleryRouteLegend() {
             // compute reliably.
             data-route-core-color={core.strokeColor}
             data-route-casing={casing ? casing.strokeColor : "none"}
+            data-route-core-width={core.strokeWeight}
+            data-route-casing-width={casing?.strokeWeight ?? "none"}
           >
             <RouteSwatch row={row} />
             <p className="mt-2 text-sm font-medium text-[#14151a]">{row.label}</p>
