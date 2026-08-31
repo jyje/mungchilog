@@ -81,12 +81,14 @@ function RouteAccessConnectors({
   from,
   to,
   emphasis,
+  kind,
   onSelect,
 }: {
   encodedPath: string;
   from: Spot;
   to: Spot;
   emphasis: RouteEmphasis;
+  kind: RouteSegmentKind;
   onSelect: () => void;
 }) {
   const coordinates = decodeEncodedPolyline(encodedPath);
@@ -100,7 +102,7 @@ function RouteAccessConnectors({
 
   // Access connectors are part of the same itinerary leg, not an unrelated
   // annotation. Their color and emphasis therefore track the route itself.
-  const { strokeColor, strokeOpacity, strokeWeight, zIndex } = connectorStroke(emphasis);
+  const { strokeColor, strokeOpacity, strokeWeight, zIndex } = connectorStroke(emphasis, kind);
   return (
     <>
       {paths.map((path) => (
@@ -230,6 +232,7 @@ function RouteLeg({
           from={from}
           to={to}
           emphasis={emphasis}
+          kind={routeSegmentKind(mode)}
           onSelect={onSelect}
         />
       </>

@@ -84,6 +84,15 @@ describe("the casing that lifts a route off the basemap", () => {
     }
   });
 
+  it("colours access connectors like the leg they bridge", () => {
+    // The connectors belong to their leg. Left on the ride colour they would
+    // end a green walking leg in blue dots.
+    expect(connectorStroke("default", "WALK").strokeColor).toBe(ROUTE_LINE_COLORS.walk);
+    expect(connectorStroke("default", "RIDE").strokeColor).toBe(ROUTE_LINE_COLORS.ride);
+    // Selection still overrides both, matching the casing.
+    expect(connectorStroke("selected", "WALK").strokeColor).toBe(ROUTE_LINE_COLORS.selected);
+  });
+
   it("puts access connectors above every route line", () => {
     const highest = routeStrokeLayers({ kind: "RIDE", emphasis: "selected" }).core.zIndex;
     expect(connectorStroke("default").zIndex).toBeGreaterThan(highest);

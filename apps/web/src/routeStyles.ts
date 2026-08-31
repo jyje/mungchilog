@@ -120,9 +120,23 @@ export function routeStrokeLayers(input: {
       };
 }
 
-export function connectorStroke(emphasis: RouteEmphasis): { strokeColor: string; strokeOpacity: number; strokeWeight: number; zIndex: number } {
+/**
+ * The dotted "last few metres" between where the provider's geometry stops and
+ * where the stop actually is. It belongs to the leg it bridges, so it takes
+ * that leg's colour - otherwise a walking leg would end in blue dots against
+ * its own green line.
+ */
+export function connectorStroke(
+  emphasis: RouteEmphasis,
+  kind: RouteSegmentKind = "RIDE",
+): { strokeColor: string; strokeOpacity: number; strokeWeight: number; zIndex: number } {
   return {
-    strokeColor: emphasis === "selected" ? ROUTE_LINE_COLORS.selected : ROUTE_LINE_COLORS.ride,
+    strokeColor:
+      emphasis === "selected"
+        ? ROUTE_LINE_COLORS.selected
+        : kind === "WALK"
+          ? ROUTE_LINE_COLORS.walk
+          : ROUTE_LINE_COLORS.ride,
     strokeOpacity: emphasis === "selected" ? 1 : emphasis === "dimmed" ? 0.4 : 0.85,
     strokeWeight: emphasis === "selected" ? 4 : 3,
     zIndex: Z.connector,
