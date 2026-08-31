@@ -48,6 +48,13 @@ app.get("*", async (c, next) => {
   await next();
 });
 
+// This tiny public file is the only environment-specific image layer. It is
+// intentionally not part of the PWA precache and must not outlive a rollout.
+app.get("/build-info.js", serveStatic({
+  root: publicRoot,
+  onFound: (_path, c) => c.header("Cache-Control", "no-store, max-age=0"),
+}));
+
 // apps/web's build lands in ./public (see Dockerfile). Everything not
 // matched above, including /trips and /trips/:id, falls through to
 // index.html, and the client-side router in apps/web/src/App.tsx takes it

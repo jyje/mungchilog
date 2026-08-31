@@ -1,32 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { buildInfoFromEnv } from "../src/buildInfo";
+import { buildInfoFromRuntimeConfig } from "../src/buildInfo";
 
 describe("build identity", () => {
-  it("uses a concise environment label and preserves support details", () => {
-    expect(buildInfoFromEnv({
-      VITE_BUILD_ENV: "dev",
-      VITE_BUILD_NUMBER: "54",
-      VITE_IMAGE_TAG: "r54-cb8a672",
-      VITE_COMMIT_SHA: "cb8a672",
-      VITE_BUILD_BRANCH: "dev",
-      VITE_BUILD_TIME: "2026-08-29T06:38:27Z",
-    })).toEqual({
-      environment: "dev",
-      environmentLabel: "DEV",
-      buildNumber: "54",
-      imageTag: "r54-cb8a672",
-      commitSha: "cb8a672",
-      branch: "dev",
-      builtAt: "2026-08-29T06:38:27Z",
+  it("uses one runtime contract for development and staging labels", () => {
+    expect(buildInfoFromRuntimeConfig({
+      environment: "dev", buildNumber: "54", imageTag: "r54-cb8a672", commitSha: "cb8a672",
+      branch: "dev", builtAt: "2026-08-29T06:38:27Z",
+    })).toMatchObject({ environmentLabel: "DEV", primaryLabel: "DEV · Build 54" });
+
+    expect(buildInfoFromRuntimeConfig({ environment: "stg", buildNumber: "46" }))
+      .toMatchObject({ environmentLabel: "STG", primaryLabel: "STG · Build 46" });
+  });
+
+  it("uses a semantic version as the production label", () => {
+    expect(buildInfoFromRuntimeConfig({ environment: "prd", releaseVersion: "v1.2.3" }))
+      .toMatchObject({ environmentLabel: "PRD", primaryLabel: "v1.2.3", releaseVersion: "v1.2.3" });
+  });
+
+  it("never falls back to a development label for malformed production metadata", () => {
+    expect(buildInfoFromRuntimeConfig({ environment: "prd", releaseVersion: "1.2.3" }))
+      .toMatchObject({ environmentLabel: "PRD", primaryLabel: "PRD", releaseVersion: null });
+  });
+
+  it("falls back cleanly for an unconfigured local build", () => {
+    expect(buildInfoFromRuntimeConfig({})).toMatchObject({
+      environment: "local", environmentLabel: "Local", primaryLabel: "Local", imageTag: "Unbuilt", branch: "local",
     });
-  });
-
-  it("falls back cleanly for local builds without CI variables", () => {
-    expect(buildInfoFromEnv({})).toMatchObject({ environmentLabel: "Local", buildNumber: "Unbuilt", imageTag: "Unbuilt", branch: "local" });
-  });
-
-  it("normalizes staging and production environment labels", () => {
-    expect(buildInfoFromEnv({ VITE_BUILD_ENV: "stg" }).environmentLabel).toBe("STG");
-    expect(buildInfoFromEnv({ VITE_BUILD_ENV: "prd" }).environmentLabel).toBe("Production");
   });
 });

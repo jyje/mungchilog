@@ -6,11 +6,13 @@ import type { BuildInfo } from "../src/buildInfo";
 const info: BuildInfo = {
   environment: "dev",
   environmentLabel: "DEV",
+  primaryLabel: "DEV · Build 54",
   buildNumber: "54",
   imageTag: "r54-cb8a672",
   commitSha: "cb8a672",
   branch: "dev",
   builtAt: "2026-08-29T06:38:27Z",
+  releaseVersion: null,
 };
 
 describe("BuildIdentity", () => {
