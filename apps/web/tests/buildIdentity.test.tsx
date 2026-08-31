@@ -33,4 +33,19 @@ describe("BuildIdentity", () => {
     fireEvent.click(summary);
     expect(details).toHaveAttribute("open", "");
   });
+
+  it("renders the semantic release version instead of a development label", () => {
+    render(<BuildIdentity info={{
+      ...info,
+      environment: "prd",
+      environmentLabel: "PRD",
+      primaryLabel: "v1.2.3",
+      imageTag: "v1.2.3-r84-fa14a88",
+      branch: "prd",
+      releaseVersion: "v1.2.3",
+    }} />);
+
+    expect(screen.getByText("v1.2.3", { selector: "summary" })).toBeInTheDocument();
+    expect(screen.queryByText("DEV · Build 54")).not.toBeInTheDocument();
+  });
 });
