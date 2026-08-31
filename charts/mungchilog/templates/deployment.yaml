@@ -1,10 +1,19 @@
 {{- $monitoring := .Values.usageMonitoring.googleCloud -}}
 {{- $workloadIdentity := $monitoring.workloadIdentity -}}
+{{- $locationSharing := .Values.locationSharing -}}
 {{- if and $workloadIdentity.enabled (not $monitoring.enabled) -}}
 {{- fail "usageMonitoring.googleCloud.enabled must be true when workloadIdentity is enabled" -}}
 {{- end -}}
 {{- if and $workloadIdentity.enabled (not (or .Values.serviceAccount.create .Values.serviceAccount.name)) -}}
 {{- fail "serviceAccount.create or serviceAccount.name is required for Google workload identity" -}}
+{{- end -}}
+{{- if and $locationSharing.enabled (ne (int .Values.replicaCount) 1) -}}
+{{- fail "locationSharing.enabled requires replicaCount: 1 because coordinates are held only in process memory" -}}
+{{- end -}}
+{{- range .Values.extraEnv -}}
+{{- if or (eq .name "LOCATION_SHARING_ENABLED") (eq .name "LOCATION_SHARING_SINGLE_PROCESS") -}}
+{{- fail "configure location sharing only through locationSharing.enabled, not extraEnv" -}}
+{{- end -}}
 {{- end -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -14,6 +23,12 @@ metadata:
     app: mungchilog
 spec:
   replicas: {{ .Values.replicaCount }}
+  {{- if $locationSharing.enabled }}
+  # Recreate prevents a rolling update from running two independent in-memory
+  # stores. That would make revocation and recipient visibility ambiguous.
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       app: mungchilog
@@ -36,6 +51,10 @@ spec:
           env:
             - name: PORT
               value: "{{ .Values.service.targetPort }}"
+            - name: LOCATION_SHARING_ENABLED
+              value: {{ ternary "true" "false" $locationSharing.enabled | quote }}
+            - name: LOCATION_SHARING_SINGLE_PROCESS
+              value: {{ ternary "true" "false" $locationSharing.enabled | quote }}
             - name: DB_PROVIDER
               value: {{ .Values.database.provider | quote }}
             {{- if eq .Values.database.provider "sqlite" }}

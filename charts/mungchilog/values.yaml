@@ -5,6 +5,13 @@ image:
 
 replicaCount: 1
 
+# Location sharing keeps coordinates only in the running server's memory. Keep
+# it disabled unless the release is intentionally configured as one process
+# with a non-overlapping replacement. Enabling this value makes the Deployment
+# use Recreate so an old and a new pod cannot serve location traffic together.
+locationSharing:
+  enabled: false
+
 serviceAccount:
   # Create a dedicated Kubernetes ServiceAccount when the workload needs
   # federated access to Google Cloud. No Google service account key is used.
