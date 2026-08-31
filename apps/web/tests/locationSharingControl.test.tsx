@@ -87,6 +87,16 @@ describe("trip location sharing experience", () => {
     expect(screen.getByText(/공유 준비 중.*1시간 남음/)).toBeInTheDocument();
   });
 
+  it("does not expose a sharing action when the server safety gate is disabled", async () => {
+    api.getLocationSharing.mockRejectedValue(new Error("location sharing is unavailable"));
+    render(<SharingHarness />);
+    act(() => vi.advanceTimersByTime(0));
+    await act(async () => undefined);
+
+    expect(screen.queryByRole("button", { name: "공유" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "내 위치 공유" })).not.toBeInTheDocument();
+  });
+
   it("keeps an active session when the participant panel closes", async () => {
     const { rerender, unmount } = render(<SharingHarness />);
     act(() => vi.advanceTimersByTime(0));
