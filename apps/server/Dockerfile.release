@@ -3,7 +3,6 @@
 # image. It copies only deployment identity into the final filesystem layer.
 
 ARG BASE_IMAGE
-ARG BUILDPLATFORM
 FROM --platform=$BUILDPLATFORM node:22-alpine AS build-info
 WORKDIR /metadata
 COPY apps/server/scripts/write-build-info.mjs ./write-build-info.mjs
