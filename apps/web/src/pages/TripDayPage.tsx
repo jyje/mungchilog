@@ -76,6 +76,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreNextDayClick = useRef(false);
   const focusedSharedUserIdRef = useRef<string | null>(null);
+  const previousItinerarySelectionRef = useRef<ItinerarySelection>(null);
   const panelActionsRef = useRef<TripPanelActions | null>(null);
 
   const setSharedLocationFocus = useCallback((userId: string | null) => {
@@ -85,6 +86,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   const clearSelection = useCallback(() => {
     setSelection(null);
+    previousItinerarySelectionRef.current = null;
     setSelectedPlace(null);
     setPanelTab("itinerary");
     setSharedLocationFocus(null);
@@ -105,6 +107,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     setSharedLocationFocus(null);
     setSelectedPlace(null);
     setPanelTab("itinerary");
+    previousItinerarySelectionRef.current = next;
     setSelection(next);
   }
 
@@ -114,6 +117,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return;
     }
     setSelection(null);
+    previousItinerarySelectionRef.current = null;
     setSelectedPlace(null);
     setPanelTab("itinerary");
     setSharedLocationFocus(userId);
@@ -155,6 +159,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     function onPopState() {
       if (selection || focusedSharedUserId || selectedPlace || pointPickActive || addingSpot) {
         setSelection(null);
+        previousItinerarySelectionRef.current = null;
         setSharedLocationFocus(null);
         setPointPickActive(false);
         setAddingSpot(false);
@@ -333,7 +338,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     setPointPickActive(false);
     setSelectedPlace(null);
     setPanelTab("itinerary");
-    setSelection({ kind: "spot", spotId: spot.id });
+    const nextSelection = { kind: "spot", spotId: spot.id } as const;
+    previousItinerarySelectionRef.current = nextSelection;
+    setSelection(nextSelection);
   }
 
   function startPointPick() {
@@ -360,6 +367,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   }
 
   function selectMapPlace(place: MapPlaceSelection) {
+    if (selection) previousItinerarySelectionRef.current = selection;
     setSelection(null);
     setSharedLocationFocus(null);
     setPointPickActive(false);
@@ -370,11 +378,24 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   }
 
   function addSelectedPlace(place: PlaceSelection) {
+    previousItinerarySelectionRef.current = null;
     setPendingCoordinate(null);
     setPendingPlace(place);
+    setSelectedPlace(null);
     setAddingSpot(true);
     setPanelTab("itinerary");
     panelActionsRef.current?.setPanelVisible(true);
+  }
+
+  function changePanelTab(next: PlannerPanelTab) {
+    if (next === panelTab) return;
+    if (next === "places") {
+      if (selection) previousItinerarySelectionRef.current = selection;
+      setSelection(null);
+    } else {
+      setSelection(previousItinerarySelectionRef.current);
+    }
+    setPanelTab(next);
   }
 
   function editSpot(spotId: string, updates: SpotFormValues) {
@@ -495,7 +516,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             pointPickActive={pointPickActive}
             onPickPoint={pickMapPoint}
             onCancelPointPick={cancelPointPick}
-            selectedPlace={selectedPlace}
+            selectedPlace={panelTab === "places" ? selectedPlace : null}
             onSelectPlace={selectMapPlace}
           />
         }
@@ -530,7 +551,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         panel={
           <PlannerPanelTabs
             value={panelTab}
-            onValueChange={setPanelTab}
+            onValueChange={changePanelTab}
             placeSelected={!!selectedPlace}
             itinerary={<>
             <div className="day-tabs-wrap">
