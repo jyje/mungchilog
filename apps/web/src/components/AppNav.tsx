@@ -27,7 +27,8 @@ export function AppNav({ me, navigate }: { me: Me; navigate: (path: string) => v
   return (
     <nav className="app-nav">
       <a className="app-nav-brand" href="/trips" onClick={go("/trips")}>
-        🐾 뭉치로그
+        <img src="/branding/mungchilog-paw.png" width="32" height="32" alt="" />
+        <span>뭉치로그</span>
       </a>
       <div className="app-nav-spacer" />
       {me.role === "admin" && (
