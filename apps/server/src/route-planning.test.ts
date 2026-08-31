@@ -4,6 +4,7 @@ import {
   bucketFor,
   cacheKey,
   resolveTiming,
+  ROUTE_GEOMETRY_VERSION,
   RouteRequestError,
   routeFingerprint,
   toRoutesApiWaypoint,
@@ -72,7 +73,9 @@ test("cache keys separate every input that can change the returned route", () =>
   // Same inputs must be stable across calls, or nothing would ever cache-hit.
   assert.equal(key, cacheKey({ ...base }));
   // The geometry/schema version participates, so old entries cannot be read.
-  assert.ok(key.includes("endpoints-timing-v2"));
+  // Asserted against the exported constant rather than a copy of its value,
+  // so bumping the version stays a one-line change.
+  assert.ok(key.includes(ROUTE_GEOMETRY_VERSION));
 });
 
 test("route fingerprints identify a journey rather than its position in the list", () => {
@@ -87,6 +90,22 @@ test("route fingerprints identify a journey rather than its position in the list
     routeFingerprint({ polyline: null, durationS: 1, distanceM: 2 }),
     routeFingerprint({ polyline: "", durationS: 1, distanceM: 2 }),
   );
+});
+
+test("two departures on the same transit line are different journeys", () => {
+  // The 10:00 and the 10:30 bus share a polyline, a duration, and a distance.
+  // Only the schedule separates them, so without it a saved second departure
+  // would snap back to whichever the provider happened to list first.
+  const shape = { polyline: "abc", durationS: 600, distanceM: 1200 };
+  const first = { ...shape, departureTime: "2026-09-07T10:00:00Z", arrivalTime: "2026-09-07T10:10:00Z" };
+  const second = { ...shape, departureTime: "2026-09-07T10:30:00Z", arrivalTime: "2026-09-07T10:40:00Z" };
+
+  assert.notEqual(routeFingerprint(first), routeFingerprint(second));
+  assert.equal(routeFingerprint(first), routeFingerprint({ ...first }));
+
+  // A mode that carries no schedule still fingerprints on shape alone, and an
+  // absent schedule must not read differently from an explicitly null one.
+  assert.equal(routeFingerprint(shape), routeFingerprint({ ...shape, departureTime: null, arrivalTime: null }));
 });
 
 test("transit is the only mode that may arrive by a deadline", () => {

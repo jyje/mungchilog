@@ -199,8 +199,18 @@ async function callRoutesApi(
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": apiKey,
-      "X-Goog-FieldMask":
-        "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.travelAdvisory.transitFare,routes.routeLabels",
+      // Transit stop times are what make two departures on the same line
+      // distinguishable; without them their fingerprints collide (see
+      // routeFingerprint). Requested only for transit, since every extra
+      // field is response weight on a mode that would never populate it.
+      "X-Goog-FieldMask": [
+        "routes.duration",
+        "routes.distanceMeters",
+        "routes.polyline.encodedPolyline",
+        "routes.travelAdvisory.transitFare",
+        "routes.routeLabels",
+        ...(mode === "TRANSIT" ? ["routes.legs.steps.transitDetails.stopDetails"] : []),
+      ].join(","),
     },
     body: JSON.stringify({
       origin: toRoutesApiWaypoint(from),
@@ -236,6 +246,16 @@ async function callRoutesApi(
       polyline?: { encodedPolyline?: string };
       travelAdvisory?: { transitFare?: { units?: string; currencyCode?: string } };
       routeLabels?: string[];
+      legs?: Array<{
+        steps?: Array<{
+          transitDetails?: {
+            stopDetails?: {
+              departureTime?: string;
+              arrivalTime?: string;
+            };
+          };
+        }>;
+      }>;
     }>;
   };
 
@@ -243,6 +263,7 @@ async function callRoutesApi(
   return {
     routes: data.routes.slice(0, 4).map((route) => {
       const fare = route.travelAdvisory?.transitFare;
+      const schedule = transitSchedule(route.legs);
       const summary = {
         distanceM: route.distanceMeters ?? null,
         durationS: route.duration ? Number(route.duration.replace(/s$/, "")) : null,
@@ -250,8 +271,34 @@ async function callRoutesApi(
         fareCurrency: fare?.currencyCode ?? null,
         polyline: route.polyline?.encodedPolyline ?? null,
         label: route.routeLabels?.includes("DEFAULT_ROUTE_ALTERNATE") ? "DEFAULT_ROUTE_ALTERNATE" : "DEFAULT_ROUTE",
+        // Null on non-transit modes, and on a transit route whose steps are
+        // all walking. Both are fine: shape and duration already identify
+        // those, and the schedule only has to break ties it cannot.
+        departureTime: schedule.departureTime,
+        arrivalTime: schedule.arrivalTime,
       };
       return { ...summary, key: routeFingerprint(summary) };
     }),
+  };
+}
+
+// The journey's own boundaries: when the first vehicle leaves and when the
+// last one lands. Walking steps carry no transitDetails and are skipped, so
+// this is the scheduled part of the trip rather than the door-to-door span.
+function transitSchedule(legs: Array<{ steps?: Array<{ transitDetails?: { stopDetails?: { departureTime?: string; arrivalTime?: string } } }> }> | undefined) {
+  const departures: string[] = [];
+  const arrivals: string[] = [];
+  for (const leg of legs ?? []) {
+    for (const step of leg.steps ?? []) {
+      const stop = step.transitDetails?.stopDetails;
+      if (stop?.departureTime) departures.push(stop.departureTime);
+      if (stop?.arrivalTime) arrivals.push(stop.arrivalTime);
+    }
+  }
+  departures.sort();
+  arrivals.sort();
+  return {
+    departureTime: departures[0] ?? null,
+    arrivalTime: arrivals[arrivals.length - 1] ?? null,
   };
 }

@@ -16,7 +16,7 @@ export type TravelMode = (typeof TRAVEL_MODES)[number];
 // the requested geometry, the endpoint encoding, or the timing semantics
 // change, so an old cache entry cannot conceal a newly correct route for the
 // entire 30-day TTL. Keep in sync with apps/web/src/hooks/useLeg.ts.
-export const ROUTE_GEOMETRY_VERSION = "endpoints-timing-v2";
+export const ROUTE_GEOMETRY_VERSION = "endpoints-timing-v3";
 
 // An endpoint is either a Place ID or a bare coordinate. Coordinates are what
 // make map-picked stops (issue 46) routable at all - they have no placeId.
@@ -91,12 +91,26 @@ export function cacheKey(input: {
 // stores this instead of an array index: Google may reorder or drop
 // alternatives between cache refreshes, and an index would then silently
 // point at a different journey than the one the user chose.
+//
+// Shape alone does not identify a transit journey. Two departures on the same
+// line share a polyline, a duration, and a distance, and differ only in when
+// they leave, so the schedule has to participate or the 10:00 and the 10:30
+// bus collapse into one key and the saved choice snaps back to whichever the
+// provider happens to list first.
 export function routeFingerprint(route: {
   polyline?: string | null;
   durationS?: number | null;
   distanceM?: number | null;
+  departureTime?: string | null;
+  arrivalTime?: string | null;
 }): string {
-  const material = [route.polyline ?? "", route.durationS ?? "", route.distanceM ?? ""].join("|");
+  const material = [
+    route.polyline ?? "",
+    route.durationS ?? "",
+    route.distanceM ?? "",
+    route.departureTime ?? "",
+    route.arrivalTime ?? "",
+  ].join("|");
   return createHash("sha1").update(material).digest("hex").slice(0, 16);
 }
 
