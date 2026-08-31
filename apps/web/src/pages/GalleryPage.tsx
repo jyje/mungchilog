@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Bell, CalendarDays, Crosshair, MapPinned, MoreVertical, Navigation, Plus, Route, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -42,14 +42,8 @@ function GallerySection({ title, description, children }: { title: string; descr
 export function GalleryPage() {
   const [sharing, setSharing] = useState(false);
 
-  useEffect(() => {
-    const root = document.getElementById("root");
-    root?.classList.add("gallery-root");
-    return () => root?.classList.remove("gallery-root");
-  }, []);
-
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-6 py-8">
+    <main className="component-gallery mx-auto min-h-dvh w-full max-w-6xl space-y-6 bg-background py-8 text-foreground">
       <header className="relative space-y-2 border-b pb-6">
         <ThemeToggleButton className="gallery-theme-toggle" />
         <p className="text-sm font-medium text-primary">Development only</p>
