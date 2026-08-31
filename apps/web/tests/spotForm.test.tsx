@@ -71,4 +71,26 @@ describe("coordinate spot form", () => {
       lng: undefined,
     }));
   });
+
+  it("prefills a Google place handoff without saving it before confirmation", () => {
+    const onSubmit = vi.fn();
+    render(
+      <SpotForm
+        initialPlace={{ name: "도쿄역", placeId: "tokyo-station", lat: 35.6812, lng: 139.7671, category: "기차역" }}
+        onSubmit={onSubmit}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByPlaceholderText(/장소 이름/)).toHaveValue("도쿄역");
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      name: "도쿄역",
+      placeId: "tokyo-station",
+      lat: 35.6812,
+      lng: 139.7671,
+      category: "기차역",
+    }));
+  });
 });

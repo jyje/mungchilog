@@ -8,12 +8,12 @@ vi.mock("@vis.gl/react-google-maps", () => ({
   useMap: () => null,
   Map: ({ children, onClick, onContextmenu }: {
     children: React.ReactNode;
-    onClick?: (event: { detail: { latLng: { lat: number; lng: number } } }) => void;
+    onClick?: (event: { detail: { latLng: { lat: number; lng: number }; placeId: string }; stop: () => void }) => void;
     onContextmenu?: (event: { detail: { latLng: { lat: number; lng: number } } }) => void;
   }) => (
     <div
       data-testid="google-map"
-      onClick={() => onClick?.({ detail: { latLng: { lat: 37.5, lng: 127 } } })}
+      onClick={() => onClick?.({ detail: { latLng: { lat: 37.5, lng: 127 }, placeId: "poi-1" }, stop: vi.fn() })}
       onContextMenu={() => onContextmenu?.({ detail: { latLng: { lat: 37.5, lng: 127 } } })}
     >
       {children}
@@ -69,5 +69,26 @@ describe("map coordinate selection", () => {
     fireEvent.click(screen.getByTestId("google-map"));
 
     expect(onPickPoint).toHaveBeenCalledWith({ lat: 37.5, lng: 127 });
+  });
+
+  it("opens a Google POI as exploration state without adding a stop", () => {
+    const onPickPoint = vi.fn();
+    const onSelectPlace = vi.fn();
+    render(
+      <TripMap
+        spots={[]}
+        date="2026-08-31"
+        timezone="Asia/Seoul"
+        legPreferences={[]}
+        selection={null}
+        onSelect={vi.fn()}
+        onPickPoint={onPickPoint}
+        onSelectPlace={onSelectPlace}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("google-map"));
+    expect(onSelectPlace).toHaveBeenCalledWith({ placeId: "poi-1", lat: 37.5, lng: 127 });
+    expect(onPickPoint).not.toHaveBeenCalled();
   });
 });

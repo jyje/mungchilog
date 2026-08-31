@@ -30,17 +30,19 @@ type SelectedLocation =
 export function SpotForm({
   initial,
   initialLocation,
+  initialPlace,
   submitLabel = "스팟 추가",
   onSubmit,
   onCancel,
 }: {
   initial?: Pick<Spot, "name" | "nameLocal" | "plannedArrival" | "note" | "placeId" | "lat" | "lng" | "category">;
   initialLocation?: CoordinateSelection;
+  initialPlace?: PlaceSelection;
   submitLabel?: string;
   onSubmit: (spot: SpotFormValues) => void;
   onCancel: () => void;
 }) {
-  const [name, setName] = useState(initial?.name ?? "");
+  const [name, setName] = useState(initial?.name ?? initialPlace?.name ?? "");
   const [nameLocal, setNameLocal] = useState(initial?.nameLocal ?? "");
   const [plannedArrival, setPlannedArrival] = useState(initial?.plannedArrival ?? "");
   const [note, setNote] = useState(initial?.note ?? "");
@@ -54,7 +56,9 @@ export function SpotForm({
           lng: initial.lng,
           category: initial.category,
         }
-      : initial?.lat != null && initial?.lng != null
+      : initialPlace
+        ? { kind: "place", ...initialPlace }
+        : initial?.lat != null && initial?.lng != null
         ? { kind: "coordinate", lat: initial.lat, lng: initial.lng }
         : initialLocation
           ? { kind: "coordinate", ...initialLocation }
