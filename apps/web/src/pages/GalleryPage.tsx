@@ -21,6 +21,7 @@ import { ThemeToggleButton } from "@/components/system/ThemeToggle";
 import { LocationSharingMapStatus } from "@/components/LocationSharingMapStatus";
 import type { TripLocationSharingController } from "@/hooks/useTripLocationSharing";
 import { GalleryRouteLegend } from "./gallery/GalleryRouteLegend";
+import { GalleryRouteMap } from "./gallery/GalleryRouteMap";
 import { GalleryStoryboard } from "./gallery/GalleryStoryboard";
 
 const galleryLocationSharing = {
@@ -285,7 +286,10 @@ export function GalleryPage() {
         title="Route line styles"
         description="지도에 그리는 경로선 규칙입니다. 파랑은 탑승, 초록은 도보 구간이며, 흰 테두리가 강이나 공원 위에서도 선을 분리해 줍니다. 지도는 앱 테마를 따르지 않으므로 밝은 배경 위에서 확인합니다."
       >
-        <GalleryRouteLegend />
+        <div className="space-y-5">
+          <GalleryRouteMap />
+          <GalleryRouteLegend />
+        </div>
       </GallerySection>
 
       <GallerySection title="UI storyboard" description="Review the full travel flow in live component compositions before changing a production screen. Each scene uses deterministic sample content only.">
