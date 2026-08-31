@@ -1,5 +1,11 @@
-import { useMemo, useState } from "react";
-import { AdvancedMarker, Map, Pin } from "@vis.gl/react-google-maps";
+import { Component, useMemo, useState, type ReactNode } from "react";
+import {
+  AdvancedMarker,
+  APILoadingStatus,
+  Map,
+  Pin,
+  useApiLoadingStatus,
+} from "@vis.gl/react-google-maps";
 import { RouteOverlay } from "@/components/RouteOverlay";
 import { MapsScope } from "@/components/MapsScope";
 import { Badge } from "@/components/ui/badge";
@@ -78,6 +84,84 @@ function routePreference(mode: Exclude<PersistedLegMode, "DIRECT">, date: string
   };
 }
 
+function GalleryMapUnavailable() {
+  return (
+    <div
+      className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-card p-6 text-center"
+      role="status"
+      aria-label="실제 지도 연결 상태"
+    >
+      <p className="font-medium">이 출처에서는 실제 지도를 불러올 수 없습니다.</p>
+      <p className="mt-1 max-w-md text-sm text-muted-foreground">
+        브라우저 키의 HTTP referrer 허용 목록을 확인하세요. 경로선 토큰과 정적 범례는 계속 검토할 수 있습니다.
+      </p>
+    </div>
+  );
+}
+
+class GalleryMapFailureBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    return this.state.failed ? <GalleryMapUnavailable /> : this.props.children;
+  }
+}
+
+function GalleryMapElements({
+  departure,
+  preference,
+  selection,
+  setSelection,
+}: {
+  departure: { date: string; time: string };
+  preference: LegPreference;
+  selection: ItinerarySelection;
+  setSelection: (selection: ItinerarySelection) => void;
+}) {
+  const status = useApiLoadingStatus();
+  if (status === APILoadingStatus.FAILED || status === APILoadingStatus.AUTH_FAILURE) {
+    return <GalleryMapUnavailable />;
+  }
+
+  return (
+    <>
+      {GALLERY_SPOTS.map((spot, index) => {
+        const selected =
+          (selection?.kind === "spot" && selection.spotId === spot.id) ||
+          (selection?.kind === "leg" && (selection.fromId === spot.id || selection.toId === spot.id));
+        return (
+          <AdvancedMarker
+            key={spot.id}
+            position={{ lat: spot.lat!, lng: spot.lng! }}
+            title={`${index + 1}. ${spot.name}`}
+            onClick={() => setSelection({ kind: "spot", spotId: spot.id })}
+          >
+            <Pin
+              glyphText={String(index + 1)}
+              background={selected ? "#0284c7" : "#7dd3fc"}
+              glyphColor={selected ? "#ffffff" : "#111214"}
+              borderColor={selected ? "#ffffff" : "#38bdf8"}
+              scale={selected ? 1.15 : 1}
+            />
+          </AdvancedMarker>
+        );
+      })}
+      <RouteOverlay
+        spots={GALLERY_SPOTS}
+        date={departure.date}
+        timezone="Europe/London"
+        legPreferences={[preference]}
+        selection={selection}
+        onSelect={setSelection}
+      />
+    </>
+  );
+}
+
 function GalleryRouteMapContent() {
   const [mode, setMode] = useState<Exclude<PersistedLegMode, "DIRECT">>("TRANSIT");
   const [zoom, setZoom] = useState(13);
@@ -139,48 +223,27 @@ function GalleryRouteMapContent() {
       </div>
 
       <div className="relative h-[28rem] min-h-80 bg-muted">
-        <Map
-          mapId="mungchilog-trip-map"
-          defaultCenter={{ lat: 51.5101, lng: -0.1258 }}
-          zoom={zoom}
-          onZoomChanged={(event) => setZoom(event.detail.zoom)}
-          gestureHandling="cooperative"
-          fullscreenControl={false}
-          streetViewControl={false}
-          mapTypeControl={false}
-          reuseMaps
-          aria-label="실제 지도 경로 두께 예시"
-        >
-          {GALLERY_SPOTS.map((spot, index) => {
-            const selected =
-              (selection?.kind === "spot" && selection.spotId === spot.id) ||
-              (selection?.kind === "leg" && (selection.fromId === spot.id || selection.toId === spot.id));
-            return (
-              <AdvancedMarker
-                key={spot.id}
-                position={{ lat: spot.lat!, lng: spot.lng! }}
-                title={`${index + 1}. ${spot.name}`}
-                onClick={() => setSelection({ kind: "spot", spotId: spot.id })}
-              >
-                <Pin
-                  glyphText={String(index + 1)}
-                  background={selected ? "#0284c7" : "#7dd3fc"}
-                  glyphColor={selected ? "#ffffff" : "#111214"}
-                  borderColor={selected ? "#ffffff" : "#38bdf8"}
-                  scale={selected ? 1.15 : 1}
-                />
-              </AdvancedMarker>
-            );
-          })}
-          <RouteOverlay
-            spots={GALLERY_SPOTS}
-            date={departure.date}
-            timezone="Europe/London"
-            legPreferences={[preference]}
-            selection={selection}
-            onSelect={setSelection}
-          />
-        </Map>
+        <GalleryMapFailureBoundary>
+          <Map
+            mapId="mungchilog-trip-map"
+            defaultCenter={{ lat: 51.5101, lng: -0.1258 }}
+            zoom={zoom}
+            onZoomChanged={(event) => setZoom(event.detail.zoom)}
+            gestureHandling="cooperative"
+            fullscreenControl={false}
+            streetViewControl={false}
+            mapTypeControl={false}
+            reuseMaps
+            aria-label="실제 지도 경로 두께 예시"
+          >
+            <GalleryMapElements
+              departure={departure}
+              preference={preference}
+              selection={selection}
+              setSelection={setSelection}
+            />
+          </Map>
+        </GalleryMapFailureBoundary>
 
         <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 flex-col items-center gap-2">
           <Badge className="bg-background/95 text-foreground shadow-sm backdrop-blur" variant="outline">
