@@ -194,6 +194,7 @@ jobs:
             RELEASE_VERSION=${{ needs.metadata.outputs.release_version }}
             SOURCE_IMAGE=${{ needs.metadata.outputs.source_image }}
             SOURCE_TAG=${{ inputs.source_tag }}
+            SOURCE_REVISION=${{ needs.metadata.outputs.source_revision }}
 
       - name: Export platform digest
         run: |
@@ -262,9 +263,13 @@ jobs:
           ALIAS_TAG: ${{ needs.metadata.outputs.alias_tag }}
           SOURCE_IMAGE: ${{ needs.metadata.outputs.source_image }}
           SOURCE_TAG: ${{ inputs.source_tag }}
+          SOURCE_REVISION: ${{ needs.metadata.outputs.source_revision }}
           RELEASE_VERSION: ${{ needs.metadata.outputs.release_version }}
         run: |
           target_ref="${TARGET_IMAGE}:${TARGET_TAG}"
+          source_ref="${SOURCE_IMAGE}:${SOURCE_TAG}"
+          docker buildx imagetools inspect "$source_ref" --raw > /tmp/source-index.json
+          docker buildx imagetools inspect "$target_ref" --raw > /tmp/target-index.json
           docker buildx imagetools inspect "$target_ref" --raw | jq -e '
             [.manifests[].platform
              | select(.os == "linux")
@@ -278,6 +283,27 @@ jobs:
             cmp /tmp/release.json /tmp/full-tag.json
           fi
 
+          # A promotion may add its build-info.js layer, but it must preserve
+          # every source application layer for both supported architectures.
+          for architecture in amd64 arm64; do
+            source_digest="$(jq -r --arg architecture "$architecture" '
+              .manifests[] | select(.platform.os == "linux" and .platform.architecture == $architecture) | .digest
+            ' /tmp/source-index.json)"
+            target_digest="$(jq -r --arg architecture "$architecture" '
+              .manifests[] | select(.platform.os == "linux" and .platform.architecture == $architecture) | .digest
+            ' /tmp/target-index.json)"
+            [[ "$source_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+            [[ "$target_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+            docker buildx imagetools inspect "${SOURCE_IMAGE}@${source_digest}" --raw > "/tmp/source-${architecture}.json"
+            docker buildx imagetools inspect "${TARGET_IMAGE}@${target_digest}" --raw > "/tmp/target-${architecture}.json"
+            jq -e --slurpfile source "/tmp/source-${architecture}.json" '
+              (.layers | map(.digest)) as $target_layers
+              | ($source[0].layers | map(.digest)) as $source_layers
+              | ($target_layers | length) == (($source_layers | length) + 1)
+                and $target_layers[0:($source_layers | length)] == $source_layers
+            ' "/tmp/target-${architecture}.json"
+          done
+
           docker pull --platform linux/arm64 "$target_ref"
           docker run --rm --entrypoint cat "$target_ref" /app/public/build-info.js > /tmp/build-info.js
           grep -F "\"environment\":\"${TARGET}\"" /tmp/build-info.js
@@ -285,6 +311,9 @@ jobs:
             docker image inspect "$target_ref" --format '{{json .Config.Labels}}'
           )
           grep -F "\"io.mungchilog.source.tag\":\"${SOURCE_TAG}\"" <(
+            docker image inspect "$target_ref" --format '{{json .Config.Labels}}'
+          )
+          grep -F "\"io.mungchilog.source.revision\":\"${SOURCE_REVISION}\"" <(
             docker image inspect "$target_ref" --format '{{json .Config.Labels}}'
           )
           if [[ "$TARGET" == "prd" ]]; then

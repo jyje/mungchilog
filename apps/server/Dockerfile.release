@@ -29,8 +29,10 @@ ARG BUILD_ENV
 ARG COMMIT_SHA
 ARG SOURCE_IMAGE
 ARG SOURCE_TAG
+ARG SOURCE_REVISION
 LABEL org.opencontainers.image.revision=$COMMIT_SHA \
       io.mungchilog.environment=$BUILD_ENV \
       io.mungchilog.source.image=$SOURCE_IMAGE \
-      io.mungchilog.source.tag=$SOURCE_TAG
+      io.mungchilog.source.tag=$SOURCE_TAG \
+      io.mungchilog.source.revision=$SOURCE_REVISION
 COPY --from=build-info /metadata/build-info.js /app/public/build-info.js

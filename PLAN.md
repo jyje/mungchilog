@@ -74,7 +74,7 @@ Google Maps **Routes/Places API 키**(과금 대상)는 로컬에서 `kubeseal`�
 
 이미지 내부의 `ENV`, Kubernetes Pod 정보, ServiceAccount 또는 Kubernetes API는 사용하지
 않는다. 빌드 인수는 마지막 레이어에서만 사용하며, 운영 빌드는 유효한 semantic version이
-없으면 실패한다. 각 파생 이미지에는 원본 이미지와 태그를 OCI 라벨로 남겨 추적한다.
+없으면 실패한다. 각 파생 이미지에는 원본 이미지, 태그, 리비전을 OCI 라벨로 남겨 추적한다.
 
 ### 3.5 스토리지 - `subdir-usb` NFS와 SQLite rollback journal
 
