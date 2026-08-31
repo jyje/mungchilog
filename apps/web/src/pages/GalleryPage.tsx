@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, CalendarDays, Clock3, Crosshair, MapPin, MapPinned, MoreVertical, Navigation, Plus, Route, Users } from "lucide-react";
+import { Bell, CalendarDays, Clock3, Crosshair, MapPin, MapPinned, MoreVertical, Navigation, Plus, RotateCcw, Route, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -198,6 +198,16 @@ export function GalleryPage() {
                         <RadioGroupItem value="depart" /> Depart at 10:45
                       </label>
                     </RadioGroup>
+                    <RadioGroup defaultValue="route-1" className="grid gap-2 text-sm" aria-label="Route alternatives">
+                      <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3">
+                        <span className="flex items-center gap-3"><RadioGroupItem value="route-1" /> Recommended route</span>
+                        <span className="text-muted-foreground">24 min · ¥210</span>
+                      </label>
+                      <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border px-3">
+                        <span className="flex items-center gap-3"><RadioGroupItem value="route-2" /> Fewer transfers</span>
+                        <span className="text-muted-foreground">29 min · ¥180</span>
+                      </label>
+                    </RadioGroup>
                   </div>
 
                   <article className="rounded-xl border bg-card p-4 text-card-foreground">
@@ -228,10 +238,22 @@ export function GalleryPage() {
           </Tabs>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3" aria-label="Planner loading state example">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-4 w-44" />
-          <Skeleton className="h-4 w-24" />
+        <div className="mt-5 grid gap-3 sm:grid-cols-3" aria-label="Planner loading, empty, and error states">
+          <div className="space-y-3 rounded-xl border p-4" role="status" aria-label="Planner loading state">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-4 w-44" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <div className="rounded-xl border border-dashed p-4 text-sm">
+            <MapPin className="mb-3 size-5 text-muted-foreground" aria-hidden="true" />
+            <p className="font-medium">No place selected</p>
+            <p className="mt-1 text-muted-foreground">Choose a map place without changing the itinerary.</p>
+          </div>
+          <div className="rounded-xl border p-4 text-sm" role="alert">
+            <p className="font-medium">Route unavailable</p>
+            <p className="mt-1 text-muted-foreground">The saved mode remains selected while the map shows a temporary preview.</p>
+            <Button className="mt-3" variant="outline" size="sm"><RotateCcw /> Retry</Button>
+          </div>
         </div>
       </GallerySection>
 
