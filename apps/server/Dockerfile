@@ -20,6 +20,9 @@ COPY apps/server/package.json apps/server/package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci
 COPY apps/server/tsconfig.json ./
 COPY apps/server/src ./src
+# The server build type-checks focused tests that import the final-layer
+# generator, so its typed script contract must be present in this stage too.
+COPY apps/server/scripts ./scripts
 RUN npm run build
 
 FROM node:22-alpine AS runtime
