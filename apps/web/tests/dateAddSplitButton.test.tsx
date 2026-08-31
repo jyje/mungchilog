@@ -9,14 +9,17 @@ describe("DateAddSplitButton", () => {
     render(<DateAddSplitButton onAddDay={onAddDay} onOpenDateAdd={onOpenDateAdd} />);
 
     const group = screen.getByRole("group", { name: "날짜 추가" });
-    expect(group).toHaveClass("date-add-split-group");
-    expect(screen.getByRole("button", { name: "+ 날짜" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "특정 날짜 추가" })).toHaveAttribute("aria-expanded", "false");
+    const primary = screen.getByRole("button", { name: "+ 날짜" });
+    const trigger = screen.getByRole("button", { name: "특정 날짜 추가" });
+    expect(group).toHaveAttribute("data-slot", "button-group");
+    expect(primary).toHaveAttribute("data-variant", "outline");
+    expect(trigger).toHaveAttribute("data-variant", "outline");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
 
-    fireEvent.click(screen.getByRole("button", { name: "+ 날짜" }));
+    fireEvent.click(primary);
     expect(onAddDay).toHaveBeenCalledOnce();
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "특정 날짜 추가" }), { button: 0 });
+    fireEvent.pointerDown(trigger, { button: 0 });
     fireEvent.click(await screen.findByRole("menuitem", { name: "특정 날짜 선택" }));
     expect(onOpenDateAdd).toHaveBeenCalledOnce();
   });
