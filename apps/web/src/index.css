@@ -538,6 +538,35 @@ ul {
   margin: 1rem 0;
   border: 1px solid var(--border);
 }
+.map-context-surface {
+  width: 100%;
+  height: 100%;
+}
+.map-context-surface.point-pick-active,
+.map-context-surface.point-pick-active > * {
+  cursor: crosshair;
+}
+.map-point-pick-notice {
+  position: absolute;
+  z-index: 5;
+  top: max(6.75rem, calc(env(safe-area-inset-top) + 5.75rem));
+  left: 50%;
+  display: flex;
+  width: min(calc(100% - 2rem), 34rem);
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.6rem 0.5rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 0.4rem 1.2rem rgba(20, 21, 26, 0.2);
+  color: var(--text);
+  font-size: var(--type-small);
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+}
 .map-placeholder {
   border: 1px dashed var(--border);
   border-radius: 12px;
@@ -1247,6 +1276,22 @@ body.trip-panel-resizing { cursor: col-resize; }
   font-weight: 600;
   cursor: pointer;
 }
+.add-spot-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.add-spot-actions .add-spot-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+.add-spot-actions .add-spot-button[aria-pressed="true"] {
+  border-style: solid;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
 .add-spot-button {
   width: 100%;
   margin-top: 0.6rem;
@@ -1272,6 +1317,15 @@ body.trip-panel-resizing { cursor: col-resize; }
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+.spot-coordinate-selection {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: var(--type-small);
+  font-variant-numeric: tabular-nums;
 }
 .place-autocomplete {
   position: relative;

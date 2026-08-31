@@ -3,6 +3,7 @@ import type { Spot } from "../types";
 import { PlaceAutocompleteInput, type PlaceSelection } from "./PlaceAutocompleteInput";
 import { MarkdownEditor } from "./MarkdownEditor";
 import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
 
 export type SpotFormValues = {
   name: string;
@@ -15,6 +16,12 @@ export type SpotFormValues = {
   category?: string;
 };
 
+export type CoordinateSelection = { lat: number; lng: number };
+
+type SelectedLocation =
+  | { kind: "place"; name: string; placeId: string; lat?: number; lng?: number; category?: string }
+  | ({ kind: "coordinate" } & CoordinateSelection);
+
 // Shared by both "+ 스팟 추가" (no initial values) and SpotCard's inline
 // edit mode (initial = the existing spot). All four location fields are
 // always present in the submitted object, even as undefined, so an edit
@@ -22,11 +29,13 @@ export type SpotFormValues = {
 // stale placeId/lat/lng instead of leaving them stuck to the new name.
 export function SpotForm({
   initial,
+  initialLocation,
   submitLabel = "스팟 추가",
   onSubmit,
   onCancel,
 }: {
   initial?: Pick<Spot, "name" | "nameLocal" | "plannedArrival" | "note" | "placeId" | "lat" | "lng" | "category">;
+  initialLocation?: CoordinateSelection;
   submitLabel?: string;
   onSubmit: (spot: SpotFormValues) => void;
   onCancel: () => void;
@@ -35,16 +44,21 @@ export function SpotForm({
   const [nameLocal, setNameLocal] = useState(initial?.nameLocal ?? "");
   const [plannedArrival, setPlannedArrival] = useState(initial?.plannedArrival ?? "");
   const [note, setNote] = useState(initial?.note ?? "");
-  const [picked, setPicked] = useState<PlaceSelection | null>(
+  const [picked, setPicked] = useState<SelectedLocation | null>(
     initial?.placeId
       ? {
+          kind: "place",
           name: initial.name,
           placeId: initial.placeId,
-          lat: initial.lat ?? 0,
-          lng: initial.lng ?? 0,
+          lat: initial.lat,
+          lng: initial.lng,
           category: initial.category,
         }
-      : null,
+      : initial?.lat != null && initial?.lng != null
+        ? { kind: "coordinate", lat: initial.lat, lng: initial.lng }
+        : initialLocation
+          ? { kind: "coordinate", ...initialLocation }
+          : null,
   );
 
   function handleNameChange(text: string) {
@@ -52,26 +66,28 @@ export function SpotForm({
     // Typing over a previously picked suggestion invalidates its
     // placeId/coords - only a fresh pick (or the untouched initial value)
     // keeps them attached.
-    if (picked && text !== picked.name) setPicked(null);
+    if (picked?.kind === "place" && text !== picked.name) setPicked(null);
   }
 
   function handleSelect(place: PlaceSelection) {
-    setPicked(place);
+    setPicked({ kind: "place", ...place });
     setName(place.name);
   }
 
   function submit() {
     if (!name.trim()) return;
-    const matched = picked !== null && picked.name === name;
+    const matchedPlace = picked?.kind === "place" && picked.name === name;
+    const coordinates = picked?.kind === "coordinate" || matchedPlace ? picked : null;
+    const hasCoordinates = coordinates != null && Number.isFinite(coordinates.lat) && Number.isFinite(coordinates.lng);
     onSubmit({
       name: name.trim(),
       nameLocal: nameLocal.trim() || undefined,
       plannedArrival: plannedArrival || undefined,
       note: note.trim() || undefined,
-      placeId: matched ? picked.placeId : undefined,
-      lat: matched && picked.lat ? picked.lat : undefined,
-      lng: matched && picked.lng ? picked.lng : undefined,
-      category: matched ? picked.category : undefined,
+      placeId: matchedPlace ? picked.placeId : undefined,
+      lat: hasCoordinates ? coordinates.lat : undefined,
+      lng: hasCoordinates ? coordinates.lng : undefined,
+      category: matchedPlace ? picked.category : undefined,
     });
   }
 
@@ -87,6 +103,12 @@ export function SpotForm({
         onSelect={handleSelect}
         placeholder="장소 이름 (검색 시 지도 위치가 자동으로 붙습니다)"
       />
+      {picked?.kind === "coordinate" && (
+        <div className="spot-coordinate-selection" role="status">
+          <Badge variant="secondary">지도 좌표</Badge>
+          <span>{picked.lat.toFixed(5)}, {picked.lng.toFixed(5)}</span>
+        </div>
+      )}
       <input type="text" placeholder="현지어 이름 (선택)" value={nameLocal} onChange={(e) => setNameLocal(e.target.value)} />
       <input
         type="time"

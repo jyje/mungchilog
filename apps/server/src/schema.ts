@@ -63,8 +63,8 @@ export const SpotSchema = z.object({
   // on-screen to staff, drivers, station clerks on the ground.
   nameLocal: z.string().optional(),
   placeId: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
   category: z.string().optional(),
   plannedArrival: z.string().optional(), // "HH:mm"
   dwellMinutes: z.number().int().nonnegative().optional(),
@@ -77,6 +77,10 @@ export const SpotSchema = z.object({
   // as markdown client-side, stored as plain text server-side either way.
   note: z.string().optional(),
   items: z.array(ItemSchema).default([]),
+}).superRefine((spot, ctx) => {
+  if ((spot.lat == null) !== (spot.lng == null)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [spot.lat == null ? "lat" : "lng"], message: "latitude and longitude must be stored together" });
+  }
 });
 
 // This is a user decision for an itinerary edge, not the `legs` database
