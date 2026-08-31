@@ -84,6 +84,7 @@ describe("trip actions menu", () => {
     fireEvent.click(visibility);
     expect(panelActions.setPanelVisible).toHaveBeenCalledWith(false);
 
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
     openMenu();
     fireEvent.click(await screen.findByRole("menuitem", { name: "일정 패널" }));
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "좌측" }));

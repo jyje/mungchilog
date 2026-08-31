@@ -55,7 +55,7 @@ describe("adaptive map shell", () => {
     viewport(width);
     const { container } = shell();
     expect(container.firstChild).toHaveAttribute("data-panel-position", "bottom");
-    expect(screen.getByRole("button", { name: "분할" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("separator", { name: "일정 패널 상단 경계. 드래그하여 높이 조절" })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).position).toBe("right");
   });
 
@@ -69,92 +69,81 @@ describe("adaptive map shell", () => {
     expect(container.firstChild).toHaveAttribute("data-panel-position", position);
   });
 
-  it("keeps the same unsaved editor mounted through all sheet states and desktop adaptation", () => {
+  it("keeps the same unsaved editor mounted while a sheet is dragged and after desktop adaptation", () => {
     viewport(390);
     shell();
     const draft = screen.getByRole("textbox", { name: "메모" });
     fireEvent.change(draft, { target: { value: "아직 저장하지 않은 변경" } });
-    fireEvent.click(screen.getByRole("button", { name: "지도" }));
-    expect(draft.parentElement).toHaveAttribute("hidden");
-    expect(screen.getByRole("button", { name: /일정 패널 지도/ })).toHaveAttribute("aria-expanded", "false");
-    fireEvent.click(screen.getByRole("button", { name: "일정" }));
-    expect(screen.getByRole("complementary").style.height).toContain("100% - (4.5rem");
-    expect(screen.getByTestId("insets")).toBeInTheDocument();
+    const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 드래그하여 높이 조절" });
+    fireEvent.pointerDown(boundary, { clientY: 464, clientX: 50 });
+    fireEvent.pointerMove(window, { clientY: 180, clientX: 50 });
+    fireEvent.pointerUp(window, { clientY: 180, clientX: 50 });
     expect(screen.getByRole("textbox", { name: "메모" })).toBe(draft);
     viewport(1200);
     expect(screen.getByRole("textbox", { name: "메모" })).toBe(draft);
     expect(draft).toHaveValue("아직 저장하지 않은 변경");
   });
 
-  it("gives split and full itinerary states genuinely different working heights", () => {
+  it("uses a boundary drag rather than buttons or preset size controls", () => {
     viewport(390);
     const { container } = shell();
     const panel = screen.getByRole("complementary");
-    expect(panel).toHaveStyle({ height: "50%" });
-    fireEvent.click(screen.getByRole("button", { name: "일정" }));
-    expect(container.firstChild).toHaveAttribute("data-sheet-state", "expanded");
-    expect(panel.style.height).toContain("100% - (4.5rem");
-    expect(screen.queryByRole("button", { name: /여행 정보/ })).not.toBeInTheDocument();
-  });
-
-  it("supports arrow and Home/End keyboard control of each sheet state", () => {
-    viewport(390);
-    const { container } = shell();
-    const handle = screen.getByRole("button", { name: /일정 패널 분할/ });
-    fireEvent.keyDown(handle, { key: "ArrowUp" });
-    expect(container.firstChild).toHaveAttribute("data-sheet-state", "expanded");
-    fireEvent.keyDown(handle, { key: "Home" });
-    expect(container.firstChild).toHaveAttribute("data-sheet-state", "collapsed");
-    fireEvent.keyDown(handle, { key: "ArrowDown" });
-    expect(container.firstChild).toHaveAttribute("data-sheet-state", "collapsed");
-    fireEvent.keyDown(handle, { key: "End" });
+    Object.defineProperty(panel, "clientHeight", { configurable: true, value: 336 });
+    const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 드래그하여 높이 조절" });
+    expect(screen.queryByRole("group", { name: "일정 패널 크기" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /일정 패널 .*크기/ })).not.toBeInTheDocument();
+    fireEvent.pointerDown(boundary, { clientY: 464, clientX: 50 });
+    fireEvent.pointerMove(window, { clientY: 180, clientX: 50 });
+    fireEvent.pointerUp(window, { clientY: 180, clientX: 50 });
     expect(container.firstChild).toHaveAttribute("data-sheet-state", "expanded");
   });
 
-  it("toggles the visible desktop panel after a collapsed phone sheet without losing sheet preference", () => {
-    viewport(390);
+  it("keeps desktop panel visibility under the screen menu without adding a size control", () => {
     shell();
-    fireEvent.click(screen.getByRole("button", { name: "지도" }));
-    viewport(1200);
     act(() => panelActions.setPanelVisible(false));
     expect(screen.getByRole("complementary", { hidden: true })).toHaveAttribute("hidden");
     act(() => panelActions.setPanelVisible(true));
     expect(screen.getByRole("complementary")).not.toHaveAttribute("hidden");
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).sheetState).toBe("collapsed");
+    expect(screen.queryByRole("group", { name: "일정 패널 크기" })).not.toBeInTheDocument();
   });
 
-  it("supports touch dragging to a snap point without immediately cycling on the following click", () => {
+  it("supports touch dragging to a snap point without a click action", () => {
     // jsdom has no native PointerEvent geometry.
     vi.stubGlobal("PointerEvent", MouseEvent);
     viewport(390);
     const { container } = shell();
     const panel = screen.getByRole("complementary", { name: "여행 일정 패널" });
     Object.defineProperty(panel, "clientHeight", { configurable: true, value: 336 });
-    const handle = screen.getByRole("button", { name: /일정 패널 분할/ });
-    fireEvent.pointerDown(handle, { clientY: 464, clientX: 50 });
+    const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 드래그하여 높이 조절" });
+    fireEvent.pointerDown(boundary, { clientY: 464, clientX: 50 });
     fireEvent.pointerMove(window, { clientY: 180, clientX: 50 });
     fireEvent.pointerUp(window, { clientY: 180, clientX: 50 });
-    fireEvent.click(handle);
     expect(container.firstChild).toHaveAttribute("data-sheet-state", "expanded");
     expect(document.body).not.toHaveClass("trip-panel-resizing");
   });
 
-  it("resizes docked and floating panels with the keyboard", () => {
+  it("resizes docked and floating panels from their boundaries only", () => {
     shell();
     const panel = screen.getByRole("complementary");
-    fireEvent.keyDown(screen.getByRole("button", { name: "일정 패널 너비 조절" }), { key: "ArrowLeft" });
+    const dockBoundary = screen.getByRole("separator", { name: "일정 패널 경계. 드래그하여 너비 조절" });
+    fireEvent.pointerDown(dockBoundary, { clientX: 400, clientY: 100 });
+    fireEvent.pointerMove(window, { clientX: 376, clientY: 100 });
+    fireEvent.pointerUp(window, { clientX: 376, clientY: 100 });
     expect(panel.style.width).toContain("404px");
     act(() => panelActions.choosePosition("floating"));
     const originalWidth = parseFloat(panel.style.width);
-    fireEvent.keyDown(screen.getByRole("button", { name: "패널 left 경계 크기 조절" }), { key: "ArrowLeft" });
+    const floatingBoundary = screen.getByRole("separator", { name: "패널 left 경계 크기 조절. 드래그 전용" });
+    fireEvent.pointerDown(floatingBoundary, { clientX: 760, clientY: 300 });
+    fireEvent.pointerMove(window, { clientX: 736, clientY: 300 });
+    fireEvent.pointerUp(window, { clientX: 736, clientY: 300 });
     expect(parseFloat(panel.style.width)).toBe(originalWidth + 24);
   });
 
-  it("exposes all floating resize edges as keyboard and touch targets", () => {
+  it("exposes all floating resize edges as drag-only separators", () => {
     shell();
     act(() => panelActions.choosePosition("floating"));
 
-    const handles = screen.getAllByRole("button", { name: /패널 .* 경계 크기 조절/ });
+    const handles = screen.getAllByRole("separator", { name: /패널 .* 경계 크기 조절. 드래그 전용/ });
     expect(handles).toHaveLength(8);
     expect(handles.every((handle) => handle.classList.contains("floating-resize-handle"))).toBe(true);
   });
@@ -214,8 +203,7 @@ describe("adaptive map shell", () => {
     expect(container.firstChild).toHaveAttribute("data-compact-map", "true");
     viewport(390, 420);
     fireEvent.focus(screen.getByRole("textbox", { name: "메모" }));
-    expect(container.firstChild).toHaveAttribute("data-sheet-state", "expanded");
-    expect(screen.getByRole("complementary").style.height).toContain("100% - (4.5rem");
+    expect(container.firstChild).toHaveAttribute("data-sheet-state", "intermediate");
     unmount();
     expect(remove).toHaveBeenCalledWith("resize", expect.any(Function));
     expect(remove).toHaveBeenCalledWith("scroll", expect.any(Function));

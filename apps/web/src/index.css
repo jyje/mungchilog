@@ -857,73 +857,38 @@ ul {
   box-shadow: -8px 0 20px var(--shadow-color);
 }
 
-.panel-drag-handle {
+.panel-resize-boundary {
   position: relative;
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  justify-content: center;
   background: var(--surface);
-  color: var(--text);
-  border: none;
-  padding: 0 1rem;
-  min-height: 3rem;
-  font: inherit;
-  font-weight: 600;
   touch-action: none;
 }
-.panel-drag-handle .handle-bar {
+.panel-resize-boundary .handle-bar {
   border-radius: 999px;
   background: var(--border);
 }
-.trip-shell[data-panel-position="bottom"] .panel-drag-handle {
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.2rem;
+.panel-resize-boundary-bottom {
+  min-height: 1.25rem;
   cursor: row-resize;
 }
-.trip-shell[data-panel-position="bottom"] .panel-drag-handle .handle-bar {
+.panel-resize-boundary-bottom .handle-bar {
   width: 2.5rem;
   height: 0.25rem;
 }
-.trip-shell[data-panel-position="left"] .panel-drag-handle,
-.trip-shell[data-panel-position="right"] .panel-drag-handle {
-  width: 100%;
-  border-bottom: 1px solid var(--border);
+.panel-resize-boundary-left,
+.panel-resize-boundary-right {
+  position: absolute;
+  z-index: 3;
+  top: 0;
+  bottom: 0;
+  width: 1.25rem;
   cursor: col-resize;
 }
-.panel-sheet-toolbar {
-  flex: none;
-  display: flex;
-  align-items: center;
-  min-height: 3rem;
-  padding-right: max(0.5rem, env(safe-area-inset-right));
-  padding-left: env(safe-area-inset-left);
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-}
-.panel-sheet-states { display: flex; }
-.panel-sheet-states button {
-  min-width: 3rem;
-  min-height: 3rem;
-  padding: 0.4rem;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  font: inherit;
-  font-size: var(--type-label);
-  cursor: pointer;
-}
-.panel-sheet-states button[aria-pressed="true"] {
-  color: var(--text);
-  font-weight: 700;
-  box-shadow: inset 0 -0.2rem var(--accent);
-}
-.panel-sheet-states button:hover { background: var(--bg); }
-.panel-sheet-states button:active { background: var(--border); }
-.panel-sheet-states button:focus-visible { outline-offset: -0.25rem; }
+.panel-resize-boundary-left { right: 0; }
+.panel-resize-boundary-right { left: 0; }
 .trip-shell[data-sheet-state="collapsed"] .trip-panel-pane {
   background: var(--surface);
 }
@@ -1004,8 +969,8 @@ body.panel-resizing {
   font-weight: 400;
 }
 .floating-resize-handle {
-  /* Keep every resize affordance comfortably hittable on touch screens.
-     The visual edge stays narrow, while the transparent hit area is 44px. */
+  /* The panel edge itself is the drag target. A transparent touch hit area
+     keeps it usable without presenting a second button in the map UI. */
   position: absolute;
   z-index: 4;
   min-width: 44px;
@@ -1044,13 +1009,6 @@ body.panel-resizing {
 .floating-resize-bottom-right { right: -22px; bottom: -22px; cursor: nwse-resize; }
 .floating-resize-top-right { top: -22px; right: -22px; cursor: nesw-resize; }
 .floating-resize-bottom-left { bottom: -22px; left: -22px; cursor: nesw-resize; }
-.floating-resize-bottom-right {
-  width: 44px;
-  height: 44px;
-  right: -22px;
-  bottom: -22px;
-  background: linear-gradient(135deg, transparent 68%, var(--border) 69%, var(--border) 74%, transparent 75%);
-}
 body.trip-panel-dragging,
 body.trip-panel-resizing {
   user-select: none;

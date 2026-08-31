@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { ChevronDown } from "lucide-react";
 import { Button } from "./ui/button";
 import { MapViewportProvider, type MapViewportInsets } from "./MapViewportContext";
-import { closestSheetState, mapViewportInsets, SHEET_LABELS, SHEET_STATES, type SheetState } from "./mapViewportGeometry";
+import { closestSheetState, mapViewportInsets, SHEET_STATES, type SheetState } from "./mapViewportGeometry";
 
 export type PanelPosition = "bottom" | "left" | "right" | "floating";
 type DockPosition = Exclude<PanelPosition, "floating">;
@@ -190,7 +190,6 @@ export function SplitMapShell({
   const mapRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLElement>(null);
-  const suppressSheetClick = useRef(false);
   const drag = useRef<DragState | null>(null);
   const position: PanelPosition = isWide ? layout.position : "bottom";
   const sheetState = layout.collapsed ? "collapsed" : layout.sheetState;
@@ -250,7 +249,6 @@ export function SplitMapShell({
       const deltaY = event.clientY - active.startY;
 
       if (active.kind === "resize" && active.position === "bottom") {
-        if (Math.abs(deltaY) > 6) suppressSheetClick.current = true;
         const height = shellRef.current?.clientHeight || window.innerHeight;
         setSheetDragHeight(clamp(active.size - deltaY, 56, Math.max(56, height - 72)));
         return;
@@ -273,7 +271,7 @@ export function SplitMapShell({
     }
     function onEnd(event: PointerEvent) {
       const active = drag.current;
-      if (event.type !== "pointercancel" && active?.kind === "resize" && active.position === "bottom" && suppressSheetClick.current) {
+      if (event.type !== "pointercancel" && active?.kind === "resize" && active.position === "bottom") {
         const state = closestSheetState(active.size - (event.clientY - active.startY), shellRef.current?.clientHeight || window.innerHeight);
         setLayout((current) => ({ ...current, collapsed: false, sheetState: state }));
       }
@@ -303,7 +301,6 @@ export function SplitMapShell({
   function beginResize(event: React.PointerEvent, edge: ResizeEdge) {
     event.preventDefault();
     (event.currentTarget as HTMLElement).focus();
-    suppressSheetClick.current = false;
     drag.current = { kind: "resize", edge, startX: event.clientX, startY: event.clientY, bounds: normalizeFloating(layout.floating), position, size: position === "bottom" ? panelRef.current?.clientHeight || 48 : panelRef.current?.clientWidth || 380 };
     document.body.classList.add("trip-panel-resizing");
   }
@@ -314,26 +311,6 @@ export function SplitMapShell({
 
   function setPanelVisible(visible: boolean) {
     setLayout((current) => ({ ...current, collapsed: !visible }));
-  }
-
-  function chooseSheetState(next: SheetState) {
-    setLayout((current) => ({ ...current, collapsed: false, sheetState: next }));
-  }
-
-  function onSheetKeyDown(event: React.KeyboardEvent) {
-    const index = SHEET_STATES.indexOf(sheetState);
-    const next = event.key === "Home" ? 0 : event.key === "End" ? 2 : event.key === "ArrowUp" ? Math.min(2, index + 1) : event.key === "ArrowDown" ? Math.max(0, index - 1) : null;
-    if (next === null) return;
-    event.preventDefault();
-    chooseSheetState(SHEET_STATES[next]);
-  }
-
-  function onResizeKeyDown(event: React.KeyboardEvent, edge: ResizeEdge) {
-    const deltaX = event.key === "ArrowLeft" ? -24 : event.key === "ArrowRight" ? 24 : 0;
-    const deltaY = event.key === "ArrowUp" ? -24 : event.key === "ArrowDown" ? 24 : 0;
-    if (!deltaX && !deltaY) return;
-    event.preventDefault();
-    setLayout((current) => position === "floating" ? { ...current, floating: resizedBounds(edge, current.floating, deltaX, deltaY) } : { ...current, sizes: { ...current.sizes, [position]: clamp(current.sizes[position as DockPosition] + (position === "left" ? deltaX : -deltaX), 320, 640) } });
   }
 
   const floating = normalizeFloating(layout.floating);
@@ -384,11 +361,6 @@ export function SplitMapShell({
           hidden={layout.collapsed && position !== "bottom"}
           style={panelStyle}
           aria-label="여행 일정 패널"
-          onFocusCapture={(event) => {
-            if (position !== "bottom" || sheetState === "expanded") return;
-            const target = event.target as HTMLElement;
-            if (target.matches("input, textarea, select, [contenteditable='true']")) chooseSheetState("expanded");
-          }}
         >
           {position === "floating" ? (
             <>
@@ -404,33 +376,34 @@ export function SplitMapShell({
                 <span className="floating-panel-hint">드래그하여 이동</span>
               </Button>
               {(["top", "right", "bottom", "left", "top-right", "bottom-right", "bottom-left", "top-left"] as ResizeEdge[]).map((edge) => (
-                <Button
+                <div
                   key={edge}
-                  type="button"
-                  variant="ghost"
+                  role="separator"
+                  aria-orientation={edge === "left" || edge === "right" ? "vertical" : "horizontal"}
                   className={`floating-resize-handle floating-resize-${edge}`}
-                  aria-label={`패널 ${edge} 경계 크기 조절`}
+                  aria-label={`패널 ${edge} 경계 크기 조절. 드래그 전용`}
                   onPointerDown={(event) => beginResize(event, edge)}
-                  onKeyDown={(event) => onResizeKeyDown(event, edge)}
                 />
               ))}
             </>
           ) : position === "bottom" ? (
-            <div className="panel-sheet-toolbar">
-              <Button type="button" variant="ghost" className="panel-drag-handle" aria-label={`일정 패널 ${SHEET_LABELS[sheetState]}, 크기 변경`} aria-expanded={sheetState !== "collapsed"} aria-controls="trip-itinerary-content" title="드래그하거나 위아래 방향키로 크기 변경" onPointerDown={(event) => beginResize(event, "top")} onKeyDown={onSheetKeyDown} onClick={() => {
-                if (suppressSheetClick.current) { suppressSheetClick.current = false; return; }
-                chooseSheetState(SHEET_STATES[(SHEET_STATES.indexOf(sheetState) + 1) % SHEET_STATES.length]);
-              }}>
-                <span className="handle-bar" aria-hidden="true" /><span>일정</span>
-              </Button>
-              <div className="panel-sheet-states" role="group" aria-label="일정 패널 크기">
-                {SHEET_STATES.map((state) => <Button key={state} type="button" variant={sheetState === state ? "secondary" : "ghost"} aria-pressed={sheetState === state} onClick={() => chooseSheetState(state)}>{SHEET_LABELS[state]}</Button>)}
-              </div>
+            <div
+              role="separator"
+              aria-orientation="horizontal"
+              className="panel-resize-boundary panel-resize-boundary-bottom"
+              aria-label="일정 패널 상단 경계. 드래그하여 높이 조절"
+              onPointerDown={(event) => beginResize(event, "top")}
+            >
+              <span className="handle-bar" aria-hidden="true" />
             </div>
           ) : (
-            <Button type="button" variant="ghost" className="panel-drag-handle" aria-label="일정 패널 너비 조절" title="드래그하거나 좌우 방향키로 너비 변경" onPointerDown={(event) => beginResize(event, position === "left" ? "right" : "left")} onKeyDown={(event) => onResizeKeyDown(event, position === "left" ? "right" : "left")}>
-              <span>일정</span><span aria-hidden="true">↔</span>
-            </Button>
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              className={`panel-resize-boundary panel-resize-boundary-${position}`}
+              aria-label="일정 패널 경계. 드래그하여 너비 조절"
+              onPointerDown={(event) => beginResize(event, position === "left" ? "right" : "left")}
+            />
           )}
           <div id="trip-itinerary-content" className="panel-content" hidden={position === "bottom" && sheetState === "collapsed" && sheetDragHeight === null}>{panel}</div>
         </aside>
