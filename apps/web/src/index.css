@@ -490,7 +490,7 @@ ul {
   margin: 0;
   padding-bottom: 0.25rem;
 }
-.day-tabs button {
+.day-tabs .day-tab {
   flex: none;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -501,7 +501,7 @@ ul {
   font-size: var(--type-label);
   cursor: pointer;
 }
-.day-tabs button.active {
+.day-tabs .day-tab.active {
   background: var(--accent);
   color: var(--accent-contrast);
   border-color: var(--accent);

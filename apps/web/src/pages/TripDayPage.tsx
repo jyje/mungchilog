@@ -579,7 +579,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     key={d.date}
                     type="button"
                     variant={i === dayIndex ? "default" : "outline"}
-                    className={i === dayIndex ? "active" : undefined}
+                    className={`day-tab${i === dayIndex ? " active" : ""}`}
                     onClick={() => selectDay(i)}
                     onContextMenu={(event) => {
                       event.preventDefault();

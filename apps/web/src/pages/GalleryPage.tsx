@@ -17,6 +17,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MapIconButton } from "@/components/system/MapIconButton";
 import { MapControlRail } from "@/components/system/MapControlRail";
+import { DateAddSplitButton } from "@/components/system/DateAddSplitButton";
 import { ThemeToggleButton } from "@/components/system/ThemeToggle";
 import { LocationSharingMapStatus } from "@/components/LocationSharingMapStatus";
 import type { TripLocationSharingController } from "@/hooks/useTripLocationSharing";
@@ -65,7 +66,7 @@ export function GalleryPage() {
       <GallerySection title="Actions" description="Standard variants, disabled state, menus, tooltips, and confirmation dialogs.">
         <div className="flex flex-wrap items-center gap-3">
           <Button>새 여행 만들기</Button>
-          <Button variant="secondary">날짜 추가</Button>
+          <DateAddSplitButton onAddDay={() => undefined} onOpenDateAdd={() => undefined} />
           <Button variant="outline">초대하기</Button>
           <Button variant="ghost">취소</Button>
           <Button disabled>저장 중</Button>
