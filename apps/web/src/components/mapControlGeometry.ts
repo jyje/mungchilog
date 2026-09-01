@@ -107,8 +107,10 @@ export function verticalRailRect(
 /**
  * Pick one vertical app-control rail that stays inside the visible map and
  * does not collide with measured native controls or other app exclusions.
- * Candidate order is intentional: keep the familiar lower-right rail when
- * it is safe, then prefer the right edge before falling back to the left.
+ * Candidate order is intentional: keep the familiar lower rail when it is
+ * safe, shifting it inward before lifting it above a native control cluster.
+ * A shorter map therefore keeps controls close to the itinerary boundary
+ * instead of jumping them into its visual centre.
  */
 export function chooseMapControlRail(
   viewport: MapControlViewport,
@@ -136,19 +138,22 @@ export function chooseMapControlRail(
       ]),
     ];
     const bottomTop = content.bottom - safeEdgeGap - totalHeight;
-    const middleTop = Math.max(content.top + safeEdgeGap, content.top + (rectHeight(content) - totalHeight) / 2);
-    const topCandidates = [
-      bottomTop,
-      middleTop,
-      ...exclusions.flatMap((exclusion) => [
-        exclusion.top - totalHeight - safeEdgeGap * 2,
-        exclusion.bottom + safeEdgeGap * 2,
-      ]),
-    ];
-    return leftCandidates.flatMap((left) => topCandidates.map((top) => ({
+    const clearanceTops = exclusions.flatMap((exclusion) => [
+      exclusion.top - totalHeight - safeEdgeGap * 2,
+      exclusion.bottom + safeEdgeGap * 2,
+    ]);
+    // Try every horizontal escape at the lower edge before lifting the rail.
+    // The previous middle candidate made the current-location control appear
+    // detached from both the panel and the map's native lower controls.
+    const bottomAnchored = leftCandidates.map((left) => ({
+      side,
+      rect: { left, top: bottomTop, right: left + width, bottom: bottomTop + totalHeight },
+    }));
+    const lifted = leftCandidates.flatMap((left) => clearanceTops.map((top) => ({
       side,
       rect: { left, top, right: left + width, bottom: top + totalHeight },
     })));
+    return [...bottomAnchored, ...lifted];
   });
 
   return placements.find(({ rect }) => rectWithin(rect, content) && !exclusions.some((exclusion) => rectsIntersect(rect, exclusion, edgeGap))) ?? null;

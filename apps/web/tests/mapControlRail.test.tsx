@@ -22,7 +22,7 @@ beforeEach(() => {
 });
 
 describe("MapControlRail", () => {
-  it("moves the app rail above a native lower-right control cluster", async () => {
+  it("moves the app rail inward while keeping it at the lower map edge", async () => {
     const view = render(
       <MapViewportProvider value={{ top: 0, right: 0, bottom: 0, left: 0 }}>
         <div className="map-container">
@@ -41,7 +41,7 @@ describe("MapControlRail", () => {
     setRect(native, { left: 276, top: 610, right: 360, bottom: 800 });
     window.dispatchEvent(new Event("resize"));
 
-    await waitFor(() => expect(rail).toHaveStyle({ left: "304px", top: "350px", right: "auto", bottom: "auto" }));
+    await waitFor(() => expect(rail).toHaveStyle({ left: "208px", top: "688px", right: "auto", bottom: "auto" }));
     expect(rail).toHaveAttribute("data-placement", "right");
   });
 
@@ -68,7 +68,7 @@ describe("MapControlRail", () => {
     setRect(attribution, { left: 1025, top: 404, right: 1270, bottom: 418 });
     window.dispatchEvent(new Event("resize"));
 
-    await waitFor(() => expect(rail).toHaveStyle({ left: "1224px", top: "158px", right: "auto", bottom: "auto" }));
+    await waitFor(() => expect(rail).toHaveStyle({ left: "957px", top: "306px", right: "auto", bottom: "auto" }));
     expect(rail).toHaveAttribute("data-placement", "right");
   });
 
@@ -94,6 +94,6 @@ describe("MapControlRail", () => {
     view.container.querySelector(".map-container")!.append(native);
     setRect(native, { left: 276, top: 610, right: 360, bottom: 800 });
 
-    await waitFor(() => expect(rail).toHaveStyle({ left: "304px", top: "350px" }));
+    await waitFor(() => expect(rail).toHaveStyle({ left: "208px", top: "688px" }));
   });
 });
