@@ -28,6 +28,10 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // This file is replaced in the final image layer for each deployment.
+        // It must always come from the currently running server, never PWA
+        // precache or an older promoted image.
+        globIgnores: ["build-info.js"],
         // Underground transit sections drop connectivity entirely: the
         // point of offline caching here is surviving that, not saving
         // API calls (see PLAN.md). Cache the app shell aggressively and
