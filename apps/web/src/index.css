@@ -934,6 +934,14 @@ ul {
   border-radius: 999px;
   background: var(--border);
 }
+.panel-resize-boundary:focus-visible,
+.floating-resize-handle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+.panel-resize-boundary:focus-visible .handle-bar {
+  background: var(--accent);
+}
 .panel-resize-boundary-bottom {
   min-height: 1.25rem;
   cursor: row-resize;

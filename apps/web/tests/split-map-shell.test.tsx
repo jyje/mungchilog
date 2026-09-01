@@ -69,7 +69,7 @@ describe("adaptive map shell", () => {
     viewport(width);
     const { container } = shell();
     expect(container.firstChild).toHaveAttribute("data-panel-position", "bottom");
-    expect(screen.getByRole("separator", { name: "일정 패널 상단 경계. 드래그하여 높이 조절" })).toBeInTheDocument();
+    expect(screen.getByRole("separator", { name: "일정 패널 상단 경계. 방향키 또는 드래그로 높이 조절" })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).position).toBe("right");
   });
 
@@ -88,7 +88,7 @@ describe("adaptive map shell", () => {
     shell();
     const draft = screen.getByRole("textbox", { name: "메모" });
     fireEvent.change(draft, { target: { value: "아직 저장하지 않은 변경" } });
-    const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 드래그하여 높이 조절" });
+    const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 방향키 또는 드래그로 높이 조절" });
     fireEvent.pointerDown(boundary, { clientY: 464, clientX: 50 });
     fireEvent.pointerMove(window, { clientY: 180, clientX: 50 });
     fireEvent.pointerUp(window, { clientY: 180, clientX: 50 });
@@ -103,7 +103,7 @@ describe("adaptive map shell", () => {
     const { container } = shell();
     const panel = screen.getByRole("complementary");
     Object.defineProperty(panel, "clientHeight", { configurable: true, value: 336 });
-    const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 드래그하여 높이 조절" });
+    const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 방향키 또는 드래그로 높이 조절" });
     expect(screen.queryByRole("group", { name: "일정 패널 크기" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /일정 패널 .*크기/ })).not.toBeInTheDocument();
     fireEvent.pointerDown(boundary, { clientY: 464, clientX: 50 });
@@ -128,7 +128,7 @@ describe("adaptive map shell", () => {
     const { container } = shell();
     const panel = screen.getByRole("complementary", { name: "여행 일정 패널" });
     Object.defineProperty(panel, "clientHeight", { configurable: true, value: 336 });
-    const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 드래그하여 높이 조절" });
+    const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 방향키 또는 드래그로 높이 조절" });
     fireEvent.pointerDown(boundary, { clientY: 464, clientX: 50 });
     fireEvent.pointerMove(window, { clientY: 180, clientX: 50 });
     fireEvent.pointerUp(window, { clientY: 180, clientX: 50 });
@@ -139,27 +139,61 @@ describe("adaptive map shell", () => {
   it("resizes docked and floating panels from their boundaries only", () => {
     shell();
     const panel = screen.getByRole("complementary");
-    const dockBoundary = screen.getByRole("separator", { name: "일정 패널 경계. 드래그하여 너비 조절" });
+    const dockBoundary = screen.getByRole("separator", { name: "일정 패널 경계. 방향키 또는 드래그로 너비 조절" });
     fireEvent.pointerDown(dockBoundary, { clientX: 400, clientY: 100 });
     fireEvent.pointerMove(window, { clientX: 376, clientY: 100 });
     fireEvent.pointerUp(window, { clientX: 376, clientY: 100 });
     expect(panel.style.width).toContain("404px");
     act(() => panelActions.choosePosition("floating"));
     const originalWidth = parseFloat(panel.style.width);
-    const floatingBoundary = screen.getByRole("separator", { name: "패널 left 경계 크기 조절. 드래그 전용" });
+    const floatingBoundary = screen.getByRole("separator", { name: "플로팅 패널 왼쪽 경계. 방향키 또는 드래그로 크기 조절" });
     fireEvent.pointerDown(floatingBoundary, { clientX: 760, clientY: 300 });
     fireEvent.pointerMove(window, { clientX: 736, clientY: 300 });
     fireEvent.pointerUp(window, { clientX: 736, clientY: 300 });
     expect(parseFloat(panel.style.width)).toBe(originalWidth + 24);
   });
 
-  it("exposes all floating resize edges as drag-only separators", () => {
+  it("exposes four keyboard-operable floating edges without adding corner focus stops", () => {
     shell();
     act(() => panelActions.choosePosition("floating"));
 
-    const handles = screen.getAllByRole("separator", { name: /패널 .* 경계 크기 조절. 드래그 전용/ });
-    expect(handles).toHaveLength(8);
+    const handles = screen.getAllByRole("separator", { name: /플로팅 패널 .* 경계. 방향키 또는 드래그로 크기 조절/ });
+    expect(handles).toHaveLength(4);
     expect(handles.every((handle) => handle.classList.contains("floating-resize-handle"))).toBe(true);
+    expect(handles.every((handle) => handle.tabIndex === 0)).toBe(true);
+  });
+
+  it("resizes the bottom sheet with arrows and exposes its current snap state", () => {
+    viewport(390);
+    const { container } = shell();
+    const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 방향키 또는 드래그로 높이 조절" });
+
+    expect(boundary).toHaveAttribute("aria-valuetext", "분할");
+    fireEvent.keyDown(boundary, { key: "ArrowUp" });
+    expect(container.firstChild).toHaveAttribute("data-sheet-state", "expanded");
+    expect(boundary).toHaveAttribute("aria-valuetext", "일정");
+    fireEvent.keyDown(boundary, { key: "Home" });
+    expect(container.firstChild).toHaveAttribute("data-sheet-state", "collapsed");
+    expect(boundary).toHaveAttribute("aria-valuetext", "지도");
+  });
+
+  it("resizes docked and floating panels from focused boundaries", () => {
+    shell();
+    const panel = screen.getByRole("complementary");
+    const dockBoundary = screen.getByRole("separator", { name: "일정 패널 경계. 방향키 또는 드래그로 너비 조절" });
+
+    expect(dockBoundary).toHaveAttribute("aria-valuenow", "380");
+    fireEvent.keyDown(dockBoundary, { key: "ArrowLeft" });
+    expect(panel.style.width).toContain("404px");
+    expect(dockBoundary).toHaveAttribute("aria-valuenow", "404");
+
+    act(() => panelActions.choosePosition("floating"));
+    const floatingBoundary = screen.getByRole("separator", { name: "플로팅 패널 오른쪽 경계. 방향키 또는 드래그로 크기 조절" });
+    const originalWidth = parseFloat(panel.style.width);
+    fireEvent.keyDown(floatingBoundary, { key: "ArrowRight" });
+    const resizedWidth = parseFloat(panel.style.width);
+    expect(resizedWidth).toBeGreaterThan(originalWidth);
+    expect(floatingBoundary).toHaveAttribute("aria-valuenow", `${resizedWidth}`);
   });
 
   it("keeps trip details behind one accessible compact-title disclosure", () => {
