@@ -8,7 +8,7 @@ import { Input } from "./ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Switch } from "./ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
+import { PlannerChoiceGroup, PlannerChoiceItem } from "./system/PlannerChoiceGroup";
 
 type LegPatch = Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware">> & {
   mode?: PersistedLegMode;
@@ -168,8 +168,7 @@ export function LegInfo({
         🧭 {parts.join(" · ") || `${modeLabel} 동선`}
       </Button>
 
-      <ToggleGroup
-        type="single"
+      <PlannerChoiceGroup
         value={legacyMode ? "" : mode}
         // Radix reports "" when the active item is pressed again. Ignore it:
         // a leg always travels by some means, so there is no "no mode" state
@@ -179,11 +178,11 @@ export function LegInfo({
         aria-label={`${from.name}에서 ${to.name}까지 이동 수단`}
       >
         {LEG_MODE_OPTIONS.map((option) => (
-          <ToggleGroupItem key={option.mode} value={option.mode} aria-label={option.description} title={option.description}>
+          <PlannerChoiceItem key={option.mode} value={option.mode} aria-label={option.description} title={option.description}>
             {option.label}
-          </ToggleGroupItem>
+          </PlannerChoiceItem>
         ))}
-      </ToggleGroup>
+      </PlannerChoiceGroup>
 
       {legacyMode && (
         <p className="leg-legacy-note" role="status">

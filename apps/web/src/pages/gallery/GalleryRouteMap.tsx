@@ -10,6 +10,7 @@ import { RouteOverlay } from "@/components/RouteOverlay";
 import { MapsScope } from "@/components/MapsScope";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { PlannerChoiceGroup, PlannerChoiceItem } from "@/components/system/PlannerChoiceGroup";
 import { useLeg } from "@/hooks/useLeg";
 import { ROUTE_LINE_WIDTH_PX } from "@/routeStyles";
 import type { ItinerarySelection } from "@/components/TripMap";
@@ -198,19 +199,17 @@ function GalleryRouteMapContent() {
             {ROUTE_LINE_WIDTH_PX.selected.casing}px 강조선으로 유지됩니다.
           </p>
         </div>
-        <ToggleGroup
-          type="single"
+        <PlannerChoiceGroup
           value={mode}
           onValueChange={(value) => value && setMode(value as Exclude<PersistedLegMode, "DIRECT">)}
-          variant="outline"
           aria-label="예시 경로 교통수단"
         >
           {ROUTE_MODES.map((option) => (
-            <ToggleGroupItem key={option.mode} value={option.mode} className="text-foreground data-[state=on]:text-foreground">
+            <PlannerChoiceItem key={option.mode} value={option.mode}>
               {option.label}
-            </ToggleGroupItem>
+            </PlannerChoiceItem>
           ))}
-        </ToggleGroup>
+        </PlannerChoiceGroup>
       </div>
 
       <div className="relative h-[28rem] min-h-80 bg-muted">

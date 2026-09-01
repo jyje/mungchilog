@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { beginFreshLogin, logout, type Me } from "../api";
 import { restartAfterProviderLogout } from "../auth/providerLogout";
 import { AuthShell } from "../components/system/AuthShell";
+import { Button } from "../components/ui/button";
 
 export function PendingPage({ me }: { me: Me }) {
   const [isRestartingLogin, setIsRestartingLogin] = useState(false);
@@ -34,14 +35,14 @@ export function PendingPage({ me }: { me: Me }) {
       }
     >
       <div className="auth-actions">
-        <button type="button" className="auth-action-primary" onClick={handleRestartLogin} disabled={isRestartingLogin}>
+        <Button type="button" className="auth-action-button min-h-12 w-full" onClick={handleRestartLogin} disabled={isRestartingLogin}>
           {isRestartingLogin ? <LoaderCircle className="auth-spinner" aria-hidden="true" /> : <ArrowRight aria-hidden="true" />}
           {isRestartingLogin ? "기존 세션을 종료하는 중" : "다른 계정으로 다시 로그인"}
-        </button>
-        <button type="button" className="auth-action-secondary" onClick={handleLogout} disabled={isRestartingLogin}>
+        </Button>
+        <Button type="button" variant="outline" className="auth-action-button min-h-12 w-full" onClick={handleLogout} disabled={isRestartingLogin}>
           <LogOut aria-hidden="true" />
           로그아웃
-        </button>
+        </Button>
       </div>
       <p className="auth-supporting-copy">
         이 기기의 뭉치로그와 로그인 공급자 세션을 종료한 뒤 다시 인증합니다.

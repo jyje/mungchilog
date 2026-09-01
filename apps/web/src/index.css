@@ -195,11 +195,11 @@ button {
   color: var(--text);
 }
 
-button:active {
+button:not([data-slot]):active {
   transform: scale(0.97);
 }
 @media (prefers-reduced-motion: no-preference) {
-  button {
+  button:not([data-slot]) {
     transition: transform 0.1s ease;
   }
 }
@@ -245,22 +245,6 @@ ul {
 .trip-row .meta {
   flex: none;
 }
-.trip-delete {
-  flex: none;
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  border-radius: 6px;
-  min-height: 40px;
-  padding: 0.4rem 0.7rem;
-  font-size: var(--type-label);
-  cursor: pointer;
-}
-.trip-delete:hover {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-
 /* Trip library: a media-forward but calm way to distinguish private
    itineraries after login. The visual is either a user-selected photo or
    the selected place's map, never a decorative placeholder image. */
@@ -285,19 +269,6 @@ ul {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-}
-.trip-cover-actions button {
-  min-height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.45rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--accent);
-  font-size: var(--type-label);
-  font-weight: 600;
 }
 .trip-library-grid {
   display: grid;
@@ -380,8 +351,6 @@ ul {
   top: 0.7rem;
   right: 0.7rem;
   z-index: 1;
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
-  backdrop-filter: blur(8px);
 }
 .trip-library-card .trip-delete:disabled,
 .trip-cover-actions button:disabled {
@@ -399,27 +368,6 @@ ul {
   color: var(--text-muted);
   font-size: var(--type-label);
 }
-.trip-cover-field select,
-.trip-cover-field input {
-  width: 100%;
-  min-height: 42px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-}
-.trip-cover-field select {
-  padding: 0.45rem 0.6rem;
-}
-.trip-cover-field input[type="file"] {
-  padding: 0.35rem;
-}
-.trip-cover-field select:focus-visible,
-.trip-cover-field input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 .trip-cover-file-hint {
   margin: -0.2rem 0 0;
   color: var(--text-muted);
@@ -435,14 +383,6 @@ ul {
   max-height: 180px;
   border-radius: 8px;
   object-fit: cover;
-}
-.trip-cover-actions button {
-  cursor: pointer;
-}
-.trip-cover-actions button[data-variant="default"] {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-contrast);
 }
 @media (min-width: 760px) {
   .trip-library-grid {
@@ -485,27 +425,14 @@ ul {
 }
 .day-tabs {
   display: flex;
+  align-items: center;
   gap: 0.4rem;
   overflow-x: auto;
   margin: 0;
   padding-bottom: 0.25rem;
 }
-.day-tabs .day-tab {
+.day-choice-group {
   flex: none;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  border-radius: 999px;
-  padding: 0.6rem 1rem;
-  min-height: 44px;
-  font-size: var(--type-label);
-  cursor: pointer;
-}
-.day-tabs .day-tab.active {
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border-color: var(--accent);
-  font-weight: 600;
 }
 .day-tabs .day-manage {
   min-width: 44px;
@@ -529,15 +456,6 @@ ul {
   color: var(--text-muted);
   font-size: var(--type-label);
 }
-.day-date-popover input {
-  min-height: 44px;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: var(--bg);
-  color: var(--text);
-  font: inherit;
-}
 .day-date-hint,
 .day-date-error {
   margin: 0;
@@ -547,15 +465,8 @@ ul {
   flex-wrap: wrap;
   gap: 0.4rem;
 }
-.day-date-actions button {
-  min-height: 44px;
-  padding: 0.5rem 0.75rem;
-  font-size: var(--type-label);
-}
 .day-date-actions .day-delete {
   margin-left: auto;
-  border-color: #d04444;
-  color: #d04444;
 }
 
 /* map */
@@ -692,22 +603,9 @@ ul {
 .map-hero-back,
 .menu-button {
   flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 3rem;
   height: 3rem;
-  border-radius: 999px;
-  border: none;
-  background: var(--bg);
-  color: var(--text);
   font-size: 1rem;
-  cursor: pointer;
-}
-.map-hero-back:hover,
-.menu-button:hover {
-  text-decoration: none;
-  background: var(--border);
 }
 .map-hero-title {
   flex: 1;
@@ -735,7 +633,6 @@ ul {
   height: 2.75rem;
   padding: 0;
   color: var(--text-muted);
-  border-radius: 999px;
 }
 .trip-title-disclosure svg {
   transition: transform 160ms ease;
@@ -865,29 +762,14 @@ ul {
   flex: none;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-muted);
-  cursor: pointer;
 }
 .trip-cover-dialog-close svg {
   width: 1.25rem;
   height: 1.25rem;
 }
-.trip-cover-dialog-close:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--bg);
-}
 .trip-cover-dialog-close:disabled {
   cursor: wait;
   opacity: 0.6;
-}
-.trip-cover-dialog button:focus-visible,
-.trip-cover-dialog input:focus-visible,
-.trip-cover-dialog select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 /* resizable panel: bottom/left/right all share the same pane, only the
@@ -1087,12 +969,6 @@ body.trip-panel-resizing {
 }
 body.trip-panel-dragging { cursor: grabbing; }
 body.trip-panel-resizing { cursor: col-resize; }
-.trip-panel-pane button:focus-visible,
-.map-hero-header button:focus-visible,
-.map-hero-header a:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
 @media (max-width: 640px) {
   .floating-panel-hint { display: none; }
   .trip-cover-dialog {
@@ -1138,8 +1014,6 @@ body.trip-panel-resizing { cursor: col-resize; }
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 .drag-handle {
-  background: none;
-  border: none;
   color: var(--text-muted);
   cursor: grab;
   font-size: 1.3rem;
@@ -1150,7 +1024,6 @@ body.trip-panel-resizing { cursor: col-resize; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
   touch-action: none;
   flex: none;
 }
@@ -1173,23 +1046,7 @@ body.trip-panel-resizing { cursor: col-resize; }
   min-width: 0;
   min-height: 44px;
   padding: 0.45rem 0.3rem;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: none;
-  color: var(--text);
-  font: inherit;
   text-align: left;
-  cursor: pointer;
-}
-.spot-select:hover,
-.spot-select[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-.spot-select:focus-visible,
-.leg-summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 .spot-name {
   font-weight: 600;
@@ -1313,26 +1170,16 @@ body.trip-panel-resizing { cursor: col-resize; }
   min-height: 40px;
   padding: 0.25rem 0;
 }
-.item-list input[type="checkbox"] {
-  width: 1.15rem;
-  height: 1.15rem;
-  accent-color: var(--accent);
-  flex: none;
-}
 .item-list .done {
   color: var(--text-muted);
   text-decoration: line-through;
 }
 .item-delete {
   flex: none;
-  background: none;
-  border: none;
   color: var(--text-muted);
   font-size: var(--type-label);
   width: 44px;
   height: 44px;
-  border-radius: 6px;
-  cursor: pointer;
 }
 .item-delete:hover {
   color: var(--danger);
@@ -1341,15 +1188,7 @@ body.trip-panel-resizing { cursor: col-resize; }
 .add-item-button,
 .add-spot-button {
   margin-top: 0.5rem;
-  background: none;
-  border: 1px dashed var(--border);
-  color: var(--accent);
-  border-radius: 8px;
   min-height: 44px;
-  padding: 0.55rem 0.8rem;
-  font-size: var(--type-small);
-  font-weight: 600;
-  cursor: pointer;
 }
 .add-spot-actions {
   display: grid;
@@ -1363,9 +1202,7 @@ body.trip-panel-resizing { cursor: col-resize; }
   gap: 0.35rem;
 }
 .add-spot-actions .add-spot-button[aria-pressed="true"] {
-  border-style: solid;
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  font-weight: 600;
 }
 .add-spot-button {
   width: 100%;
@@ -1513,31 +1350,8 @@ body.trip-panel-resizing { cursor: col-resize; }
   display: flex;
   gap: 0.3rem;
 }
-.markdown-editor-tabs button {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  border-radius: 999px;
-  min-height: 40px;
-  padding: 0.45rem 0.75rem;
-  font-size: var(--type-label);
-  cursor: pointer;
-}
-.markdown-editor-tabs button.active {
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border-color: var(--accent);
-  font-weight: 600;
-}
 .markdown-editor-tabs .markdown-editor-save {
   margin-left: auto;
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
-.markdown-editor-tabs .markdown-editor-save:not(:disabled):hover {
-  background: var(--accent);
-  color: var(--accent-contrast);
 }
 .markdown-editor-tabs .markdown-editor-save:disabled {
   cursor: default;
@@ -1545,11 +1359,6 @@ body.trip-panel-resizing { cursor: col-resize; }
 }
 .markdown-editor-textarea {
   width: 100%;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.6rem 0.7rem;
   font-size: var(--type-body);
   line-height: 1.6;
   font-family: inherit;
@@ -1809,7 +1618,7 @@ form {
   gap: 0.75rem;
   margin-top: 1rem;
 }
-textarea {
+textarea:not([data-slot]) {
   width: 100%;
   background: var(--surface);
   color: var(--text);
@@ -1821,7 +1630,7 @@ textarea {
   line-height: 1.6;
   resize: vertical;
 }
-button[type="submit"] {
+button[type="submit"]:not([data-slot]) {
   align-self: flex-start;
   background: var(--accent);
   color: var(--accent-contrast);
@@ -1833,16 +1642,16 @@ button[type="submit"] {
   font-weight: 600;
   cursor: pointer;
 }
-button[type="submit"]:disabled {
+button[type="submit"]:not([data-slot]):disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-input[type="text"],
-input[type="date"],
-input[type="time"],
-input[type="number"],
-select {
+input[type="text"]:not([data-slot]),
+input[type="date"]:not([data-slot]),
+input[type="time"]:not([data-slot]),
+input[type="number"]:not([data-slot]),
+select:not([data-slot]) {
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
@@ -1851,7 +1660,7 @@ select {
   font-size: var(--type-body);
   min-height: 44px;
 }
-input[type="text"]::placeholder {
+input[type="text"]:not([data-slot])::placeholder {
   color: var(--text-muted);
 }
 
@@ -1902,13 +1711,8 @@ input[type="text"]::placeholder {
   flex: none;
   width: 44px;
   height: 44px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
   font-weight: 700;
   font-size: var(--type-label);
-  cursor: pointer;
 }
 .layout-menu-right {
   left: auto;
@@ -2290,28 +2094,10 @@ input[type="text"]::placeholder {
   font-size: var(--type-small);
   font-weight: 700;
 }
-.share-invite-form input {
-  width: 100%;
-  min-height: 48px;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
-}
-.share-invite-form input:focus-visible,
-.share-sheet-close:focus-visible,
-.share-member-remove:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent);
-  outline-offset: 2px;
-}
 .share-invite-form > button {
   width: 100%;
   min-height: 48px;
-  border-radius: 0.75rem;
   font-weight: 700;
-  cursor: pointer;
 }
 .share-invite-form button:disabled {
   cursor: not-allowed;
@@ -2391,21 +2177,7 @@ input[type="text"]::placeholder {
 .location-sharing-heading button,
 .location-sharing-consent button {
   min-height: 2.5rem;
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--accent);
-  border-radius: 0.7rem;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  font: inherit;
   font-size: var(--type-label);
-  font-weight: 650;
-  cursor: pointer;
-}
-.location-sharing-heading .location-stop,
-.location-sharing-consent button[data-variant="ghost"] {
-  border-color: var(--border);
-  background: transparent;
-  color: var(--text);
 }
 .location-sharing-live {
   display: flex;
@@ -2420,9 +2192,6 @@ input[type="text"]::placeholder {
 .location-sharing-live button {
   min-height: 2.25rem;
   gap: 0.3rem;
-  padding: 0.3rem 0.55rem;
-  border-radius: 999px;
-  color: var(--accent);
 }
 .location-sharing-live button svg {
   width: 1rem;
@@ -2440,16 +2209,10 @@ input[type="text"]::placeholder {
 .location-sharing-consent ul { margin: 0; }
 .location-sharing-consent ul { list-style: disc; padding-left: 1.25rem; font-size: var(--type-label); }
 .location-sharing-consent label { display: flex; align-items: center; gap: 0.4rem; font-size: var(--type-label); }
-.location-sharing-consent select { min-height: 2.25rem; border: 1px solid var(--border); border-radius: 0.45rem; background: var(--surface); color: var(--text); font: inherit; }
 .location-sharing-consent > div { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .location-takeover { color: var(--danger); }
 .itinerary-follow-control { position: relative; display: grid; justify-items: end; gap: 0.45rem; }
-.itinerary-follow-button {
-  box-shadow: 0 0.25rem 0.8rem var(--shadow-color);
-}
 .itinerary-follow-button svg { width: 1.35rem; height: 1.35rem; }
-.itinerary-follow-button.following { border-color: var(--accent); background: var(--accent); color: var(--accent-contrast); }
-.itinerary-follow-button.paused { border-color: var(--accent); color: var(--accent); }
 .itinerary-follow-status {
   position: absolute;
   right: calc(100% + 0.6rem);
@@ -2467,7 +2230,7 @@ input[type="text"]::placeholder {
   box-shadow: 0 0.2rem 0.7rem var(--shadow-color);
   font-size: var(--type-label);
 }
-.itinerary-follow-status button { min-height: 2.25rem; padding: 0.3rem 0.55rem; border: 0; border-radius: 999px; background: var(--bg); color: var(--accent); font: inherit; font-size: var(--type-label); font-weight: 650; cursor: pointer; }
+.itinerary-follow-status button { min-height: 2.25rem; font-size: var(--type-label); font-weight: 650; }
 .shared-location-marker {
   display: grid;
   width: 2.5rem;
@@ -2640,9 +2403,6 @@ input[type="text"]::placeholder {
   flex: none;
   min-width: 2.75rem;
   min-height: 2.75rem;
-  padding: 0.3rem 0.55rem;
-  border-radius: 999px;
-  color: var(--accent);
   font-size: var(--type-label);
   font-weight: 700;
 }

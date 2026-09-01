@@ -1,6 +1,8 @@
 import { RefreshCw } from "lucide-react";
 import type { TripLocationSharingController } from "../hooks/useTripLocationSharing";
 import { Button } from "./ui/button";
+import { Checkbox } from "./ui/checkbox";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 
 export function LocationSharingControl({ controller }: { controller: TripLocationSharingController }) {
   const {
@@ -46,8 +48,8 @@ export function LocationSharingControl({ controller }: { controller: TripLocatio
     {consent && <div className="location-sharing-consent" role="dialog" aria-label="위치 공유 확인">
       <p>아래 참여자에게 현재 위치를 공유합니다.</p>
       <ul>{consent.recipients.map((recipient) => <li key={recipient.id}>{recipient.name ?? "이름 없는 참여자"}</li>)}</ul>
-      <label>공유 시간 <select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{consent.durationOptions.map((seconds) => <option key={seconds} value={seconds}>{seconds === 900 ? "15분" : seconds / 3_600 + "시간"}</option>)}</select></label>
-      {takeoverRequired && <label className="location-takeover"><input type="checkbox" checked={takeover} onChange={(event) => setTakeover(event.target.checked)} />기존 공유를 종료하고 이 기기에서 시작</label>}
+      <label>공유 시간 <NativeSelect className="[&>select]:min-h-11" value={String(duration)} onChange={(event) => setDuration(Number(event.target.value))}>{consent.durationOptions.map((seconds) => <NativeSelectOption key={seconds} value={String(seconds)}>{seconds === 900 ? "15분" : seconds / 3_600 + "시간"}</NativeSelectOption>)}</NativeSelect></label>
+      {takeoverRequired && <label className="location-takeover"><Checkbox checked={takeover} onCheckedChange={(checked) => setTakeover(checked === true)} />기존 공유를 종료하고 이 기기에서 시작</label>}
       <div><Button type="button" onClick={() => void beginSharing()} disabled={pending || (takeoverRequired && !takeover)}>공유 시작</Button><Button type="button" variant="ghost" onClick={cancelConsent}>취소</Button></div>
     </div>}
     {unavailable && <p className="meta">위치 공유는 안전한 운영 설정이 준비되면 사용할 수 있습니다.</p>}

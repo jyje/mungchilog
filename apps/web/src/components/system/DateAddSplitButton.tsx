@@ -11,8 +11,8 @@ type DateAddSplitButtonProps = {
 /** Shared split-button treatment for the default and custom date actions. */
 export function DateAddSplitButton({ onAddDay, onOpenDateAdd }: DateAddSplitButtonProps) {
   return (
-    <ButtonGroup role="group" aria-label="날짜 추가">
-      <Button type="button" variant="outline" onClick={onAddDay}>
+    <ButtonGroup role="group" aria-label="날짜 추가" className="shrink-0">
+      <Button type="button" variant="outline" size="lg" className="min-h-11" onClick={onAddDay}>
         + 날짜
       </Button>
       <DropdownMenu>
@@ -20,7 +20,8 @@ export function DateAddSplitButton({ onAddDay, onOpenDateAdd }: DateAddSplitButt
           <Button
             type="button"
             variant="outline"
-            size="icon"
+            size="icon-lg"
+            className="min-h-11 min-w-11"
             aria-label="특정 날짜 추가"
           >
             <ChevronDown aria-hidden="true" />

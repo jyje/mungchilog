@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { beginFreshLogin, pingBackend } from "../api";
 import { restartAfterProviderLogout } from "../auth/providerLogout";
 import { AuthShell } from "../components/system/AuthShell";
+import { Button } from "../components/ui/button";
 
 export function LoginPage() {
   const [loginState, setLoginState] = useState<"idle" | "standard" | "fresh">("idle");
@@ -48,14 +49,14 @@ export function LoginPage() {
       description={<>뭉치로그에서 일정과 장소, 이동 동선을 한 화면으로 정리할 수 있습니다.</>}
     >
       <div className="auth-actions">
-        <button type="button" className="auth-action-primary" onClick={handleLogin} disabled={isLoggingIn}>
+        <Button type="button" className="auth-action-button min-h-12 w-full" onClick={handleLogin} disabled={isLoggingIn}>
           {loginState === "standard" ? <LoaderCircle className="auth-spinner" aria-hidden="true" /> : <LogIn aria-hidden="true" />}
           {loginState === "standard" ? "Authentik으로 이동 중" : "Authentik으로 계속하기"}
-        </button>
+        </Button>
         <p className="auth-provider-note">로그인하면 안전한 인증을 위해 Authentik으로 이동합니다.</p>
-        <button type="button" className="auth-text-button" onClick={handleFreshLogin} disabled={isLoggingIn}>
+        <Button type="button" variant="link" className="auth-text-button" onClick={handleFreshLogin} disabled={isLoggingIn}>
           다른 계정으로 로그인 <ArrowRight aria-hidden="true" />
-        </button>
+        </Button>
       </div>
       {loginState === "fresh" && (
         <p className="auth-status" role="status" aria-live="polite">

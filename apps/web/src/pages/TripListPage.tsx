@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Trash2 } from "lucide-react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { listTrips, deleteTrip } from "../api";
 import { MapsScope } from "../components/MapsScope";
@@ -7,6 +7,7 @@ import { BuildIdentity } from "../components/system/BuildIdentity";
 import { Button } from "../components/ui/button";
 import { ButtonGroup } from "../components/ui/button-group";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 
 export function TripListPage({ navigate }: { navigate: (path: string) => void }) {
   const qc = useQueryClient();
@@ -77,17 +78,30 @@ export function TripListPage({ navigate }: { navigate: (path: string) => void })
                   {trip.cover?.spot && <p className="trip-library-place">대표 장소: {trip.cover.spot.nameLocal || trip.cover.spot.name}</p>}
                 </div>
               </a>
-              <button
-                type="button"
-                className="trip-delete"
-                aria-label={`${trip.title} 삭제`}
-                disabled={remove.isPending}
-                onClick={() => {
-                  if (confirm(`"${trip.title}"을(를) 삭제할까요?`)) remove.mutate(trip.id);
-                }}
-              >
-                삭제
-              </button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="trip-delete"
+                    aria-label={`${trip.title} 삭제`}
+                    disabled={remove.isPending}
+                  >
+                    <Trash2 aria-hidden="true" /> 삭제
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{trip.title} 여행을 삭제할까요?</DialogTitle>
+                    <DialogDescription>삭제한 여행과 일정은 복구할 수 없습니다.</DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="outline">취소</Button></DialogClose>
+                    <Button type="button" variant="destructive" onClick={() => remove.mutate(trip.id)}>삭제</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </article>
           ))}
         </div>

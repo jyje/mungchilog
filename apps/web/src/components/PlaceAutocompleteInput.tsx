@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMapsLibrary } from "@vis.gl/react-google-maps";
+import { Input } from "./ui/input";
 
 export type PlaceSelection = {
   name: string;
@@ -96,7 +97,8 @@ export function PlaceAutocompleteInput({
 
   return (
     <div className="place-autocomplete">
-      <input
+      <Input
+        className="min-h-11"
         type="text"
         placeholder={placeholder}
         value={value}

@@ -6,6 +6,7 @@ import { Users, X } from "lucide-react";
 import { listTripMembers, inviteToTrip, removeTripMember, type Me } from "../api";
 import { type SharedLocationWithName, type TripLocationSharingController } from "../hooks/useTripLocationSharing";
 import { LocationSharingControl } from "./LocationSharingControl";
+import { Input } from "./ui/input";
 
 // The map header triggers an app-level sheet. Anyone on the trip can see
 // who else is on it; only the owner (or a global admin) gets the invite
@@ -62,7 +63,7 @@ export function TripShareButton({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="같이 보는 사람" title="같이 보는 사람" aria-haspopup="dialog" aria-expanded={open} data-sharing-active={locationSharing.localActive || locationSharing.remoteActive || undefined}>
+        <Button type="button" variant="secondary" size="icon-lg" className="menu-button" aria-label="같이 보는 사람" title="같이 보는 사람" aria-haspopup="dialog" aria-expanded={open} data-sharing-active={locationSharing.localActive || locationSharing.remoteActive || undefined}>
           <Users aria-hidden="true" />
           {(locationSharing.localActive || locationSharing.remoteActive) && <span className="share-live-indicator" aria-hidden="true" />}
         </Button>
@@ -131,7 +132,8 @@ export function TripShareButton({
             }}
           >
             <label htmlFor="trip-invite-email">이메일로 초대</label>
-            <input
+            <Input
+              className="min-h-11"
               id="trip-invite-email"
               type="email"
               inputMode="email"

@@ -70,7 +70,7 @@ export function TripActionsMenu({
     <>
       <DropdownMenu modal={false} open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-lg" className="menu-button" aria-label="여행 더보기" title="여행 더보기">
+          <Button type="button" variant="secondary" size="icon-lg" className="menu-button" aria-label="여행 더보기" title="여행 더보기">
             <MoreVertical aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
