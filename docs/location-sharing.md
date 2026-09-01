@@ -6,16 +6,28 @@ Location sharing is **disabled by default**. The trip UI exposes the feature onl
 
 The initial store is process memory, with no database table, filesystem write, snapshot, restart recovery, or coordinate log. It is intentionally usable only with one live server process. Every restart ends sharing and discards pending confirmations. Authorization reads the existing users, sessions and trip membership database.
 
-Both environment variables must be explicitly set to the literal `true` to enable the endpoints:
+The Helm chart owns both environment variables. Its default renders both as
+`false`, regardless of `envFrom`; do not supply either name through `extraEnv`.
+To enable the endpoints, use this release configuration:
 
 ```text
-LOCATION_SHARING_ENABLED=true
-LOCATION_SHARING_SINGLE_PROCESS=true
+locationSharing.enabled=true
+replicaCount=1
 ```
 
-The second setting is an operator assertion, not replica auto-detection. Do not set it until the entire deployment has been checked for one process, including rollouts. One replica with `RollingUpdate` is insufficient: an old and a new pod may serve simultaneously. A single worker with a nonoverlapping replacement strategy is a prerequisite. PM2/Node clustering, multiple pods, and independent servers sharing one database are unsupported. Horizontal deployment requires a shared, atomically revocable ephemeral store with verified persistence disabled before enabling this feature.
+When enabled, the chart renders `LOCATION_SHARING_ENABLED=true` and
+`LOCATION_SHARING_SINGLE_PROCESS=true` directly on the workload, requires one
+replica, and changes the Deployment strategy to `Recreate`. This prevents an
+old and a new pod from serving simultaneously during replacement. The setting
+is still an operator assertion: PM2/Node clustering, multiple pods, and
+independent servers sharing one database are unsupported. Horizontal deployment
+requires a shared, atomically revocable ephemeral store with verified
+persistence disabled before enabling this feature.
 
-The repository's current default deployment does not establish this prerequisite. Production must remain disabled. Enabling sharing can trade availability for privacy during replacement: active shares do not survive a restart.
+The chart default keeps sharing disabled. Enable an environment only after its
+single-replica and non-overlapping replacement conditions have been verified.
+Enabling sharing can trade availability for privacy during replacement: active
+shares do not survive a restart.
 
 Also verify request/response body logging is disabled at the proxy, WAF, application instrumentation and error telemetry; proxy caching is disabled for the subtree; host swap and crash-dump policies do not persist memory; and HTTPS terminates securely. These infrastructure controls have not been established by the application tests. No new TLS, backup-encryption, or network-policy guarantees are implied.
 
