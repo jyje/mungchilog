@@ -13,17 +13,18 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MapIconButton } from "@/components/system/MapIconButton";
 import { MapControlRail } from "@/components/system/MapControlRail";
 import { DateAddSplitButton } from "@/components/system/DateAddSplitButton";
+import { PlannerChoiceGroup, PlannerChoiceItem } from "@/components/system/PlannerChoiceGroup";
 import { ThemeToggleButton } from "@/components/system/ThemeToggle";
 import { LocationSharingMapStatus } from "@/components/LocationSharingMapStatus";
 import type { TripLocationSharingController } from "@/hooks/useTripLocationSharing";
 import { GalleryRouteLegend } from "./gallery/GalleryRouteLegend";
 import { GalleryRouteMap } from "./gallery/GalleryRouteMap";
 import { GalleryStoryboard } from "./gallery/GalleryStoryboard";
+import { ProductThemeGallery } from "./gallery/ProductThemeGallery";
 
 const galleryLocationSharing = {
   localActive: true,
@@ -62,6 +63,10 @@ export function GalleryPage() {
         <h1 className="m-0 text-3xl">Component gallery</h1>
         <p className="max-w-2xl text-muted-foreground">Mungchilog uses shadcn primitives directly. Product wrappers are reserved for reusable interaction contracts, such as map controls.</p>
       </header>
+
+      <GallerySection title="Product theme" description="The executable contract for semantic tokens, action hierarchy, planner choices, forms, overlays, and feedback. Product screens reuse these exact primitives and system compositions.">
+        <ProductThemeGallery />
+      </GallerySection>
 
       <GallerySection title="Actions" description="Standard variants, disabled state, menus, tooltips, and confirmation dialogs.">
         <div className="flex flex-wrap items-center gap-3">
@@ -190,11 +195,11 @@ export function GalleryPage() {
                       <span className="text-sm font-medium">Route to the next stop</span>
                       <Badge variant="secondary">24 min</Badge>
                     </div>
-                    <ToggleGroup type="single" value={routeMode} onValueChange={(value) => value && setRouteMode(value)} variant="outline" className="w-full">
-                      <ToggleGroupItem value="walk" className="flex-1 text-foreground data-[state=on]:text-foreground">Walk</ToggleGroupItem>
-                      <ToggleGroupItem value="transit" className="flex-1 text-foreground data-[state=on]:text-foreground">Transit</ToggleGroupItem>
-                      <ToggleGroupItem value="drive" className="flex-1 text-foreground data-[state=on]:text-foreground">Drive</ToggleGroupItem>
-                    </ToggleGroup>
+                    <PlannerChoiceGroup value={routeMode} onValueChange={(value) => value && setRouteMode(value)} className="w-full" aria-label="Gallery travel mode">
+                      <PlannerChoiceItem value="walk" className="flex-1">Walk</PlannerChoiceItem>
+                      <PlannerChoiceItem value="transit" className="flex-1">Transit</PlannerChoiceItem>
+                      <PlannerChoiceItem value="drive" className="flex-1">Drive</PlannerChoiceItem>
+                    </PlannerChoiceGroup>
                     <RadioGroup defaultValue="auto" className="grid gap-2 text-sm">
                       <label className="flex min-h-11 items-center gap-3 rounded-lg border px-3">
                         <RadioGroupItem value="auto" /> Auto from stop schedule
