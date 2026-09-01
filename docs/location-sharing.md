@@ -24,7 +24,10 @@ independent servers sharing one database are unsupported. Horizontal deployment
 requires a shared, atomically revocable ephemeral store with verified
 persistence disabled before enabling this feature.
 
-The repository's current default deployment does not establish this prerequisite. Production must remain disabled. Enabling sharing can trade availability for privacy during replacement: active shares do not survive a restart.
+The chart default keeps sharing disabled. Enable an environment only after its
+single-replica and non-overlapping replacement conditions have been verified.
+Enabling sharing can trade availability for privacy during replacement: active
+shares do not survive a restart.
 
 Also verify request/response body logging is disabled at the proxy, WAF, application instrumentation and error telemetry; proxy caching is disabled for the subtree; host swap and crash-dump policies do not persist memory; and HTTPS terminates securely. These infrastructure controls have not been established by the application tests. No new TLS, backup-encryption, or network-policy guarantees are implied.
 
