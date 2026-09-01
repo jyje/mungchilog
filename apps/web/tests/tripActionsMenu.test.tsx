@@ -91,6 +91,31 @@ describe("trip actions menu", () => {
     expect(panelActions.choosePosition).toHaveBeenCalledWith("left");
   });
 
+  it("keeps the map surface interactive while the non-modal position menu is open", async () => {
+    const onMapAction = vi.fn();
+    const panelActions: TripPanelActions = {
+      isWide: true,
+      position: "right",
+      panelHidden: false,
+      setPanelVisible: vi.fn(),
+      choosePosition: vi.fn(),
+    };
+    render(
+      <>
+        <button type="button" onClick={onMapAction}>지도 확대</button>
+        <TripActionsMenu trip={trip} onSave={vi.fn()} onExport={vi.fn()} saving={false} panelActions={panelActions} />
+      </>,
+    );
+
+    openMenu();
+    fireEvent.click(await screen.findByRole("menuitem", { name: "일정 패널" }));
+    expect(await screen.findByRole("menuitemradio", { name: "우측" })).toBeVisible();
+    expect(document.body.style.pointerEvents).not.toBe("none");
+    expect(screen.getByRole("button", { name: "지도 확대" })).not.toHaveAttribute("aria-hidden");
+    fireEvent.click(screen.getByRole("button", { name: "지도 확대" }));
+    expect(onMapAction).toHaveBeenCalledOnce();
+  });
+
   it("opens the settings dialog from the shadcn dropdown and closes it through DialogClose", async () => {
     renderMenu();
     openMenu();

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { ChevronDown } from "lucide-react";
 import { Button } from "./ui/button";
 import { MapViewportProvider, type MapViewportInsets } from "./MapViewportContext";
-import { closestSheetState, mapViewportInsets, SHEET_STATES, type SheetState } from "./mapViewportGeometry";
+import { closestSheetState, mapViewportInsets, SHEET_LABELS, SHEET_STATES, type SheetState } from "./mapViewportGeometry";
 
 export type PanelPosition = "bottom" | "left" | "right" | "floating";
 type DockPosition = Exclude<PanelPosition, "floating">;
@@ -41,6 +41,8 @@ const FLOAT_MIN_WIDTH = 300;
 const FLOAT_MIN_HEIGHT = 240;
 const FLOAT_TOP_GUTTER = 128;
 const MAP_NOTICE_GUTTER = 48;
+const KEYBOARD_RESIZE_STEP = 24;
+const KEYBOARD_RESIZE_LARGE_STEP = 64;
 
 const DEFAULT_DOCK_SIZES: Record<DockPosition, number> = { bottom: 46, left: 380, right: 380 };
 
@@ -305,6 +307,57 @@ export function SplitMapShell({
     document.body.classList.add("trip-panel-resizing");
   }
 
+  function resizeBottomWithKeyboard(event: React.KeyboardEvent) {
+    const currentIndex = SHEET_STATES.indexOf(sheetState);
+    let nextIndex = currentIndex;
+
+    if (event.key === "ArrowUp") nextIndex = Math.min(SHEET_STATES.length - 1, currentIndex + 1);
+    else if (event.key === "ArrowDown") nextIndex = Math.max(0, currentIndex - 1);
+    else if (event.key === "Home") nextIndex = 0;
+    else if (event.key === "End") nextIndex = SHEET_STATES.length - 1;
+    else return;
+
+    event.preventDefault();
+    setLayout((current) => ({ ...current, collapsed: false, sheetState: SHEET_STATES[nextIndex] }));
+  }
+
+  function resizeDockWithKeyboard(event: React.KeyboardEvent, dock: Exclude<DockPosition, "bottom">) {
+    const currentSize = layout.sizes[dock];
+    const step = event.shiftKey ? KEYBOARD_RESIZE_LARGE_STEP : KEYBOARD_RESIZE_STEP;
+    let nextSize = currentSize;
+
+    if (event.key === "Home") nextSize = 320;
+    else if (event.key === "End") nextSize = 640;
+    else if (event.key === "ArrowLeft") nextSize += dock === "right" ? step : -step;
+    else if (event.key === "ArrowRight") nextSize += dock === "left" ? step : -step;
+    else return;
+
+    event.preventDefault();
+    setLayout((current) => ({
+      ...current,
+      sizes: { ...current.sizes, [dock]: clamp(nextSize, 320, 640) },
+    }));
+  }
+
+  function resizeFloatingWithKeyboard(event: React.KeyboardEvent, edge: "top" | "right" | "bottom" | "left") {
+    const step = event.shiftKey ? KEYBOARD_RESIZE_LARGE_STEP : KEYBOARD_RESIZE_STEP;
+    const horizontal = edge === "left" || edge === "right";
+    let deltaX = 0;
+    let deltaY = 0;
+
+    if (horizontal && event.key === "ArrowLeft") deltaX = -step;
+    else if (horizontal && event.key === "ArrowRight") deltaX = step;
+    else if (!horizontal && event.key === "ArrowUp") deltaY = -step;
+    else if (!horizontal && event.key === "ArrowDown") deltaY = step;
+    else return;
+
+    event.preventDefault();
+    setLayout((current) => ({
+      ...current,
+      floating: resizedBounds(edge, normalizeFloating(current.floating), deltaX, deltaY),
+    }));
+  }
+
   function choosePosition(position: PanelPosition) {
     setLayout((current) => ({ ...current, position, collapsed: false, sheetState: current.sheetState === "collapsed" ? "intermediate" : current.sheetState }));
   }
@@ -318,6 +371,8 @@ export function SplitMapShell({
   }
 
   const floating = normalizeFloating(layout.floating);
+  const maxFloatingHeight = Math.max(120, window.innerHeight - Math.min(FLOAT_TOP_GUTTER, window.innerHeight * 0.3) - MAP_NOTICE_GUTTER);
+  const minFloatingHeight = Math.min(FLOAT_MIN_HEIGHT, maxFloatingHeight);
   const panelStyle: CSSProperties =
     position === "floating"
       ? { left: `${floating.x}px`, top: `${floating.y}px`, width: `${floating.width}px`, height: `${floating.height}px` }
@@ -379,13 +434,31 @@ export function SplitMapShell({
                 <span>일정</span>
                 <span className="floating-panel-hint">드래그하여 이동</span>
               </Button>
-              {(["top", "right", "bottom", "left", "top-right", "bottom-right", "bottom-left", "top-left"] as ResizeEdge[]).map((edge) => (
+              {(["top", "right", "bottom", "left"] as const).map((edge) => {
+                const horizontal = edge === "left" || edge === "right";
+                const value = horizontal ? floating.width : floating.height;
+                return (
+                  <div
+                    key={edge}
+                    role="separator"
+                    aria-orientation={horizontal ? "vertical" : "horizontal"}
+                    aria-valuemin={horizontal ? FLOAT_MIN_WIDTH : minFloatingHeight}
+                    aria-valuemax={horizontal ? Math.max(FLOAT_MIN_WIDTH, window.innerWidth - VIEWPORT_GUTTER * 2) : maxFloatingHeight}
+                    aria-valuenow={Math.round(value)}
+                    aria-valuetext={`${Math.round(value)}픽셀`}
+                    className={`floating-resize-handle floating-resize-${edge}`}
+                    aria-label={`플로팅 패널 ${edge === "top" ? "위쪽" : edge === "right" ? "오른쪽" : edge === "bottom" ? "아래쪽" : "왼쪽"} 경계. 방향키 또는 드래그로 크기 조절`}
+                    tabIndex={0}
+                    onPointerDown={(event) => beginResize(event, edge)}
+                    onKeyDown={(event) => resizeFloatingWithKeyboard(event, edge)}
+                  />
+                );
+              })}
+              {(["top-right", "bottom-right", "bottom-left", "top-left"] as ResizeEdge[]).map((edge) => (
                 <div
                   key={edge}
-                  role="separator"
-                  aria-orientation={edge === "left" || edge === "right" ? "vertical" : "horizontal"}
+                  aria-hidden="true"
                   className={`floating-resize-handle floating-resize-${edge}`}
-                  aria-label={`패널 ${edge} 경계 크기 조절. 드래그 전용`}
                   onPointerDown={(event) => beginResize(event, edge)}
                 />
               ))}
@@ -394,9 +467,15 @@ export function SplitMapShell({
             <div
               role="separator"
               aria-orientation="horizontal"
+              aria-valuemin={0}
+              aria-valuemax={SHEET_STATES.length - 1}
+              aria-valuenow={SHEET_STATES.indexOf(sheetState)}
+              aria-valuetext={SHEET_LABELS[sheetState]}
               className="panel-resize-boundary panel-resize-boundary-bottom"
-              aria-label="일정 패널 상단 경계. 드래그하여 높이 조절"
+              aria-label="일정 패널 상단 경계. 방향키 또는 드래그로 높이 조절"
+              tabIndex={0}
               onPointerDown={(event) => beginResize(event, "top")}
+              onKeyDown={resizeBottomWithKeyboard}
             >
               <span className="handle-bar" aria-hidden="true" />
             </div>
@@ -404,9 +483,15 @@ export function SplitMapShell({
             <div
               role="separator"
               aria-orientation="vertical"
+              aria-valuemin={320}
+              aria-valuemax={640}
+              aria-valuenow={Math.round(layout.sizes[position])}
+              aria-valuetext={`${Math.round(layout.sizes[position])}픽셀`}
               className={`panel-resize-boundary panel-resize-boundary-${position}`}
-              aria-label="일정 패널 경계. 드래그하여 너비 조절"
+              aria-label="일정 패널 경계. 방향키 또는 드래그로 너비 조절"
+              tabIndex={0}
               onPointerDown={(event) => beginResize(event, position === "left" ? "right" : "left")}
+              onKeyDown={(event) => resizeDockWithKeyboard(event, position)}
             />
           )}
           <div id="trip-itinerary-content" className="panel-content" hidden={position === "bottom" && sheetState === "collapsed" && sheetDragHeight === null}>{panel}</div>
