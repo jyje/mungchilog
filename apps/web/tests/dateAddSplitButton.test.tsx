@@ -14,6 +14,8 @@ describe("DateAddSplitButton", () => {
     expect(group).toHaveAttribute("data-slot", "button-group");
     expect(primary).toHaveAttribute("data-variant", "outline");
     expect(trigger).toHaveAttribute("data-variant", "outline");
+    expect(primary).toHaveClass("min-h-11");
+    expect(trigger).toHaveClass("min-h-11", "min-w-11");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
 
     fireEvent.click(primary);

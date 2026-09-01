@@ -16,7 +16,9 @@ import { TripShareButton } from "../components/TripShareButton";
 import { useTripLocationSharing, type SharedLocationWithName } from "../hooks/useTripLocationSharing";
 import { TripActionsMenu } from "../components/TripActionsMenu";
 import { DateAddSplitButton } from "../components/system/DateAddSplitButton";
+import { PlannerChoiceGroup, PlannerChoiceItem } from "../components/system/PlannerChoiceGroup";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
 import type { LegPreference, PersistedLegMode } from "../types";
 import type { Me } from "../api";
@@ -539,7 +541,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
           />
         }
         headerLeft={
-          <Button asChild variant="ghost" size="icon-lg" className="map-hero-back">
+          <Button asChild variant="secondary" size="icon-lg" className="map-hero-back">
             <a href="/trips" aria-label="여행 목록으로" title="여행 목록으로" onClick={(e) => { e.preventDefault(); navigate("/trips"); }}>
               <ArrowLeft aria-hidden="true" />
             </a>
@@ -574,28 +576,36 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             itinerary={<>
             <div className="day-tabs-wrap">
               <div className="day-tabs">
-                {trip.days.map((d, i) => (
-                  <Button
-                    key={d.date}
-                    type="button"
-                    variant={i === dayIndex ? "default" : "outline"}
-                    className={`day-tab${i === dayIndex ? " active" : ""}`}
-                    onClick={() => selectDay(i)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      openDateEditor(d.date);
-                    }}
-                    onPointerDown={(event) => {
-                      if (event.pointerType !== "mouse" || event.button === 0) startDayLongPress(d.date);
-                    }}
-                    onPointerUp={cancelDayLongPress}
-                    onPointerCancel={cancelDayLongPress}
-                    onPointerLeave={cancelDayLongPress}
-                    aria-label={`${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리`}
-                  >
-                    {formatScheduleDate(d.date)}
-                  </Button>
-                ))}
+                <PlannerChoiceGroup
+                  value={day?.date ?? ""}
+                  onValueChange={(date) => {
+                    const nextIndex = trip.days.findIndex((candidate) => candidate.date === date);
+                    if (nextIndex >= 0) selectDay(nextIndex);
+                  }}
+                  className="day-choice-group"
+                  aria-label="여행 날짜"
+                >
+                  {trip.days.map((d, i) => (
+                    <PlannerChoiceItem
+                      key={d.date}
+                      value={d.date}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        openDateEditor(d.date);
+                      }}
+                      onPointerDown={(event) => {
+                        if (event.pointerType !== "mouse" || event.button === 0) startDayLongPress(d.date);
+                      }}
+                      onPointerUp={cancelDayLongPress}
+                      onPointerCancel={cancelDayLongPress}
+                      onPointerLeave={cancelDayLongPress}
+                      aria-current={i === dayIndex ? "date" : undefined}
+                      aria-label={`${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리`}
+                    >
+                      {formatScheduleDate(d.date)}
+                    </PlannerChoiceItem>
+                  ))}
+                </PlannerChoiceGroup>
                 <DateAddSplitButton onAddDay={addDay} onOpenDateAdd={openDateAdd} />
                 {day && (
                   <Button type="button" variant="ghost" size="icon-lg" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
@@ -608,12 +618,12 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 <div className="day-date-popover" role="dialog" aria-label="특정 날짜 추가">
                   <label>
                     일정 날짜
-                    <input type="date" value={customDate} onChange={(event) => setCustomDate(event.target.value)} />
+                    <Input className="min-h-11" type="date" value={customDate} onChange={(event) => setCustomDate(event.target.value)} />
                   </label>
                   {dateError && <p className="error day-date-error">{dateError}</p>}
                   <div className="day-date-actions">
-                    <Button type="button" onClick={addCustomDay}>추가</Button>
-                    <Button type="button" variant="ghost" onClick={closeDatePopover}>취소</Button>
+                    <Button type="button" className="min-h-11" onClick={addCustomDay}>추가</Button>
+                    <Button type="button" variant="ghost" className="min-h-11" onClick={closeDatePopover}>취소</Button>
                   </div>
                 </div>
               )}
@@ -622,14 +632,14 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 <div className="day-date-popover" role="dialog" aria-label={`${editingDate} 날짜 관리`}>
                   <label>
                     일정 날짜
-                    <input type="date" value={dateEditValue} onChange={(event) => setDateEditValue(event.target.value)} />
+                    <Input className="min-h-11" type="date" value={dateEditValue} onChange={(event) => setDateEditValue(event.target.value)} />
                   </label>
                   <p className="meta day-date-hint">날짜를 바꾸면 해당 날짜의 메모와 스팟도 함께 이동합니다.</p>
                   {dateError && <p className="error day-date-error">{dateError}</p>}
                   <div className="day-date-actions">
-                    <Button type="button" onClick={updateDayDate}>변경 저장</Button>
-                    <Button type="button" variant="ghost" onClick={closeDatePopover}>취소</Button>
-                    <Button type="button" variant="outline" className="day-delete" onClick={() => deleteDay(editingDate)}>날짜 삭제</Button>
+                    <Button type="button" className="min-h-11" onClick={updateDayDate}>변경 저장</Button>
+                    <Button type="button" variant="ghost" className="min-h-11" onClick={closeDatePopover}>취소</Button>
+                    <Button type="button" variant="destructive" className="day-delete min-h-11" onClick={() => deleteDay(editingDate)}>날짜 삭제</Button>
                   </div>
                 </div>
               )}

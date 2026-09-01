@@ -9,6 +9,9 @@ import { SpotForm, type SpotFormValues } from "./SpotForm";
 import { MarkdownView } from "./MarkdownView";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
+import { Checkbox } from "./ui/checkbox";
+import { Input } from "./ui/input";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 import {
   Dialog,
   DialogClose,
@@ -43,14 +46,15 @@ function AddItemForm({ onAdd, onCancel }: { onAdd: (item: Omit<Item, "id" | "don
 
   return (
     <li className="add-item-form">
-      <select value={kind} onChange={(e) => setKind(e.target.value as Item["kind"])}>
+      <NativeSelect className="w-full [&>select]:min-h-11" value={kind} onChange={(e) => setKind(e.target.value as Item["kind"])}>
         {(Object.keys(KIND_LABEL) as Item["kind"][]).map((k) => (
-          <option key={k} value={k}>
+          <NativeSelectOption key={k} value={k}>
             {KIND_LABEL[k]}
-          </option>
+          </NativeSelectOption>
         ))}
-      </select>
-      <input
+      </NativeSelect>
+      <Input
+        className="min-h-11"
         type="text"
         value={title}
         placeholder="이름"
@@ -210,7 +214,7 @@ export function SpotCard({
             {spot.items.map((item) => (
               <li key={item.id} className="item-row">
                 <label>
-                  <input type="checkbox" checked={item.done} onChange={() => onToggleItem(item.id)} />
+                  <Checkbox checked={item.done} onCheckedChange={() => onToggleItem(item.id)} />
                   <span className={item.done ? "done" : ""}>
                     {item.kind === "buy" ? "🛍️" : item.kind === "eat" ? "🍜" : "✅"} {item.title}
                     {item.price != null ? ` · ¥${item.price.toLocaleString()}` : ""}

@@ -143,7 +143,7 @@ export function SpotForm({
           <span>{picked.lat.toFixed(5)}, {picked.lng.toFixed(5)}</span>
         </div>
       )}
-      <input type="text" placeholder="현지어 이름 (선택)" value={nameLocal} onChange={(e) => setNameLocal(e.target.value)} />
+      <Input className="min-h-11" type="text" placeholder="현지어 이름 (선택)" value={nameLocal} onChange={(e) => setNameLocal(e.target.value)} />
       <fieldset className="spot-schedule-editor">
         <legend>일정 시각</legend>
         <RadioGroup
