@@ -96,4 +96,46 @@ describe("MapControlRail", () => {
 
     await waitFor(() => expect(rail).toHaveStyle({ left: "208px", top: "688px" }));
   });
+
+  it("hides an optional current-location control before moving the rail away from the map edge", async () => {
+    const view = render(
+      <MapViewportProvider value={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+        <div className="map-container">
+          <MapControlRail optionalChildren={<button type="button">현재 위치</button>}>
+            <button type="button">따라가기</button>
+          </MapControlRail>
+        </div>
+      </MapViewportProvider>,
+    );
+    const map = view.container.querySelector(".map-container")!;
+    const rail = view.container.querySelector(".map-control-rail")!;
+    setRect(map, { left: 0, top: 0, right: 120, bottom: 80 });
+    window.dispatchEvent(new Event("resize"));
+
+    await waitFor(() => expect(rail).toHaveAttribute("data-visibility", "required"));
+    expect(view.queryByRole("button", { name: "현재 위치" })).not.toBeInTheDocument();
+    expect(view.getByRole("button", { name: "따라가기" })).toBeInTheDocument();
+    expect(rail).toHaveAttribute("data-placement", "right");
+  });
+
+  it("removes every map action from the accessibility tree when even required controls cannot fit", async () => {
+    const view = render(
+      <MapViewportProvider value={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+        <div className="map-container">
+          <MapControlRail optionalChildren={<button type="button">현재 위치</button>}>
+            <button type="button">따라가기</button>
+          </MapControlRail>
+        </div>
+      </MapViewportProvider>,
+    );
+    const map = view.container.querySelector(".map-container")!;
+    const rail = view.container.querySelector(".map-control-rail")!;
+    setRect(map, { left: 0, top: 0, right: 60, bottom: 60 });
+    window.dispatchEvent(new Event("resize"));
+
+    await waitFor(() => expect(rail).toHaveAttribute("data-visibility", "hidden"));
+    expect(view.queryByRole("group", { name: "지도 도구" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "현재 위치" })).not.toBeInTheDocument();
+    expect(view.queryByRole("button", { name: "따라가기" })).not.toBeInTheDocument();
+  });
 });
