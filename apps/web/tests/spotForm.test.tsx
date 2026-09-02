@@ -21,6 +21,7 @@ describe("coordinate spot form", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("0.00000, 0.00000");
     fireEvent.change(screen.getByPlaceholderText(/장소 이름/), { target: { value: "Null Island meeting point" } });
+    fireEvent.change(screen.getByLabelText("시작 시각 입력"), { target: { value: "09:00" } });
     fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
@@ -43,6 +44,7 @@ describe("coordinate spot form", () => {
     );
 
     fireEvent.change(screen.getByPlaceholderText(/장소 이름/), { target: { value: "강남역 만남 장소" } });
+    fireEvent.change(screen.getByLabelText("시작 시각 입력"), { target: { value: "09:00" } });
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
@@ -64,6 +66,7 @@ describe("coordinate spot form", () => {
       />,
     );
 
+    fireEvent.change(screen.getByLabelText("시작 시각 입력"), { target: { value: "09:00" } });
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       placeId: "place-legacy",
@@ -84,6 +87,7 @@ describe("coordinate spot form", () => {
 
     expect(screen.getByPlaceholderText(/장소 이름/)).toHaveValue("도쿄역");
     expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("시작 시각 입력"), { target: { value: "09:00" } });
     fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       name: "도쿄역",
@@ -115,13 +119,13 @@ describe("spot schedule editor", () => {
     }));
   });
 
-  it("saves a reservation time and visit duration after explicit selection", () => {
+  it("saves a reservation start and optional end time as a visit duration", () => {
     const onSubmit = vi.fn();
     render(<SpotForm initial={{ name: "저녁 예약" }} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("radio", { name: "예약 시각" }));
-    fireEvent.change(screen.getByLabelText("예약 시각 입력"), { target: { value: "19:00" } });
-    fireEvent.change(screen.getByLabelText("머무는 시간 (분, 선택)"), { target: { value: "90" } });
+    fireEvent.change(screen.getByLabelText("시작 시각 입력"), { target: { value: "19:00" } });
+    fireEvent.change(screen.getByLabelText("종료 시각 입력"), { target: { value: "20:30" } });
     fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
@@ -131,15 +135,14 @@ describe("spot schedule editor", () => {
     }));
   });
 
-  it("keeps the form open and explains a missing selected time", () => {
+  it("keeps the form open and explains a missing required start time", () => {
     const onSubmit = vi.fn();
     render(<SpotForm initial={{ name: "열차" }} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("radio", { name: "예약 시각" }));
     fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
 
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent("일정 시각을 24시간제로 입력해주세요.");
+    expect(screen.getByRole("alert")).toHaveTextContent("시작 시각을 24시간제로 입력해주세요.");
   });
 
   it("rejects a local time that does not exist during daylight-saving transition", () => {
@@ -154,8 +157,7 @@ describe("spot schedule editor", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("radio", { name: "대략적인 시각" }));
-    fireEvent.change(screen.getByLabelText("예상 시각 입력"), { target: { value: "02:30" } });
+    fireEvent.change(screen.getByLabelText("시작 시각 입력"), { target: { value: "02:30" } });
     fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
 
     expect(onSubmit).not.toHaveBeenCalled();

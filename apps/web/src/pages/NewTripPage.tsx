@@ -95,7 +95,7 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
         currency: currency.trim() || "JPY",
         startDate,
         endDate,
-        days: representativeSpot ? [{ date: startDate, spots: [representativeSpot], legPreferences: [] }] : [],
+        days: representativeSpot ? [{ date: startDate, spots: [representativeSpot], legPreferences: [], groups: [] }] : [],
         ...(representativeSpot ? { cover: { spotId: representativeSpot.id } } : {}),
       });
       await qc.invalidateQueries({ queryKey: ["trips"] });

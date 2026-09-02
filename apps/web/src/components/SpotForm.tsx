@@ -6,7 +6,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
-import { resolveTripWallClock } from "../schedule";
+import { resolveTripWallClock, spotScheduleDisplay, wallClockMinutes } from "../schedule";
 
 export type SpotFormValues = {
   name: string;
@@ -54,10 +54,8 @@ export function SpotForm({
   const [name, setName] = useState(initial?.name ?? initialPlace?.name ?? "");
   const [nameLocal, setNameLocal] = useState(initial?.nameLocal ?? "");
   const [plannedArrival, setPlannedArrival] = useState(initial?.plannedArrival ?? "");
-  const [timeChoice, setTimeChoice] = useState<"NONE" | SpotTimeKind>(
-    initial?.plannedArrival ? initial.timeKind ?? "APPROXIMATE" : "NONE",
-  );
-  const [dwellMinutes, setDwellMinutes] = useState(initial?.dwellMinutes?.toString() ?? "");
+  const [timeKind, setTimeKind] = useState<SpotTimeKind>(initial?.timeKind ?? "APPROXIMATE");
+  const [plannedDeparture, setPlannedDeparture] = useState(() => spotScheduleDisplay(initial ?? { plannedArrival: undefined })?.end ?? "");
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [note, setNote] = useState(initial?.note ?? "");
   const [picked, setPicked] = useState<SelectedLocation | null>(
@@ -94,18 +92,28 @@ export function SpotForm({
 
   function submit() {
     if (!name.trim()) return;
-    if (timeChoice !== "NONE" && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(plannedArrival)) {
-      setScheduleError("일정 시각을 24시간제로 입력해주세요.");
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(plannedArrival)) {
+      setScheduleError("시작 시각을 24시간제로 입력해주세요.");
       return;
     }
-    if (timeChoice !== "NONE" && date && timezone && !resolveTripWallClock(date, plannedArrival, timezone).exact) {
+    if (date && timezone && !resolveTripWallClock(date, plannedArrival, timezone).exact) {
       setScheduleError("이 시각은 여행지 표준시의 일광 절약 시간 전환으로 존재하지 않습니다. 다른 시각을 선택해주세요.");
       return;
     }
-    const parsedDwell = dwellMinutes === "" ? undefined : Number(dwellMinutes);
-    if (timeChoice !== "NONE" && (parsedDwell != null && (!Number.isInteger(parsedDwell) || parsedDwell < 0))) {
-      setScheduleError("머무는 시간은 0 이상의 분 단위 정수여야 합니다.");
-      return;
+    let dwellMinutes: number | undefined;
+    if (plannedDeparture) {
+      if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(plannedDeparture)) {
+        setScheduleError("종료 시각을 24시간제로 입력해주세요.");
+        return;
+      }
+      const startMinutes = wallClockMinutes(plannedArrival)!;
+      const endMinutes = wallClockMinutes(plannedDeparture)!;
+      const crossesMidnight = endMinutes < startMinutes;
+      if (date && timezone && !resolveTripWallClock(date, plannedDeparture, timezone, crossesMidnight ? 24 * 60 : 0).exact) {
+        setScheduleError("이 시각은 여행지 표준시의 일광 절약 시간 전환으로 존재하지 않습니다. 다른 시각을 선택해주세요.");
+        return;
+      }
+      dwellMinutes = endMinutes - startMinutes + (crossesMidnight ? 24 * 60 : 0);
     }
     setScheduleError(null);
     const matchedPlace = picked?.kind === "place" && picked.name === name;
@@ -114,9 +122,9 @@ export function SpotForm({
     onSubmit({
       name: name.trim(),
       nameLocal: nameLocal.trim() || undefined,
-      plannedArrival: timeChoice === "NONE" ? undefined : plannedArrival,
-      timeKind: timeChoice === "NONE" ? undefined : timeChoice,
-      dwellMinutes: timeChoice === "NONE" ? undefined : parsedDwell,
+      plannedArrival,
+      timeKind,
+      dwellMinutes,
       note: note.trim() || undefined,
       placeId: matchedPlace ? picked.placeId : undefined,
       lat: hasCoordinates ? coordinates.lat : undefined,
@@ -148,45 +156,42 @@ export function SpotForm({
         <legend>일정 시각</legend>
         <RadioGroup
           className="spot-time-kind"
-          value={timeChoice}
+          value={timeKind}
           onValueChange={(value) => {
-            setTimeChoice(value as "NONE" | SpotTimeKind);
+            setTimeKind(value as SpotTimeKind);
             setScheduleError(null);
           }}
           aria-label="일정 시각 유형"
         >
-          <label><RadioGroupItem value="NONE" /> 시간 미정</label>
           <label><RadioGroupItem value="APPROXIMATE" /> 대략적인 시각</label>
           <label><RadioGroupItem value="RESERVATION" /> 예약 시각</label>
         </RadioGroup>
-        {timeChoice !== "NONE" && (
-          <div className="spot-schedule-fields">
-            <label>
-              <span>{timeChoice === "RESERVATION" ? "예약 시각" : "예상 시각"}</span>
-              <Input
-                type="time"
-                className="spot-time-input"
-                value={plannedArrival}
-                onChange={(event) => { setPlannedArrival(event.target.value); setScheduleError(null); }}
-                aria-label={timeChoice === "RESERVATION" ? "예약 시각 입력" : "예상 시각 입력"}
-                aria-invalid={!!scheduleError}
-                aria-describedby={scheduleError ? "spot-schedule-error" : undefined}
-              />
-            </label>
-            <label>
-              <span>머무는 시간 (분, 선택)</span>
-              <Input
-                type="number"
-                inputMode="numeric"
-                min="0"
-                step="15"
-                value={dwellMinutes}
-                onChange={(event) => { setDwellMinutes(event.target.value); setScheduleError(null); }}
-                aria-invalid={!!scheduleError}
-              />
-            </label>
-          </div>
-        )}
+        <div className="spot-schedule-fields">
+          <label>
+            <span>시작 시각</span>
+            <Input
+              type="time"
+              className="spot-time-input"
+              value={plannedArrival}
+              onChange={(event) => { setPlannedArrival(event.target.value); setScheduleError(null); }}
+              aria-label="시작 시각 입력"
+              aria-invalid={!!scheduleError}
+              aria-describedby={scheduleError ? "spot-schedule-error" : undefined}
+              required
+            />
+          </label>
+          <label>
+            <span>종료 시각 (선택)</span>
+            <Input
+              type="time"
+              className="spot-time-input"
+              value={plannedDeparture}
+              onChange={(event) => { setPlannedDeparture(event.target.value); setScheduleError(null); }}
+              aria-label="종료 시각 입력"
+              aria-invalid={!!scheduleError}
+            />
+          </label>
+        </div>
         {scheduleError && <p id="spot-schedule-error" className="spot-schedule-error" role="alert">{scheduleError}</p>}
       </fieldset>
       <MarkdownEditor value={note} onChange={setNote} rows={3} placeholder="메모 (선택) - 마크다운으로 적을 수 있어요" />
