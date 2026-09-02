@@ -10,6 +10,7 @@ import {
   routeFingerprint,
   routeSegments,
   transitSchedule,
+  transitRouteDetails,
   toRoutesApiWaypoint,
   TIMING_KINDS,
   TRAVEL_MODES,
@@ -180,6 +181,7 @@ function toLegResponse(row: LegRow) {
         ...route,
         key: route.key ?? routeFingerprint(route),
         segments: route.segments ?? null,
+        transit: route.transit ?? null,
       }));
     }
   } catch {
@@ -225,6 +227,8 @@ async function callRoutesApi(
         ...(mode === "TRANSIT"
           ? [
               "routes.legs.steps.transitDetails.stopDetails",
+              "routes.legs.steps.transitDetails.transitLine",
+              "routes.legs.steps.transitDetails.headsign",
               "routes.legs.steps.polyline.encodedPolyline",
               "routes.legs.steps.travelMode",
             ]
@@ -274,6 +278,12 @@ async function callRoutesApi(
               departureTime?: string;
               arrivalTime?: string;
             };
+            headsign?: string;
+            transitLine?: {
+              name?: string;
+              nameShort?: string;
+              vehicle?: { type?: string };
+            };
           };
         }>;
       }>;
@@ -297,6 +307,7 @@ async function callRoutesApi(
         // those, and the schedule only has to break ties it cannot.
         departureTime: schedule.departureTime,
         arrivalTime: schedule.arrivalTime,
+        transit: transitRouteDetails(route.legs),
       };
       // `segments` is attached AFTER the fingerprint, and is deliberately not
       // part of `summary`. routeFingerprint hashes the journey's identity;

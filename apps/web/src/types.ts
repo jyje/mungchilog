@@ -42,6 +42,12 @@ export const ItemSchema = z.object({
 export const SpotTimeKindSchema = z.enum(["APPROXIMATE", "RESERVATION"]);
 const WALL_CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
+export const ItineraryGroupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(80),
+  spotIds: z.array(z.string().min(1)).min(2),
+});
+
 export const SpotSchema = z.object({
   id: z.string(),
   order: z.number().int().nonnegative(),
@@ -118,10 +124,16 @@ export const DaySchema = z
     note: z.string().optional(),
     spots: z.array(SpotSchema).default([]),
     legPreferences: z.array(LegPreferenceSchema).default([]),
+    // Groups are a named, contiguous range in the day's ordered itinerary.
+    // The field is optional for existing exports and defaults safely.
+    groups: z.array(ItineraryGroupSchema).default([]),
   })
   .superRefine((day, ctx) => {
     const spotIds = new Set(day.spots.map((spot) => spot.id));
+    const orderedSpots = [...day.spots].sort((a, b) => a.order - b.order);
     const pairs = new Set<string>();
+    const groupIds = new Set<string>();
+    const groupedSpotIds = new Set<string>();
     day.legPreferences.forEach((preference, index) => {
       const path = ["legPreferences", index];
       if (preference.fromSpotId === preference.toSpotId) {
@@ -138,6 +150,39 @@ export const DaySchema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "같은 구간에는 동선을 하나만 저장할 수 있습니다." });
       }
       pairs.add(pair);
+    });
+
+    day.groups.forEach((group, index) => {
+      const path = ["groups", index];
+      if (groupIds.has(group.id)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "id"], message: "그룹 ID는 날짜 안에서 고유해야 합니다." });
+      }
+      groupIds.add(group.id);
+
+      const indexes = group.spotIds.map((spotId, spotIndex) => {
+        if (!spotIds.has(spotId)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds", spotIndex], message: "그룹의 스팟은 같은 날짜 일정에 있어야 합니다." });
+        }
+        if (groupedSpotIds.has(spotId)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds", spotIndex], message: "하나의 스팟은 하나의 그룹에만 속할 수 있습니다." });
+        }
+        groupedSpotIds.add(spotId);
+        return orderedSpots.findIndex((spot) => spot.id === spotId);
+      });
+
+      const uniqueIndexes = [...new Set(indexes)].sort((a, b) => a - b);
+      if (uniqueIndexes.length !== group.spotIds.length) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds"], message: "그룹에는 중복된 스팟을 넣을 수 없습니다." });
+      }
+      if (
+        uniqueIndexes.some(
+          (spotIndex, index) =>
+            spotIndex < 0 ||
+            (index > 0 && spotIndex !== uniqueIndexes[index - 1] + 1),
+        )
+      ) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds"], message: "그룹의 스팟은 일정에서 연속되어야 합니다." });
+      }
     });
   });
 
@@ -168,6 +213,7 @@ export const TripImportSchema = z.object({ id: z.string().optional() }).and(Trip
 export type Item = z.infer<typeof ItemSchema>;
 export type Spot = z.infer<typeof SpotSchema>;
 export type SpotTimeKind = z.infer<typeof SpotTimeKindSchema>;
+export type ItineraryGroup = z.infer<typeof ItineraryGroupSchema>;
 export type PersistedLegMode = z.infer<typeof PersistedLegModeSchema>;
 export type SelectableLegMode = (typeof SELECTABLE_LEG_MODES)[number];
 export type LegTiming = z.infer<typeof LegTimingSchema>;

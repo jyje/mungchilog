@@ -58,6 +58,12 @@ export const ItemSchema = z.object({
 export const SpotTimeKindSchema = z.enum(["APPROXIMATE", "RESERVATION"]);
 const WALL_CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
+export const ItineraryGroupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(80),
+  spotIds: z.array(z.string().min(1)).min(2),
+});
+
 export const SpotSchema = z.object({
   id: z.string(),
   order: z.number().int().nonnegative(),
@@ -153,10 +159,16 @@ export const DaySchema = z
     // Omitted by all existing itineraries. Defaulting preserves their legacy
     // TRANSIT display behavior until a person makes an explicit choice.
     legPreferences: z.array(LegPreferenceSchema).default([]),
+    // Existing trip JSON omits groups. Defaulting keeps those itineraries
+    // importable until the user explicitly creates a visual group.
+    groups: z.array(ItineraryGroupSchema).default([]),
   })
   .superRefine((day, ctx) => {
     const spotIds = new Set(day.spots.map((spot) => spot.id));
+    const orderedSpots = [...day.spots].sort((a, b) => a.order - b.order);
     const pairs = new Set<string>();
+    const groupIds = new Set<string>();
+    const groupedSpotIds = new Set<string>();
     day.legPreferences.forEach((preference, index) => {
       const path = ["legPreferences", index];
       if (preference.fromSpotId === preference.toSpotId) {
@@ -173,6 +185,39 @@ export const DaySchema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "only one preference is allowed per directed leg" });
       }
       pairs.add(pair);
+    });
+
+    day.groups.forEach((group, index) => {
+      const path = ["groups", index];
+      if (groupIds.has(group.id)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "id"], message: "group ids must be unique within a day" });
+      }
+      groupIds.add(group.id);
+
+      const indexes = group.spotIds.map((spotId, spotIndex) => {
+        if (!spotIds.has(spotId)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds", spotIndex], message: "group spots must belong to the same day" });
+        }
+        if (groupedSpotIds.has(spotId)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds", spotIndex], message: "a spot may belong to only one group" });
+        }
+        groupedSpotIds.add(spotId);
+        return orderedSpots.findIndex((spot) => spot.id === spotId);
+      });
+
+      const uniqueIndexes = [...new Set(indexes)].sort((a, b) => a - b);
+      if (uniqueIndexes.length !== group.spotIds.length) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds"], message: "a group cannot contain duplicate spots" });
+      }
+      if (
+        uniqueIndexes.some(
+          (spotIndex, index) =>
+            spotIndex < 0 ||
+            (index > 0 && spotIndex !== uniqueIndexes[index - 1] + 1),
+        )
+      ) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds"], message: "group spots must be contiguous in the itinerary" });
+      }
     });
   });
 

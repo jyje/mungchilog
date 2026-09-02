@@ -245,11 +245,20 @@ export type LegRoute = {
   // from the ride. Null for non-transit modes, and for entries cached before
   // step geometry was requested - draw `polyline` as a single line then.
   segments?: RouteSegment[] | null;
+  // A compact, ordered list of the actual transit vehicles. Legacy cache
+  // entries omit it, in which case the itinerary keeps an icon-only fallback.
+  transit?: TransitRouteDetail[] | null;
 };
 
 export type RouteSegment = {
   travelMode: "WALK" | "TRANSIT" | "DRIVE" | "OTHER";
   polyline: string;
+};
+
+export type TransitRouteDetail = {
+  vehicle: string | null;
+  line: string | null;
+  headsign: string | null;
 };
 
 export type Leg = {

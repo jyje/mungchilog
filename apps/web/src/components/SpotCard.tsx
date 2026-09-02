@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Clock3, ExternalLink, GripVertical, MoreVertical, TriangleAlert, X } from "lucide-react";
+import { ExternalLink, GripVertical, MoreVertical, TriangleAlert, X } from "lucide-react";
 import type { Item, Spot } from "../types";
 import { spotScheduleDisplay } from "../schedule";
 import { OpeningHours } from "./OpeningHours";
 import { SpotForm, type SpotFormValues } from "./SpotForm";
 import { MarkdownView } from "./MarkdownView";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
 import { Checkbox } from "./ui/checkbox";
 import { Input } from "./ui/input";
 import { NativeSelect, NativeSelectOption } from "./ui/native-select";
@@ -82,6 +81,35 @@ function AddItemForm({ onAdd, onCancel }: { onAdd: (item: Omit<Item, "id" | "don
   );
 }
 
+function TimelineSchedule({
+  spot,
+  schedule,
+  onEdit,
+}: {
+  spot: Spot;
+  schedule: ReturnType<typeof spotScheduleDisplay>;
+  onEdit: () => void;
+}) {
+  const label = schedule
+    ? `${spot.name} ${schedule.start}${schedule.end ? `부터 ${schedule.end}까지` : ""} 일정 시각 수정`
+    : `${spot.name} 시작 시각 입력`;
+  return (
+    <div className={`timeline-schedule${schedule ? "" : " unscheduled"}`}>
+      <Button type="button" variant="ghost" className="timeline-time" onClick={onEdit} aria-label={label}>
+        {schedule ? (
+          <>
+            <time dateTime={schedule.start} className="timeline-start">{schedule.start}</time>
+            {schedule.end && <time dateTime={schedule.end} className="timeline-end">{schedule.end}</time>}
+          </>
+        ) : (
+          <span>시간 입력<br />필요</span>
+        )}
+      </Button>
+      <span className="timeline-node" aria-hidden="true" />
+    </div>
+  );
+}
+
 export function SpotCard({
   spot,
   onToggleItem,
@@ -123,21 +151,24 @@ export function SpotCard({
   if (editing) {
     return (
       <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}`}>
-        <span className="drag-handle" aria-hidden>
-          ⠿
-        </span>
-        <div className="spot-body">
-          <SpotForm
-            initial={spot}
-            date={date}
-            timezone={timezone}
-            submitLabel="저장"
-            onSubmit={(updates) => {
-              onEditSpot(updates);
-              setEditing(false);
-            }}
-            onCancel={() => setEditing(false)}
-          />
+        <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => undefined} />
+        <div className="spot-card-surface">
+          <span className="drag-handle" aria-hidden>
+            ⠿
+          </span>
+          <div className="spot-body">
+            <SpotForm
+              initial={spot}
+              date={date}
+              timezone={timezone}
+              submitLabel="저장"
+              onSubmit={(updates) => {
+                onEditSpot(updates);
+                setEditing(false);
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          </div>
         </div>
       </li>
     );
@@ -145,102 +176,94 @@ export function SpotCard({
 
   return (
     <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}`}>
-      <Button type="button" variant="ghost" size="icon-lg" className="drag-handle" aria-label="순서 변경" {...attributes} {...listeners}>
-        <GripVertical aria-hidden="true" />
-      </Button>
-      <div className="spot-body">
-        <div className="spot-header">
-          <Button type="button" variant={selected ? "secondary" : "ghost"} className="spot-select" onClick={onSelect} aria-pressed={selected} aria-label={`${spot.name} 지도에서 보기`}>
-            <span className={`spot-schedule${schedule ? ` ${schedule.kind.toLowerCase()}` : " unscheduled"}`}>
-              <Clock3 aria-hidden="true" />
-              <Badge variant={schedule?.kind === "RESERVATION" ? "default" : "outline"}>
-                {schedule ? `${schedule.label} ${schedule.start}` : "시간 미정"}
-              </Badge>
-              {schedule?.end && (
-                <span className="spot-schedule-range">
-                  {schedule.start}-{schedule.end}{schedule.crossesMidnight ? " (다음 날)" : ""} · {schedule.durationMinutes}분
-                </span>
-              )}
-            </span>
-            <span className="spot-name">{spot.name}</span>
-            {spot.nameLocal && <span className="spot-local">{spot.nameLocal}</span>}
-          </Button>
-          <div className="spot-actions">
-            <Button asChild variant="ghost" size="icon-lg" className="spot-map-link">
-              <a
-                href={googleMapsUrl(spot)}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`${spot.name} Google 지도에서 열기 (새 창)`}
-                data-place-id={spot.placeId}
-              >
-                <ExternalLink aria-hidden="true" />
-              </a>
+      <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => setEditing(true)} />
+      <div className="spot-card-surface">
+        <Button type="button" variant="ghost" size="icon-lg" className="drag-handle" aria-label="순서 변경" {...attributes} {...listeners}>
+          <GripVertical aria-hidden="true" />
+        </Button>
+        <div className="spot-body">
+          <div className="spot-header">
+            <Button type="button" variant={selected ? "secondary" : "ghost"} className="spot-select" onClick={onSelect} aria-pressed={selected} aria-label={`${spot.name} 지도에서 보기`}>
+              <span className="spot-name">{spot.name}</span>
+              {spot.nameLocal && <span className="spot-local">{spot.nameLocal}</span>}
             </Button>
-            <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="ghost" size="icon-lg" className="spot-more" aria-label={`${spot.name} 더보기`}>
-                  <MoreVertical aria-hidden="true" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="spot-context-menu">
-                <DropdownMenuItem onSelect={() => setEditing(true)}>수정</DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onSelect={() => setConfirmingDeletion(true)}>삭제</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Dialog open={confirmingDeletion} onOpenChange={setConfirmingDeletion}>
-              <DialogContent className="spot-delete-dialog">
-                <DialogHeader>
-                  <DialogTitle>이 장소와 목록을 삭제할까요?</DialogTitle>
-                  <DialogDescription>{spot.name}의 일정과 목록을 삭제합니다. 이 작업은 되돌릴 수 없습니다.</DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <DialogClose asChild><Button type="button" variant="ghost">취소</Button></DialogClose>
-                  <Button type="button" variant="destructive" onClick={() => { setConfirmingDeletion(false); onDeleteSpot(); }}>삭제</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <div className="spot-actions">
+              <Button asChild variant="ghost" size="icon-lg" className="spot-map-link">
+                <a
+                  href={googleMapsUrl(spot)}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${spot.name} Google 지도에서 열기 (새 창)`}
+                  data-place-id={spot.placeId}
+                >
+                  <ExternalLink aria-hidden="true" />
+                </a>
+              </Button>
+              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="icon-lg" className="spot-more" aria-label={`${spot.name} 더보기`}>
+                    <MoreVertical aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="spot-context-menu">
+                  <DropdownMenuItem onSelect={() => setEditing(true)}>수정</DropdownMenuItem>
+                  <DropdownMenuItem variant="destructive" onSelect={() => setConfirmingDeletion(true)}>삭제</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Dialog open={confirmingDeletion} onOpenChange={setConfirmingDeletion}>
+                <DialogContent className="spot-delete-dialog">
+                  <DialogHeader>
+                    <DialogTitle>이 장소와 목록을 삭제할까요?</DialogTitle>
+                    <DialogDescription>{spot.name}의 일정과 목록을 삭제합니다. 이 작업은 되돌릴 수 없습니다.</DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <DialogClose asChild><Button type="button" variant="ghost">취소</Button></DialogClose>
+                    <Button type="button" variant="destructive" onClick={() => { setConfirmingDeletion(false); onDeleteSpot(); }}>삭제</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
+          {scheduleWarning && (
+            <p className="spot-schedule-warning" role="status">
+              <TriangleAlert aria-hidden="true" /> {scheduleWarning}
+            </p>
+          )}
+          {spot.note && <MarkdownView text={spot.note} className="spot-note" />}
+          <OpeningHours placeId={spot.placeId} date={date} />
+          {(spot.items.length > 0 || addingItem) && (
+            <ul className="item-list">
+              {spot.items.map((item) => (
+                <li key={item.id} className="item-row">
+                  <label>
+                    <Checkbox checked={item.done} onCheckedChange={() => onToggleItem(item.id)} />
+                    <span className={item.done ? "done" : ""}>
+                      {item.kind === "buy" ? "🛍️" : item.kind === "eat" ? "🍜" : "✅"} {item.title}
+                      {item.price != null ? ` · ¥${item.price.toLocaleString()}` : ""}
+                    </span>
+                  </label>
+                  <Button type="button" variant="ghost" size="icon-lg" className="item-delete" aria-label={`${item.title} 삭제`} onClick={() => onDeleteItem(item.id)}>
+                    <X aria-hidden="true" />
+                  </Button>
+                </li>
+              ))}
+              {addingItem && (
+                <AddItemForm
+                  onAdd={(item) => {
+                    onAddItem(item);
+                    setAddingItem(false);
+                  }}
+                  onCancel={() => setAddingItem(false)}
+                />
+              )}
+            </ul>
+          )}
+          {!addingItem && (
+            <Button type="button" variant="outline" className="add-item-button" onClick={() => setAddingItem(true)}>
+              + 살 것/먹을 것 추가
+            </Button>
+          )}
         </div>
-        {scheduleWarning && (
-          <p className="spot-schedule-warning" role="status">
-            <TriangleAlert aria-hidden="true" /> {scheduleWarning}
-          </p>
-        )}
-        {spot.note && <MarkdownView text={spot.note} className="spot-note" />}
-        <OpeningHours placeId={spot.placeId} date={date} />
-        {(spot.items.length > 0 || addingItem) && (
-          <ul className="item-list">
-            {spot.items.map((item) => (
-              <li key={item.id} className="item-row">
-                <label>
-                  <Checkbox checked={item.done} onCheckedChange={() => onToggleItem(item.id)} />
-                  <span className={item.done ? "done" : ""}>
-                    {item.kind === "buy" ? "🛍️" : item.kind === "eat" ? "🍜" : "✅"} {item.title}
-                    {item.price != null ? ` · ¥${item.price.toLocaleString()}` : ""}
-                  </span>
-                </label>
-                <Button type="button" variant="ghost" size="icon-lg" className="item-delete" aria-label={`${item.title} 삭제`} onClick={() => onDeleteItem(item.id)}>
-                  <X aria-hidden="true" />
-                </Button>
-              </li>
-            ))}
-            {addingItem && (
-              <AddItemForm
-                onAdd={(item) => {
-                  onAddItem(item);
-                  setAddingItem(false);
-                }}
-                onCancel={() => setAddingItem(false)}
-              />
-            )}
-          </ul>
-        )}
-        {!addingItem && (
-          <Button type="button" variant="outline" className="add-item-button" onClick={() => setAddingItem(true)}>
-            + 살 것/먹을 것 추가
-          </Button>
-        )}
       </div>
     </li>
   );

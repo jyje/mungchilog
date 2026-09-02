@@ -204,3 +204,45 @@ test("spot schedules preserve legacy times and validate explicit semantics", () 
   assert.equal(withSpot({ timeKind: "RESERVATION" }).success, false);
   assert.equal(withSpot({ plannedArrival: "24:00" }).success, false);
 });
+
+test("groups are optional for existing trips and form non-overlapping itinerary ranges", () => {
+  const base = {
+    ...tripWithCover(undefined),
+    days: [{
+      date: "2026-09-07",
+      spots: [
+        { id: "first", order: 2, name: "첫 장소", items: [] },
+        { id: "second", order: 0, name: "둘째 장소", items: [] },
+        { id: "third", order: 1, name: "셋째 장소", items: [] },
+      ],
+    }],
+  };
+
+  const legacy = TripImportSchema.safeParse(base);
+  assert.equal(legacy.success, true);
+  if (legacy.success) assert.deepEqual(legacy.data.days[0].groups, []);
+
+  const contiguousByOrder = TripImportSchema.safeParse({
+    ...base,
+    days: [{ ...base.days[0], groups: [{ id: "morning", name: "오전", spotIds: ["second", "third"] }] }],
+  });
+  assert.equal(contiguousByOrder.success, true);
+
+  const nonContiguous = TripImportSchema.safeParse({
+    ...base,
+    days: [{ ...base.days[0], groups: [{ id: "morning", name: "오전", spotIds: ["second", "first"] }] }],
+  });
+  assert.equal(nonContiguous.success, false);
+
+  const overlapping = TripImportSchema.safeParse({
+    ...base,
+    days: [{
+      ...base.days[0],
+      groups: [
+        { id: "morning", name: "오전", spotIds: ["second", "third"] },
+        { id: "afternoon", name: "오후", spotIds: ["third", "first"] },
+      ],
+    }],
+  });
+  assert.equal(overlapping.success, false);
+});

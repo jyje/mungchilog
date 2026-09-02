@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, MapPinPlus } from "lucide-react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { getTrip, saveTrip } from "../api";
-import type { Item, Spot, Trip } from "../types";
+import type { Day, Item, Spot, Trip } from "../types";
 import { TripMap, type ItinerarySelection, type MapPlaceSelection, type MapPoint } from "../components/TripMap";
 import { MapsScope } from "../components/MapsScope";
 import { SplitMapShell, type TripPanelActions } from "../components/SplitMapShell";
@@ -19,6 +19,7 @@ import { DateAddSplitButton } from "../components/system/DateAddSplitButton";
 import { PlannerChoiceGroup, PlannerChoiceItem } from "../components/system/PlannerChoiceGroup";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { NativeSelect, NativeSelectOption } from "../components/ui/native-select";
 import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
 import type { LegPreference, PersistedLegMode } from "../types";
 import type { Me } from "../api";
@@ -27,6 +28,7 @@ import { PlaceDetailsPanel } from "../components/PlaceDetailsPanel";
 import type { PlaceSelection } from "../components/PlaceAutocompleteInput";
 import { PlannerPanelTabs, type PlannerPanelTab } from "../components/system/PlannerPanelTabs";
 import { scheduleWarnings } from "../schedule";
+import { itineraryBlocks, normalizeItineraryGroups, removeSpotFromItineraryGroups } from "../itineraryGroups";
 
 function nextDate(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -65,6 +67,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [dateEditValue, setDateEditValue] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
+  const [groupEditorOpen, setGroupEditorOpen] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupStartId, setGroupStartId] = useState("");
+  const [groupEndId, setGroupEndId] = useState("");
+  const [groupError, setGroupError] = useState<string | null>(null);
   const [selection, setSelection] = useState<ItinerarySelection>(null);
   const [sharedLocations, setSharedLocations] = useState<SharedLocationWithName[]>([]);
   const [focusedSharedUserId, setFocusedSharedUserId] = useState<string | null>(null);
@@ -208,6 +215,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   if (error) return <p className="error">{String((error as Error).message ?? error)}</p>;
   if (!trip) return <p className="meta">불러오는 중...</p>;
 
+  const tripTimezone = trip.timezone;
   const day = trip.days[dayIndex];
   const orderedSpots = [...(day?.spots ?? [])].sort((a, b) => a.order - b.order);
   const scheduleWarningBySpotId = new Map(scheduleWarnings(orderedSpots, day?.date, trip.timezone).map((warning) => [warning.spotId, warning.message]));
@@ -229,7 +237,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return false;
     }
 
-    const days = sortDays([...trip.days, { date, spots: [], legPreferences: [] }]);
+    const days = sortDays([...trip.days, { date, spots: [], legPreferences: [], groups: [] }]);
     const startDate = date < trip.startDate ? date : trip.startDate;
     const endDate = date > trip.endDate ? date : trip.endDate;
     saveNow({ ...trip, startDate, endDate, days });
@@ -416,7 +424,12 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     const days = trip.days.map((d, i) => (
       i !== dayIndex
         ? d
-        : { ...d, spots: d.spots.filter((s) => s.id !== spotId), legPreferences: removeSpotLegPreferences(d.legPreferences, spotId) }
+        : {
+            ...d,
+            spots: d.spots.filter((s) => s.id !== spotId),
+            legPreferences: removeSpotLegPreferences(d.legPreferences, spotId),
+            groups: removeSpotFromItineraryGroups(d.groups, spotId),
+          }
     ));
     const cover = trip.cover?.spotId === spotId
       ? (trip.cover.imageDataUrl ? { imageDataUrl: trip.cover.imageDataUrl } : null)
@@ -457,8 +470,51 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     const oldIndex = spots.findIndex((s) => s.id === active.id);
     const newIndex = spots.findIndex((s) => s.id === over.id);
     const reordered = arrayMove(spots, oldIndex, newIndex).map((s, i) => ({ ...s, order: i }));
-    const days = trip.days.map((d, i) => (i === dayIndex ? { ...d, spots: reordered } : d));
+    const days = trip.days.map((d, i) => (
+      i === dayIndex ? { ...d, spots: reordered, groups: normalizeItineraryGroups(d.groups, reordered) } : d
+    ));
     scheduleSave({ ...trip, days });
+  }
+
+  function openGroupEditor() {
+    const spots = [...(day?.spots ?? [])].sort((a, b) => a.order - b.order);
+    if (spots.length < 2) return;
+    setGroupName("");
+    setGroupStartId(spots[0].id);
+    setGroupEndId(spots[1].id);
+    setGroupError(null);
+    setGroupEditorOpen(true);
+  }
+
+  function createGroup() {
+    if (!trip || !day) return;
+    const spots = [...day.spots].sort((a, b) => a.order - b.order);
+    const start = spots.findIndex((spot) => spot.id === groupStartId);
+    const end = spots.findIndex((spot) => spot.id === groupEndId);
+    if (start < 0 || end < 0 || start === end) {
+      setGroupError("그룹의 시작과 마지막 장소를 각각 선택해주세요.");
+      return;
+    }
+    const spotIds = spots.slice(Math.min(start, end), Math.max(start, end) + 1).map((spot) => spot.id);
+    const occupied = new Set((day.groups ?? []).flatMap((group) => group.spotIds));
+    if (spotIds.some((spotId) => occupied.has(spotId))) {
+      setGroupError("이미 다른 그룹에 속한 장소는 다시 묶을 수 없습니다.");
+      return;
+    }
+    const name = groupName.trim() || `${spots[Math.min(start, end)].name} 그룹`;
+    const groups = [...(day.groups ?? []), { id: crypto.randomUUID(), name, spotIds }];
+    const days = trip.days.map((candidate, index) => index === dayIndex ? { ...candidate, groups } : candidate);
+    saveNow({ ...trip, days });
+    setGroupEditorOpen(false);
+    setGroupError(null);
+  }
+
+  function removeGroup(groupId: string) {
+    if (!trip) return;
+    const days = trip.days.map((candidate, index) => (
+      index === dayIndex ? { ...candidate, groups: (candidate.groups ?? []).filter((group) => group.id !== groupId) } : candidate
+    ));
+    saveNow({ ...trip, days });
   }
 
   // One entry point for every leg edit. The caller sends only what changed;
@@ -515,6 +571,46 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       };
     });
     scheduleSave({ ...trip, days });
+  }
+
+  function renderSpotCard(spot: Spot, currentDay: Day) {
+    return (
+      <SpotCard
+        key={spot.id}
+        spot={spot}
+        onToggleItem={(itemId) => toggleItem(spot.id, itemId)}
+        onDeleteItem={(itemId) => deleteItem(spot.id, itemId)}
+        onAddItem={(item) => addItem(spot.id, item)}
+        onDeleteSpot={() => deleteSpot(spot.id)}
+        onEditSpot={(updates) => editSpot(spot.id, updates)}
+        selected={
+          (selection?.kind === "spot" && selection.spotId === spot.id) ||
+          (selection?.kind === "leg" && (selection.fromId === spot.id || selection.toId === spot.id))
+        }
+        onSelect={() => selectItinerary({ kind: "spot", spotId: spot.id })}
+        date={currentDay.date}
+        timezone={tripTimezone}
+        scheduleWarning={scheduleWarningBySpotId.get(spot.id)}
+      />
+    );
+  }
+
+  function renderLegRow(from: Spot, to: Spot, currentDay: Day) {
+    const preference = legPreferenceFor(currentDay.legPreferences, from.id, to.id);
+    return (
+      <li key={`${from.id}-${to.id}-leg`} className="leg-row">
+        <LegInfo
+          from={from}
+          to={to}
+          date={currentDay.date}
+          timezone={tripTimezone}
+          preference={preference}
+          selected={selection?.kind === "leg" && selection.fromId === from.id && selection.toId === to.id}
+          onSelect={() => selectItinerary({ kind: "leg", fromId: from.id, toId: to.id })}
+          onChange={(patch) => saveLegPreference(from.id, to.id, patch)}
+        />
+      </li>
+    );
   }
 
   return (
@@ -666,53 +762,46 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 )}
 
                 <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={day.spots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                  <SortableContext items={orderedSpots.map((spot) => spot.id)} strategy={verticalListSortingStrategy}>
                     <ul className="spot-list">
-                      {[...day.spots]
-                        .sort((a, b) => a.order - b.order)
-                        .flatMap((spot, i, sorted) => {
-                          const card = (
-                            <SpotCard
-                              key={spot.id}
-                              spot={spot}
-                              onToggleItem={(itemId) => toggleItem(spot.id, itemId)}
-                              onDeleteItem={(itemId) => deleteItem(spot.id, itemId)}
-                              onAddItem={(item) => addItem(spot.id, item)}
-                              onDeleteSpot={() => deleteSpot(spot.id)}
-                              onEditSpot={(updates) => editSpot(spot.id, updates)}
-                              selected={
-                                (selection?.kind === "spot" && selection.spotId === spot.id) ||
-                                (selection?.kind === "leg" && (selection.fromId === spot.id || selection.toId === spot.id))
-                              }
-                              onSelect={() => selectItinerary({ kind: "spot", spotId: spot.id })}
-                              date={day.date}
-                              timezone={trip.timezone}
-                              scheduleWarning={scheduleWarningBySpotId.get(spot.id)}
-                            />
+                      {(() => {
+                        const blocks = itineraryBlocks(orderedSpots, day.groups);
+                        const firstSpot = (block: typeof blocks[number]) => block.kind === "group" ? block.spots[0] : block.spot;
+                        const lastSpot = (block: typeof blocks[number]) => block.kind === "group" ? block.spots.at(-1)! : block.spot;
+                        return blocks.map((block, index) => {
+                          const next = blocks[index + 1];
+                          const trailingLeg = next ? renderLegRow(lastSpot(block), firstSpot(next), day) : null;
+                          if (block.kind === "spot") {
+                            return (
+                              <Fragment key={block.spot.id}>
+                                {renderSpotCard(block.spot, day)}
+                                {trailingLeg}
+                              </Fragment>
+                            );
+                          }
+                          return (
+                            <Fragment key={block.group.id}>
+                              <li className="itinerary-group">
+                                <div className="itinerary-group-header">
+                                  <span className="itinerary-group-title">{block.group.name}</span>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => removeGroup(block.group.id)}>
+                                    그룹 해제
+                                  </Button>
+                                </div>
+                                <ol className="itinerary-group-stops">
+                                  {block.spots.map((spot, spotIndex) => (
+                                    <Fragment key={spot.id}>
+                                      {renderSpotCard(spot, day)}
+                                      {spotIndex < block.spots.length - 1 && renderLegRow(spot, block.spots[spotIndex + 1], day)}
+                                    </Fragment>
+                                  ))}
+                                </ol>
+                              </li>
+                              {trailingLeg}
+                            </Fragment>
                           );
-                          if (i === sorted.length - 1) return [card];
-                          // Plain <li>, not a sortable item - dnd-kit's SortableContext
-                          // only tracks elements that call useSortable (see SpotCard),
-                          // so an inert row interleaved between them is safe.
-                          return [
-                            card,
-                            <li key={`${spot.id}-leg`} className="leg-row">
-                              {(() => {
-                                const preference = legPreferenceFor(day.legPreferences, spot.id, sorted[i + 1].id);
-                                return <LegInfo
-                                  from={spot}
-                                  to={sorted[i + 1]}
-                                  date={day.date}
-                                  timezone={trip.timezone}
-                                  preference={preference}
-                                  selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
-                                  onSelect={() => selectItinerary({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
-                                  onChange={(patch) => saveLegPreference(spot.id, sorted[i + 1].id, patch)}
-                                />;
-                              })()}
-                            </li>,
-                          ];
-                        })}
+                        });
+                      })()}
                       {addingSpot && (
                         <li>
                           <SpotForm
@@ -736,6 +825,35 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     <Button type="button" variant="outline" className="add-spot-button" aria-pressed={pointPickActive} onClick={pointPickActive ? cancelPointPick : startPointPick}>
                       <MapPinPlus aria-hidden="true" /> {pointPickActive ? "지도 선택 취소" : "지도에서 선택"}
                     </Button>
+                    <Button type="button" variant="outline" className="add-spot-button" onClick={openGroupEditor} disabled={orderedSpots.length < 2}>
+                      + 그룹 만들기
+                    </Button>
+                  </div>
+                )}
+                {groupEditorOpen && (
+                  <div className="itinerary-group-editor" role="dialog" aria-label="일정 그룹 만들기">
+                    <label>
+                      그룹 이름
+                      <Input value={groupName} onChange={(event) => { setGroupName(event.target.value); setGroupError(null); }} placeholder="예: 기타하마 산책" />
+                    </label>
+                    <label>
+                      시작 장소
+                      <NativeSelect value={groupStartId} onChange={(event) => { setGroupStartId(event.target.value); setGroupError(null); }}>
+                        {orderedSpots.map((spot) => <NativeSelectOption key={spot.id} value={spot.id}>{spot.name}</NativeSelectOption>)}
+                      </NativeSelect>
+                    </label>
+                    <label>
+                      마지막 장소
+                      <NativeSelect value={groupEndId} onChange={(event) => { setGroupEndId(event.target.value); setGroupError(null); }}>
+                        {orderedSpots.map((spot) => <NativeSelectOption key={spot.id} value={spot.id}>{spot.name}</NativeSelectOption>)}
+                      </NativeSelect>
+                    </label>
+                    <p className="meta">연속된 장소만 하나의 점선 그룹으로 묶습니다.</p>
+                    {groupError && <p className="error" role="alert">{groupError}</p>}
+                    <div className="itinerary-group-editor-actions">
+                      <Button type="button" onClick={createGroup}>그룹 만들기</Button>
+                      <Button type="button" variant="ghost" onClick={() => setGroupEditorOpen(false)}>취소</Button>
+                    </div>
                   </div>
                 )}
               </>

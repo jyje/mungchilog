@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BusFront, CarFront, Footprints, Route, TrainFront, TramFront } from "lucide-react";
 import { useLeg } from "../hooks/useLeg";
 import { formatZonedClock, legEndpoints, resolveLegAnchor } from "../legTiming";
 import { directDistanceMeters, isLegacyLegMode, LEG_MODE_OPTIONS, selectedRouteIndex } from "../legPreferences";
@@ -18,6 +19,33 @@ function formatDuration(seconds: number): string {
   const mins = Math.round(seconds / 60);
   if (mins < 60) return `${mins}분`;
   return `${Math.floor(mins / 60)}시간 ${mins % 60}분`;
+}
+
+function TransitVehicleIcon({ vehicle }: { vehicle: string | null | undefined }) {
+  const normalized = vehicle?.toUpperCase() ?? "";
+  const Icon = normalized.includes("BUS") ? BusFront : normalized.includes("TRAM") ? TramFront : TrainFront;
+  return <Icon aria-hidden="true" />;
+}
+
+function modeSummaryIcon(mode: PersistedLegMode) {
+  if (mode === "WALK") return <Footprints aria-hidden="true" />;
+  if (mode === "DRIVE") return <CarFront aria-hidden="true" />;
+  if (mode === "TRANSIT") return <TrainFront aria-hidden="true" />;
+  return <Route aria-hidden="true" />;
+}
+
+function transitSummary(details: Array<{ vehicle: string | null; line: string | null; headsign: string | null }> | null | undefined): string | null {
+  if (!details?.length) return null;
+  return details.map((detail) => {
+    if (detail.line && detail.headsign) return `${detail.line} · ${detail.headsign} 방면`;
+    if (detail.line) return detail.line;
+    if (detail.headsign) return detail.headsign;
+    const vehicle = detail.vehicle?.toUpperCase() ?? "";
+    if (vehicle.includes("BUS")) return "버스";
+    if (vehicle.includes("TRAM")) return "트램";
+    if (vehicle) return "철도";
+    return "경로 정보 없음";
+  }).join(" → ");
 }
 
 const TIMING_LABELS: Record<LegTiming["kind"], string> = {
@@ -155,6 +183,9 @@ export function LegInfo({
     if (straight != null) parts.push(`직선 ${(straight / 1000).toFixed(1)}km`);
   }
   const modeLabel = LEG_MODE_OPTIONS.find((option) => option.mode === mode)?.label ?? "직선(사용 중지됨)";
+  const transitDetails = selectedRoute?.transit;
+  const transitLabel = transitSummary(transitDetails);
+  const firstTransit = transitDetails?.[0];
 
   return (
     <div className={`leg-info${selected ? " selected" : ""}`} aria-label={`${from.name}에서 ${to.name}까지 동선`}>
@@ -165,7 +196,18 @@ export function LegInfo({
         onClick={onSelect}
         aria-pressed={selected}
       >
-        🧭 {parts.join(" · ") || `${modeLabel} 동선`}
+        {mode === "TRANSIT" ? (
+          <>
+            <TransitVehicleIcon vehicle={firstTransit?.vehicle} />
+            <span>{transitLabel ?? "경로 정보 없음"}</span>
+            {parts.length > 0 && <span className="leg-summary-meta">{parts.join(" · ")}</span>}
+          </>
+        ) : (
+          <>
+            {modeSummaryIcon(mode)}
+            <span>{parts.join(" · ") || `${modeLabel} 동선`}</span>
+          </>
+        )}
       </Button>
 
       <PlannerChoiceGroup
