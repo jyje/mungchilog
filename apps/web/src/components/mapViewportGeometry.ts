@@ -25,8 +25,14 @@ export type SheetState = "collapsed" | "intermediate" | "expanded";
 export const SHEET_STATES: SheetState[] = ["collapsed", "intermediate", "expanded"];
 export const SHEET_LABELS: Record<SheetState, string> = { collapsed: "지도", intermediate: "분할", expanded: "일정" };
 
+// Dragging should keep the height a person chose unless it lands close to an
+// intentional endpoint. These are half of the original outer snap ranges:
+// 0-25% and 61-100% became 0-12.5% and 80.5-100% respectively.
+const COLLAPSED_SNAP_MAX = 0.125;
+const EXPANDED_SNAP_MIN = 0.805;
+
 export function closestSheetState(height: number, availableHeight: number): SheetState {
   const ratio = height / Math.max(1, availableHeight);
-  if (ratio < 0.25) return "collapsed";
-  return ratio < 0.61 ? "intermediate" : "expanded";
+  if (ratio < COLLAPSED_SNAP_MAX) return "collapsed";
+  return ratio < EXPANDED_SNAP_MIN ? "intermediate" : "expanded";
 }

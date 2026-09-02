@@ -5,8 +5,16 @@ import "./map-control-rail.css";
 
 type MapControlRailProps = {
   children: ReactNode;
+  /**
+   * Lower-priority actions are removed before the whole rail when the map
+   * cannot provide a collision-free position. The action must not fall back
+   * to an arbitrary map coordinate.
+   */
+  optionalChildren?: ReactNode;
   className?: string;
 };
+
+type RailVisibility = "all" | "required" | "hidden";
 
 const NATIVE_CONTROL_SELECTOR = [
   ".gm-style-mtc",
@@ -52,11 +60,18 @@ function samePlacement(first: MapControlRailPlacement | null, second: MapControl
  * keeps its own control rail, so this rail reserves the conservative gutter
  * beside it and gives each app action one stable vertical column.
  */
-export function MapControlRail({ children, className = "" }: MapControlRailProps) {
+export function MapControlRail({ children, optionalChildren, className = "" }: MapControlRailProps) {
   const insets = useMapViewportInsets();
   const railRef = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<MapControlRailPlacement | null>(null);
-  const itemCount = Children.count(children);
+  const [visibility, setVisibility] = useState<RailVisibility>("all");
+  const viewportKey = useRef<string | null>(null);
+  const requiredItemCount = Children.count(children);
+  const allItemCount = requiredItemCount + Children.count(optionalChildren);
+  const itemCount = visibility === "all" ? allItemCount : requiredItemCount;
+  const renderedChildren = visibility === "hidden"
+    ? null
+    : <>{visibility === "all" && optionalChildren}{children}</>;
 
   useLayoutEffect(() => {
     const rail = railRef.current;
@@ -67,6 +82,14 @@ export function MapControlRail({ children, className = "" }: MapControlRailProps
     function measure() {
       const bounds = mapContainer.getBoundingClientRect();
       if (!bounds.width || !bounds.height) return;
+      const nextViewportKey = [bounds.width, bounds.height, insets.top, insets.right, insets.bottom, insets.left].join(":");
+      if (visibility !== "all" && viewportKey.current !== nextViewportKey) {
+        viewportKey.current = nextViewportKey;
+        setPlacement(null);
+        setVisibility("all");
+        return;
+      }
+      viewportKey.current = nextViewportKey;
       const railBounds = rail?.getBoundingClientRect();
       const hasMeasuredRail = Boolean(railBounds?.width && railBounds.height);
       const next = chooseMapControlRail(
@@ -84,6 +107,15 @@ export function MapControlRail({ children, className = "" }: MapControlRailProps
           exclusions: nativeControlRects(mapContainer),
         },
       );
+      if (!next) {
+        setPlacement(null);
+        if (visibility === "all" && optionalChildren) {
+          setVisibility("required");
+        } else if (visibility !== "hidden") {
+          setVisibility("hidden");
+        }
+        return;
+      }
       setPlacement((current) => samePlacement(current, next) ? current : next);
     }
 
@@ -99,7 +131,7 @@ export function MapControlRail({ children, className = "" }: MapControlRailProps
       mutationObserver?.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [insets, itemCount]);
+  }, [insets, itemCount, optionalChildren, visibility]);
 
   const style = {
     "--map-control-right": `${insets.right}px`,
@@ -112,9 +144,19 @@ export function MapControlRail({ children, className = "" }: MapControlRailProps
       bottom: "auto",
     } : {}),
   } as CSSProperties;
+  const safelyPlaced = Boolean(placement) && visibility !== "hidden";
   return (
-    <div ref={railRef} className={`map-control-rail${className ? ` ${className}` : ""}`} data-placement={placement?.side ?? "fallback"} style={style} role="group" aria-label="지도 도구">
-      {children}
+    <div
+      ref={railRef}
+      className={`map-control-rail${className ? ` ${className}` : ""}`}
+      data-placement={safelyPlaced ? placement!.side : "hidden"}
+      data-visibility={visibility}
+      style={style}
+      role={safelyPlaced ? "group" : undefined}
+      aria-label={safelyPlaced ? "지도 도구" : undefined}
+      aria-hidden={safelyPlaced ? undefined : true}
+    >
+      {renderedChildren}
     </div>
   );
 }

@@ -38,6 +38,22 @@ function renderWithTooltips(ui: React.ReactNode) {
   return render(<TooltipProvider delayDuration={0}>{ui}</TooltipProvider>);
 }
 
+function placeTripMap(container: HTMLElement, width = 390, height = 844) {
+  const map = container.querySelector<HTMLElement>(".map-container")!;
+  vi.spyOn(map, "getBoundingClientRect").mockReturnValue({
+    left: 0,
+    top: 0,
+    right: width,
+    bottom: height,
+    width,
+    height,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } as DOMRect);
+  act(() => window.dispatchEvent(new Event("resize")));
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
@@ -190,7 +206,7 @@ describe("current location control", () => {
 
   it("keeps location guidance inside the app-owned rail", () => {
     vi.stubEnv("VITE_GOOGLE_MAPS_API_KEY", "synthetic-test-key");
-    renderWithTooltips(
+    const view = renderWithTooltips(
       <TripMap
         spots={[
           { id: "one", name: "One", lat: 37, lng: 127, order: 0, items: [], bufferMinutes: 10 },
@@ -201,6 +217,8 @@ describe("current location control", () => {
         onSelect={vi.fn()}
       />,
     );
+    placeTripMap(view.container);
+    expect(screen.getByRole("button", { name: "현재 위치" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "현재 위치" }));
     act(() => error({ code: 1 } as GeolocationPositionError));
     const status = document.querySelector(".device-location-status") as HTMLElement;
@@ -213,6 +231,8 @@ describe("current location control", () => {
     const spot = { id: "one", name: "One", lat: 37, lng: 127, order: 0 };
     const props = { spots: [spot] as React.ComponentProps<typeof TripMap>["spots"], selection: { kind: "spot" as const, spotId: "one" }, date: "2026-09-07", timezone: "Asia/Seoul", onSelect: vi.fn() };
     const { rerender } = renderWithTooltips(<TripMap {...props} />);
+    placeTripMap(document.body);
+    expect(screen.getByRole("button", { name: "현재 위치" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "현재 위치" }));
     update(NOW);
     const centers = maps.map.setCenter.mock.calls.length;

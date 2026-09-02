@@ -107,8 +107,8 @@ describe("adaptive map shell", () => {
     expect(screen.queryByRole("group", { name: "일정 패널 크기" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /일정 패널 .*크기/ })).not.toBeInTheDocument();
     fireEvent.pointerDown(boundary, { clientY: 464, clientX: 50 });
-    fireEvent.pointerMove(window, { clientY: 180, clientX: 50 });
-    fireEvent.pointerUp(window, { clientY: 180, clientX: 50 });
+    fireEvent.pointerMove(window, { clientY: 100, clientX: 50 });
+    fireEvent.pointerUp(window, { clientY: 100, clientX: 50 });
     expect(container.firstChild).toHaveAttribute("data-sheet-state", "expanded");
   });
 
@@ -130,8 +130,8 @@ describe("adaptive map shell", () => {
     Object.defineProperty(panel, "clientHeight", { configurable: true, value: 336 });
     const boundary = screen.getByRole("separator", { name: "일정 패널 상단 경계. 방향키 또는 드래그로 높이 조절" });
     fireEvent.pointerDown(boundary, { clientY: 464, clientX: 50 });
-    fireEvent.pointerMove(window, { clientY: 180, clientX: 50 });
-    fireEvent.pointerUp(window, { clientY: 180, clientX: 50 });
+    fireEvent.pointerMove(window, { clientY: 100, clientX: 50 });
+    fireEvent.pointerUp(window, { clientY: 100, clientX: 50 });
     expect(container.firstChild).toHaveAttribute("data-sheet-state", "expanded");
     expect(document.body).not.toHaveClass("trip-panel-resizing");
   });
@@ -272,7 +272,7 @@ describe("unobscured map geometry", () => {
     expect(mapViewportInsets(new DOMRect(0, 0, 360, 160), new DOMRect(8, 8, 344, 180), new DOMRect(500, 0, 300, 400))).toEqual({ top: 160, right: 0, bottom: 0, left: 0 });
   });
 
-  it.each([[80, "collapsed"], [330, "intermediate"], [620, "expanded"]] as const)("snaps a %ipx sheet to %s", (height, state) => {
+  it.each([[80, "collapsed"], [330, "intermediate"], [620, "intermediate"], [700, "expanded"]] as const)("uses half-width endpoint snap ranges for a %ipx sheet", (height, state) => {
     expect(closestSheetState(height, 800)).toBe(state);
   });
 });

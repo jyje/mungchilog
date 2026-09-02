@@ -344,8 +344,7 @@ function MapContent({
       {status === APILoadingStatus.LOADED && <>
         <SharedLocationMarkers locations={sharedLocations} focusedUserId={focusedSharedUserId} onFocus={onFocusSharedLocation} />
         <CurrentLocation showControl={false} />
-        <MapControlRail>
-          <CurrentLocationControl />
+        <MapControlRail optionalChildren={<CurrentLocationControl />}>
           <ItineraryFollowControl spots={spots} selection={selection} onSelect={onSelect} />
           {locationSharing && onOpenLocationSharing && <LocationSharingMapStatus controller={locationSharing} onOpenDetails={onOpenLocationSharing} />}
         </MapControlRail>
