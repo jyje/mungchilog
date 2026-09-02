@@ -159,6 +159,7 @@ export function TripMap({
   legPreferences,
   selection,
   onSelect,
+  onClearSelection,
   sharedLocations = [],
   focusedSharedUserId = null,
   onFocusSharedLocation,
@@ -176,6 +177,7 @@ export function TripMap({
   legPreferences: LegPreference[];
   selection: ItinerarySelection;
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
+  onClearSelection?: () => void;
   sharedLocations?: SharedMapLocation[];
   focusedSharedUserId?: string | null;
   onFocusSharedLocation?: (userId: string | null) => void;
@@ -239,7 +241,7 @@ export function TripMap({
                   }
                 }}
               >
-                <MapContent spots={spots} located={located} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} selectedPlace={selectedPlace} onSelectPlace={onSelectPlace} sharedLocations={sharedLocations} focusedSharedUserId={focusedSharedUserId} onFocusSharedLocation={onFocusSharedLocation} locationSharing={locationSharing} onOpenLocationSharing={onOpenLocationSharing} />
+                <MapContent spots={spots} located={located} date={date} timezone={timezone} legPreferences={legPreferences} selection={selection} onSelect={onSelect} onClearSelection={onClearSelection} selectedPlace={selectedPlace} onSelectPlace={onSelectPlace} sharedLocations={sharedLocations} focusedSharedUserId={focusedSharedUserId} onFocusSharedLocation={onFocusSharedLocation} locationSharing={locationSharing} onOpenLocationSharing={onOpenLocationSharing} />
               </Map>
             </MapFailureBoundary>
           </div>
@@ -276,6 +278,7 @@ function MapContent({
   legPreferences,
   selection,
   onSelect,
+  onClearSelection,
   selectedPlace,
   onSelectPlace,
   sharedLocations,
@@ -291,6 +294,7 @@ function MapContent({
   legPreferences: LegPreference[];
   selection: ItinerarySelection;
   onSelect: (selection: Exclude<ItinerarySelection, null>) => void;
+  onClearSelection?: () => void;
   selectedPlace: MapPlaceSelection | null;
   onSelectPlace?: (place: MapPlaceSelection) => void;
   sharedLocations: SharedMapLocation[];
@@ -345,7 +349,7 @@ function MapContent({
         <SharedLocationMarkers locations={sharedLocations} focusedUserId={focusedSharedUserId} onFocus={onFocusSharedLocation} />
         <CurrentLocation showControl={false} />
         <MapControlRail optionalChildren={<CurrentLocationControl />}>
-          <ItineraryFollowControl spots={spots} selection={selection} onSelect={onSelect} />
+          <ItineraryFollowControl spots={spots} date={date} selection={selection} onSelect={onSelect} onClearSelection={onClearSelection} />
           {locationSharing && onOpenLocationSharing && <LocationSharingMapStatus controller={locationSharing} onOpenDetails={onOpenLocationSharing} />}
         </MapControlRail>
       </>}

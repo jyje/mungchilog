@@ -2213,24 +2213,53 @@ input[type="text"]:not([data-slot])::placeholder {
 .location-takeover { color: var(--danger); }
 .itinerary-follow-control { position: relative; display: grid; justify-items: end; gap: 0.45rem; }
 .itinerary-follow-button svg { width: 1.35rem; height: 1.35rem; }
+.itinerary-follow-button[data-follow-state="paused"] {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface));
+  color: var(--accent);
+}
 .itinerary-follow-status {
   position: absolute;
   right: calc(100% + 0.6rem);
   bottom: 0;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.35rem;
-  max-width: min(18rem, calc(100vw - 6rem));
+  max-width: min(20rem, calc(100vw - 6rem));
   padding: 0.35rem 0.4rem 0.35rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
   color: var(--text);
   box-shadow: 0 0.2rem 0.7rem var(--shadow-color);
   font-size: var(--type-label);
 }
+.itinerary-follow-progress { display: grid; min-width: 0; gap: 0.1rem; }
+.itinerary-follow-progress strong,
+.itinerary-follow-progress span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itinerary-follow-progress span { color: var(--muted); }
+.itinerary-follow-message { color: var(--text) !important; }
 .itinerary-follow-status button { min-height: 2.25rem; font-size: var(--type-label); font-weight: 650; }
+.itinerary-follow-unavailable {
+  position: absolute;
+  right: calc(100% + 0.6rem);
+  bottom: 0;
+  width: min(18rem, calc(100vw - 6rem));
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--muted);
+  box-shadow: 0 0.2rem 0.7rem var(--shadow-color);
+  font-size: var(--type-label);
+  line-height: 1.35;
+}
+@media (max-width: 34rem) {
+  .itinerary-follow-status,
+  .itinerary-follow-unavailable { max-width: min(16rem, calc(100vw - 5rem)); }
+}
 .shared-location-marker {
   display: grid;
   width: 2.5rem;

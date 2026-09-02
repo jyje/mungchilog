@@ -9,7 +9,8 @@ import { TooltipProvider } from "../src/components/ui/tooltip";
 import type { TripLocationSharingController } from "../src/hooks/useTripLocationSharing";
 
 const maps = vi.hoisted(() => ({
-  map: { panTo: vi.fn(), panBy: vi.fn(), fitBounds: vi.fn(), setZoom: vi.fn(), setCenter: vi.fn(), getZoom: vi.fn(() => 15) },
+  map: { panTo: vi.fn(), panBy: vi.fn(), fitBounds: vi.fn(), setZoom: vi.fn(), setCenter: vi.fn(), getZoom: vi.fn(() => 15), addListener: vi.fn(() => ({ remove: vi.fn() })), getDiv: vi.fn() },
+  listeners: new Map<string, () => void>(),
   status: "LOADED",
   circle: vi.fn(),
 }));
@@ -55,6 +56,7 @@ function placeTripMap(container: HTMLElement, width = 390, height = 844) {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   vi.stubGlobal("ResizeObserver", class {
@@ -72,11 +74,18 @@ beforeEach(() => {
   });
   vi.stubGlobal("navigator", { geolocation: { watchPosition, clearWatch } });
   maps.status = "LOADED";
+  maps.listeners.clear();
+  maps.map.getDiv.mockReturnValue(document.createElement("div"));
+  maps.map.addListener.mockImplementation((event: string, listener: () => void) => {
+    maps.listeners.set(event, listener);
+    return { remove: vi.fn(() => maps.listeners.delete(event)) };
+  });
 });
 
 describe("current location control", () => {
   it("starts itinerary follow only after an explicit tap and Escape stops it", () => {
     const onSelect = vi.fn();
+    const onClearSelection = vi.fn();
     renderWithTooltips(
       <MapViewportProvider value={{ top: 0, right: 0, bottom: 0, left: 0 }}>
         <ItineraryFollowControl
@@ -84,8 +93,10 @@ describe("current location control", () => {
             { id: "one", name: "One", lat: 37, lng: 127, order: 0, items: [], bufferMinutes: 10 },
             { id: "two", name: "Two", lat: 37.1, lng: 127.1, order: 1, items: [], bufferMinutes: 10 },
           ]}
+          date="2026-09-07"
           selection={null}
           onSelect={onSelect}
+          onClearSelection={onClearSelection}
         />
       </MapViewportProvider>,
     );
@@ -99,6 +110,7 @@ describe("current location control", () => {
     expect(screen.getByRole("button", { name: "따라가기 중지" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByRole("button", { name: "따라가기" })).toHaveAttribute("aria-pressed", "false");
+    expect(onClearSelection).toHaveBeenCalledTimes(1);
   });
 
   it("keeps Escape from moving the camera while it dismisses follow mode", () => {
@@ -108,6 +120,7 @@ describe("current location control", () => {
           { id: "one", name: "One", lat: 37, lng: 127, order: 0, items: [], bufferMinutes: 10 },
           { id: "two", name: "Two", lat: 37.1, lng: 127.1, order: 1, items: [], bufferMinutes: 10 },
         ]}
+        date="2026-09-07"
         selection={null}
         onSelect={vi.fn()}
       />,
@@ -119,6 +132,95 @@ describe("current location control", () => {
     expect(screen.getByRole("button", { name: "따라가기" })).toHaveAttribute("aria-pressed", "false");
     expect(maps.map.panTo).toHaveBeenCalledTimes(pans);
     expect(maps.map.panBy).toHaveBeenCalledTimes(offsets);
+  });
+
+  it("pauses after a manual map gesture and resumes only by explicit action", () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    renderWithTooltips(
+      <ItineraryFollowControl
+        spots={[
+          { id: "one", name: "출발", lat: 37, lng: 127, order: 0, items: [], bufferMinutes: 10 },
+          { id: "two", name: "도착", lat: 37.1, lng: 127.1, order: 1, items: [], bufferMinutes: 10 },
+        ]}
+        date="2026-09-07"
+        selection={{ kind: "leg", fromId: "one", toId: "two" }}
+        onSelect={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "따라가기" }));
+    update(NOW);
+    expect(screen.getByRole("status")).toHaveTextContent("출발에서 도착");
+    const panCount = maps.map.panTo.mock.calls.length;
+    act(() => maps.listeners.get("dragstart")?.());
+    expect(screen.getByRole("button", { name: "따라가기 재개" })).toHaveAttribute("data-follow-state", "paused");
+    update(NOW + 1);
+    expect(maps.map.panTo).toHaveBeenCalledTimes(panCount);
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "따라가기 재개" }));
+    expect(screen.getByRole("button", { name: "따라가기 중지" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("explains when the selected itinerary leg has no map location", () => {
+    renderWithTooltips(
+      <ItineraryFollowControl
+        spots={[
+          { id: "one", name: "출발", lat: 37, lng: 127, order: 0, items: [], bufferMinutes: 10 },
+          { id: "two", name: "미정", order: 1, items: [], bufferMinutes: 10 },
+        ]}
+        date="2026-09-07"
+        selection={null}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "따라가기" })).toBeDisabled();
+    expect(screen.getByRole("status")).toHaveTextContent("지도 위치가 있어야");
+    expect(watchPosition).not.toHaveBeenCalled();
+  });
+
+  it("clears follow context when its day changes or its active leg no longer exists", () => {
+    const onClearSelection = vi.fn();
+    const spots = [
+      { id: "one", name: "출발", lat: 37, lng: 127, order: 0, items: [], bufferMinutes: 10 },
+      { id: "two", name: "경유", lat: 37.1, lng: 127.1, order: 1, items: [], bufferMinutes: 10 },
+      { id: "three", name: "도착", lat: 37.2, lng: 127.2, order: 2, items: [], bufferMinutes: 10 },
+    ] as React.ComponentProps<typeof ItineraryFollowControl>["spots"];
+    const props = {
+      spots,
+      date: "2026-09-07",
+      selection: { kind: "leg" as const, fromId: "one", toId: "two" },
+      onSelect: vi.fn(),
+      onClearSelection,
+    };
+    const { rerender } = renderWithTooltips(<ItineraryFollowControl {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "따라가기" }));
+    rerender(<TooltipProvider delayDuration={0}><ItineraryFollowControl {...props} date="2026-09-08" /></TooltipProvider>);
+    expect(onClearSelection).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "따라가기" })).toHaveAttribute("aria-pressed", "false");
+
+    rerender(<TooltipProvider delayDuration={0}><ItineraryFollowControl {...props} date="2026-09-08" /></TooltipProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "따라가기" }));
+    rerender(<TooltipProvider delayDuration={0}><ItineraryFollowControl {...props} date="2026-09-08" spots={[
+      { ...spots[1], order: 0 }, { ...spots[0], order: 1 }, spots[2],
+    ]} /></TooltipProvider>);
+    expect(onClearSelection).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "따라가기" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("pauses follow when the active itinerary selection is cleared", () => {
+    const props = {
+      spots: [
+        { id: "one", name: "출발", lat: 37, lng: 127, order: 0, items: [], bufferMinutes: 10 },
+        { id: "two", name: "도착", lat: 37.1, lng: 127.1, order: 1, items: [], bufferMinutes: 10 },
+      ] as React.ComponentProps<typeof ItineraryFollowControl>["spots"],
+      date: "2026-09-07",
+      selection: { kind: "leg" as const, fromId: "one", toId: "two" },
+      onSelect: vi.fn(),
+    };
+    const { rerender } = renderWithTooltips(<ItineraryFollowControl {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "따라가기" }));
+    rerender(<TooltipProvider delayDuration={0}><ItineraryFollowControl {...props} selection={null} /></TooltipProvider>);
+    expect(screen.getByRole("button", { name: "따라가기 재개" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("uses the shared accessible tooltip without a custom touch timer", () => {
