@@ -164,6 +164,21 @@ describe("transit timing", () => {
 });
 
 describe("route alternatives", () => {
+  it("summarises a transit route by its vehicle, line, and direction", () => {
+    useLegMock.mockReturnValue({
+      data: legOf([{
+        transit: [{ vehicle: "SUBWAY", line: "Sakaisuji Line", headsign: "Tenjinbashisuji 6-chome" }],
+      }]),
+      isError: false,
+      isLoading: false,
+    });
+    renderLeg();
+
+    const summary = screen.getByRole("button", { name: /Sakaisuji Line.*Tenjinbashisuji 6-chome/ });
+    expect(summary).toHaveTextContent("Sakaisuji Line · Tenjinbashisuji 6-chome");
+    expect(summary).not.toHaveTextContent("대중교통");
+  });
+
   it("shows duration, distance, and estimated departure and arrival", () => {
     useLegMock.mockReturnValue({ data: legOf([{ durationS: 600 }, { durationS: 1500 }]), isError: false, isLoading: false });
     renderLeg();

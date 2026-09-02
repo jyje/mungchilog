@@ -9,6 +9,7 @@ import {
   routeFingerprint,
   routeSegments,
   transitSchedule,
+  transitRouteDetails,
   toRoutesApiWaypoint,
   WaypointSchema,
   waypointRef,
@@ -213,4 +214,40 @@ test("a journey with no scheduled leg reports no schedule", () => {
     departureTime: null,
     arrivalTime: null,
   });
+});
+
+test("transit route details keep the boarded vehicle, line, and direction", () => {
+  const details = transitRouteDetails([
+    {
+      steps: [
+        { travelMode: "WALK" },
+        {
+          travelMode: "TRANSIT",
+          transitDetails: {
+            transitLine: { nameShort: "Sakaisuji Line", vehicle: { type: "SUBWAY" } },
+            headsign: "Tenjinbashisuji 6-chome",
+          },
+        },
+        {
+          travelMode: "TRANSIT",
+          transitDetails: {
+            transitLine: { nameShort: "Sakaisuji Line", vehicle: { type: "SUBWAY" } },
+            headsign: "Tenjinbashisuji 6-chome",
+          },
+        },
+        {
+          travelMode: "TRANSIT",
+          transitDetails: {
+            transitLine: { name: "Osaka City Bus 62", vehicle: { type: "BUS" } },
+            headsign: "Osaka Station",
+          },
+        },
+      ],
+    },
+  ]);
+
+  assert.deepEqual(details, [
+    { vehicle: "SUBWAY", line: "Sakaisuji Line", headsign: "Tenjinbashisuji 6-chome" },
+    { vehicle: "BUS", line: "Osaka City Bus 62", headsign: "Osaka Station" },
+  ]);
 });

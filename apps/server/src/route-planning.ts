@@ -16,7 +16,7 @@ export type TravelMode = (typeof TRAVEL_MODES)[number];
 // the requested geometry, the endpoint encoding, or the timing semantics
 // change, so an old cache entry cannot conceal a newly correct route for the
 // entire 30-day TTL. Keep in sync with apps/web/src/hooks/useLeg.ts.
-export const ROUTE_GEOMETRY_VERSION = "route-segments-v4";
+export const ROUTE_GEOMETRY_VERSION = "route-segments-v5";
 
 // An endpoint is either a Place ID or a bare coordinate. Coordinates are what
 // make map-picked stops (issue 46) routable at all - they have no placeId.
@@ -150,10 +150,24 @@ export type RouteSegment = {
   polyline: string;
 };
 
+export type TransitRouteDetail = {
+  vehicle: string | null;
+  line: string | null;
+  headsign: string | null;
+};
+
 type ApiStep = {
   travelMode?: string;
   polyline?: { encodedPolyline?: string };
-  transitDetails?: { stopDetails?: { departureTime?: string; arrivalTime?: string } };
+  transitDetails?: {
+    stopDetails?: { departureTime?: string; arrivalTime?: string };
+    headsign?: string;
+    transitLine?: {
+      name?: string;
+      nameShort?: string;
+      vehicle?: { type?: string };
+    };
+  };
 };
 type ApiLeg = { steps?: ApiStep[] };
 
@@ -179,6 +193,28 @@ export function transitSchedule(legs: ApiLeg[] | undefined): {
     departureTime: departures[0] ?? null,
     arrivalTime: arrivals[arrivals.length - 1] ?? null,
   };
+}
+
+// Keep the list summary compact: it needs each vehicle the traveller boards,
+// not the walking access steps surrounding a transfer.
+export function transitRouteDetails(legs: ApiLeg[] | undefined): TransitRouteDetail[] | null {
+  const details: TransitRouteDetail[] = [];
+  for (const leg of legs ?? []) {
+    for (const step of leg.steps ?? []) {
+      if (step.travelMode !== "TRANSIT") continue;
+      const transit = step.transitDetails;
+      const detail = {
+        vehicle: transit?.transitLine?.vehicle?.type ?? null,
+        line: transit?.transitLine?.nameShort ?? transit?.transitLine?.name ?? null,
+        headsign: transit?.headsign ?? null,
+      };
+      const previous = details.at(-1);
+      if (!previous || previous.vehicle !== detail.vehicle || previous.line !== detail.line || previous.headsign !== detail.headsign) {
+        details.push(detail);
+      }
+    }
+  }
+  return details.length > 0 ? details : null;
 }
 
 /**
