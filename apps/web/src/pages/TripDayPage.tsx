@@ -528,6 +528,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             legPreferences={day?.legPreferences ?? []}
             selection={selection}
             onSelect={selectItinerary}
+            onClearSelection={clearSelection}
             sharedLocations={sharedLocations}
             focusedSharedUserId={focusedSharedUserId}
             onFocusSharedLocation={selectSharedLocation}
