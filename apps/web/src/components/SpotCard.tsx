@@ -85,10 +85,12 @@ function TimelineSchedule({
   spot,
   schedule,
   onEdit,
+  mapNumber,
 }: {
   spot: Spot;
   schedule: ReturnType<typeof spotScheduleDisplay>;
   onEdit: () => void;
+  mapNumber?: number;
 }) {
   const label = schedule
     ? `${spot.name} ${schedule.start}${schedule.end ? `부터 ${schedule.end}까지` : ""} 일정 시각 수정`
@@ -105,7 +107,9 @@ function TimelineSchedule({
           <span>시간 입력<br />필요</span>
         )}
       </Button>
-      <span className="timeline-node" aria-hidden="true" />
+      <span className={`timeline-node${mapNumber != null ? " has-number" : ""}`} aria-hidden="true">
+        {mapNumber != null && <span className="timeline-node-number">{mapNumber}</span>}
+      </span>
     </div>
   );
 }
@@ -122,6 +126,8 @@ export function SpotCard({
   date,
   timezone = "Asia/Seoul",
   scheduleWarning,
+  mapNumber,
+  hasNextLeg = false,
 }: {
   spot: Spot;
   onToggleItem: (itemId: string) => void;
@@ -134,6 +140,11 @@ export function SpotCard({
   date: string;
   timezone?: string;
   scheduleWarning?: string;
+  mapNumber?: number;
+  /** Whether a .leg-row connects this spot to the next one, so the timeline
+   * line below its node should continue down to meet that leg's own line
+   * instead of stopping short. */
+  hasNextLeg?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: spot.id });
   const [addingItem, setAddingItem] = useState(false);
@@ -150,8 +161,8 @@ export function SpotCard({
 
   if (editing) {
     return (
-      <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}`}>
-        <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => undefined} />
+      <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}`}>
+        <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => undefined} mapNumber={mapNumber} />
         <div className="spot-card-surface">
           <span className="drag-handle" aria-hidden>
             ⠿
@@ -175,8 +186,8 @@ export function SpotCard({
   }
 
   return (
-    <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}`}>
-      <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => setEditing(true)} />
+    <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}`}>
+      <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => setEditing(true)} mapNumber={mapNumber} />
       <div className="spot-card-surface">
         <Button type="button" variant="ghost" size="icon-lg" className="drag-handle" aria-label="순서 변경" {...attributes} {...listeners}>
           <GripVertical aria-hidden="true" />

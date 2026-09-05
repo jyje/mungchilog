@@ -219,6 +219,12 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const day = trip.days[dayIndex];
   const orderedSpots = [...(day?.spots ?? [])].sort((a, b) => a.order - b.order);
   const scheduleWarningBySpotId = new Map(scheduleWarnings(orderedSpots, day?.date, trip.timezone).map((warning) => [warning.spotId, warning.message]));
+  // Same numbering as TripMap's map pins (sort by order, keep only spots with
+  // coordinates, 1-based index) so a timeline node's number always matches
+  // the pin the user sees on the map.
+  const mapNumberBySpotId = new Map(
+    orderedSpots.filter((spot) => spot.lat != null && spot.lng != null).map((spot, index) => [spot.id, index + 1]),
+  );
 
   function defaultNewDayDate() {
     if (!trip) return "";
@@ -573,7 +579,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     scheduleSave({ ...trip, days });
   }
 
-  function renderSpotCard(spot: Spot, currentDay: Day) {
+  function renderSpotCard(spot: Spot, currentDay: Day, hasNextLeg: boolean) {
     return (
       <SpotCard
         key={spot.id}
@@ -591,6 +597,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         date={currentDay.date}
         timezone={tripTimezone}
         scheduleWarning={scheduleWarningBySpotId.get(spot.id)}
+        mapNumber={mapNumberBySpotId.get(spot.id)}
+        hasNextLeg={hasNextLeg}
       />
     );
   }
@@ -779,7 +787,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                           if (block.kind === "spot") {
                             return (
                               <Fragment key={block.spot.id}>
-                                {renderSpotCard(block.spot, day)}
+                                {renderSpotCard(block.spot, day, !!trailingLeg)}
                                 {trailingLeg}
                               </Fragment>
                             );
@@ -794,12 +802,15 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                                   </Button>
                                 </div>
                                 <ol className="itinerary-group-stops">
-                                  {block.spots.map((spot, spotIndex) => (
-                                    <Fragment key={spot.id}>
-                                      {renderSpotCard(spot, day)}
-                                      {spotIndex < block.spots.length - 1 && renderLegRow(spot, block.spots[spotIndex + 1], day)}
-                                    </Fragment>
-                                  ))}
+                                  {block.spots.map((spot, spotIndex) => {
+                                    const hasNextLeg = spotIndex < block.spots.length - 1 || !!trailingLeg;
+                                    return (
+                                      <Fragment key={spot.id}>
+                                        {renderSpotCard(spot, day, hasNextLeg)}
+                                        {spotIndex < block.spots.length - 1 && renderLegRow(spot, block.spots[spotIndex + 1], day)}
+                                      </Fragment>
+                                    );
+                                  })}
                                 </ol>
                               </li>
                               {trailingLeg}

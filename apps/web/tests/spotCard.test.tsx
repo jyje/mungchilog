@@ -96,3 +96,27 @@ describe("spot card actions", () => {
     expect(screen.getByRole("button", { name: "남산 시작 시각 입력" })).toHaveTextContent(/시간 입력\s*필요/);
   });
 });
+
+describe("timeline node number", () => {
+  it("shows the same number as the spot's map pin inside the timeline node", () => {
+    const { container } = renderCard({ mapNumber: 3 });
+    const node = container.querySelector(".timeline-node");
+    expect(node).toHaveClass("has-number");
+    expect(node).toHaveTextContent("3");
+  });
+
+  it("renders a plain node with no number for a spot missing coordinates", () => {
+    const { container } = renderCard({ mapNumber: undefined });
+    const node = container.querySelector(".timeline-node");
+    expect(node).not.toHaveClass("has-number");
+    expect(node?.textContent).toBe("");
+  });
+
+  it("marks the spot card so its connector line continues down to the next leg", () => {
+    const { container: withLeg } = renderCard({ hasNextLeg: true });
+    expect(withLeg.querySelector(".spot-card")).toHaveClass("has-next-leg");
+
+    const { container: withoutLeg } = renderCard({ hasNextLeg: false });
+    expect(withoutLeg.querySelector(".spot-card")).not.toHaveClass("has-next-leg");
+  });
+});
