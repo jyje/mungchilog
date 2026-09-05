@@ -2414,6 +2414,17 @@ input[type="text"]:not([data-slot])::placeholder {
   color: var(--accent);
   box-shadow: 0 0 0 3px #facc15, 0 0.25rem 0.8rem rgba(20, 21, 26, 0.3);
 }
+/* Route mode-icon badges (RouteOverlay.tsx). Colours are hardcoded, not
+   var(--accent): they must match ROUTE_LINE_COLORS in routeStyles.ts exactly,
+   since a badge and the line it sits on need to read as the same journey. */
+.route-mode-marker {
+  border: 3px solid var(--surface);
+  border-radius: 999px;
+  color: #fff;
+  box-shadow: 0 0.15rem 0.5rem rgba(20, 21, 26, 0.28);
+}
+.route-mode-marker--walk { background: #16a34a; }
+.route-mode-marker--ride { background: #0284c7; }
 .place-details-empty,
 .place-details-card {
   display: flex;

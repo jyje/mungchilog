@@ -1,4 +1,5 @@
-import { Polyline } from "@vis.gl/react-google-maps";
+import { AdvancedMarker, Polyline } from "@vis.gl/react-google-maps";
+import { CarFront, Footprints } from "lucide-react";
 import { useLeg } from "../hooks/useLeg";
 import { isLegacyLegMode, legPreferenceFor, selectedRouteIndex } from "../legPreferences";
 import {
@@ -6,11 +7,14 @@ import {
   routeDirectionIcons,
   routeEmphasis,
   routeSegmentKind,
+  routeSegmentMarkers,
   routeStrokeLayers,
   type RouteEmphasis,
   type RouteSegmentKind,
 } from "../routeStyles";
-import type { LegPreference, Spot } from "../types";
+import type { LegPreference, PersistedLegMode, Spot } from "../types";
+import { Button } from "./ui/button";
+import { TransitVehicleIcon } from "./system/TransitVehicleIcon";
 import type { ItinerarySelection } from "./TripMap";
 
 type Coordinate = { lat: number; lng: number };
@@ -169,6 +173,86 @@ function CasedRoute({
   );
 }
 
+/**
+ * A mode-icon badge at the start of one walk-or-ride run - the T-map-style
+ * "you start walking here" / "board here" cue. Skipped for a dimmed leg (see
+ * RouteLeg): with several legs on a day, lighting every one of these up at
+ * once while another leg is selected reads as clutter, not information.
+ */
+function RouteModeMarker({
+  position,
+  kind,
+  vehicle,
+  mode,
+}: {
+  position: Coordinate;
+  kind: RouteSegmentKind;
+  vehicle: string | null;
+  mode: PersistedLegMode;
+}) {
+  return (
+    <AdvancedMarker position={position}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon-sm"
+        className={`route-mode-marker route-mode-marker--${kind.toLowerCase()}`}
+      >
+        {kind === "WALK" ? (
+          <Footprints aria-hidden="true" />
+        ) : mode === "DRIVE" ? (
+          <CarFront aria-hidden="true" />
+        ) : (
+          <TransitVehicleIcon vehicle={vehicle} />
+        )}
+      </Button>
+    </AdvancedMarker>
+  );
+}
+
+/**
+ * One marker per walk-or-ride run (see routeSegmentMarkers), plus - when the
+ * route has no per-step segments at all (a walk/drive leg, or an old cache
+ * row) - a single marker at the whole line's start standing in for the one
+ * run the leg is entirely made of.
+ */
+function RouteModeMarkers({
+  mode,
+  polyline,
+  segments,
+  transit,
+}: {
+  mode: PersistedLegMode;
+  polyline: string;
+  segments: Array<{ travelMode: string; polyline: string }> | null | undefined;
+  transit: Array<{ vehicle: string | null }> | null;
+}) {
+  if (segments?.length) {
+    return (
+      <>
+        {routeSegmentMarkers(mode, segments, transit).map((marker) => {
+          const [position] = decodeEncodedPolyline(segments[marker.segmentIndex].polyline);
+          if (!position) return null;
+          return (
+            <RouteModeMarker
+              key={marker.segmentIndex}
+              position={position}
+              kind={marker.kind}
+              vehicle={marker.vehicle}
+              mode={mode}
+            />
+          );
+        })}
+      </>
+    );
+  }
+  const [position] = decodeEncodedPolyline(polyline);
+  if (!position) return null;
+  return (
+    <RouteModeMarker position={position} kind={routeSegmentKind(mode)} vehicle={transit?.[0]?.vehicle ?? null} mode={mode} />
+  );
+}
+
 function RouteLeg({
   from,
   to,
@@ -223,6 +307,9 @@ function RouteLeg({
             emphasis={emphasis}
             onSelect={onSelect}
           />
+        )}
+        {emphasis !== "dimmed" && (
+          <RouteModeMarkers mode={mode} polyline={selectedRoute.polyline} segments={segments} transit={selectedRoute.transit ?? null} />
         )}
         <RouteAccessConnectors
           // Deliberately the whole-journey line, not a segment: the connectors

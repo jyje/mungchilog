@@ -8,6 +8,7 @@ import {
   routeDirectionIcons,
   routeEmphasis,
   routeSegmentKind,
+  routeSegmentMarkers,
   routeStrokeLayers,
 } from "../src/routeStyles";
 
@@ -30,6 +31,55 @@ describe("classifying a drawn piece of route", () => {
     // Bicycle and two-wheeler legs are reachable through imports. Drawing them
     // as walking would be a lie; riding is the safe default.
     expect(routeSegmentKind("TRANSIT", "BICYCLE")).toBe("RIDE");
+  });
+});
+
+describe("placing a mode-icon marker at the start of each walk-or-ride run", () => {
+  it("collapses a walk-then-ride-then-walk journey into one marker per run, not one per raw segment", () => {
+    const segments = [
+      { travelMode: "WALK" },
+      { travelMode: "WALK" }, // still walking - same run, no second marker
+      { travelMode: "TRANSIT" },
+      { travelMode: "WALK" },
+    ];
+    const markers = routeSegmentMarkers("TRANSIT", segments, [{ vehicle: "SUBWAY" }]);
+    expect(markers).toEqual([
+      { segmentIndex: 0, kind: "WALK", vehicle: null },
+      { segmentIndex: 2, kind: "RIDE", vehicle: "SUBWAY" },
+      { segmentIndex: 3, kind: "WALK", vehicle: null },
+    ]);
+  });
+
+  it("matches each ride run to the vehicle boarded at that point in the journey, in order", () => {
+    // A transfer: subway, then a walk between platforms, then a bus. Both
+    // lists are already chronological, so the 2nd ride run boards transit[1].
+    const segments = [
+      { travelMode: "TRANSIT" },
+      { travelMode: "WALK" },
+      { travelMode: "TRANSIT" },
+    ];
+    const transit = [{ vehicle: "SUBWAY" }, { vehicle: "BUS" }];
+    const markers = routeSegmentMarkers("TRANSIT", segments, transit);
+    expect(markers.map((marker) => marker.vehicle)).toEqual(["SUBWAY", null, "BUS"]);
+  });
+
+  it("reports no vehicle for a ride run when transit is missing or short", () => {
+    const segments = [{ travelMode: "TRANSIT" }];
+    expect(routeSegmentMarkers("TRANSIT", segments, null)[0].vehicle).toBeNull();
+    expect(routeSegmentMarkers("TRANSIT", segments, [])[0].vehicle).toBeNull();
+  });
+
+  it("a drive or all-walk leg still gets its one marker", () => {
+    expect(routeSegmentMarkers("DRIVE", [{ travelMode: "DRIVE" }], null)).toEqual([
+      { segmentIndex: 0, kind: "RIDE", vehicle: null },
+    ]);
+    expect(routeSegmentMarkers("WALK", [{ travelMode: "WALK" }], null)).toEqual([
+      { segmentIndex: 0, kind: "WALK", vehicle: null },
+    ]);
+  });
+
+  it("an empty segment list places no markers", () => {
+    expect(routeSegmentMarkers("TRANSIT", [], null)).toEqual([]);
   });
 });
 
@@ -152,6 +202,14 @@ describe("walking reads differently from riding", () => {
 
   it("drops the ticks on the selected leg", () => {
     expect(routeDirectionIcons({ kind: "RIDE", emphasis: "selected" })).toEqual([]);
+  });
+
+  it("points forward as a chevron, not a symmetric tick", () => {
+    // A symmetric path (e.g. "M 0,-1 0,1") shows presence but not direction -
+    // this must have the point sitting at the local origin, which is what
+    // leads forward once Google's IconSequence rotates it onto the line.
+    const [icon] = routeDirectionIcons({ kind: "RIDE", emphasis: "default" });
+    expect(icon.icon.path).toBe("M -1,-1 0,0 -1,1");
   });
 });
 

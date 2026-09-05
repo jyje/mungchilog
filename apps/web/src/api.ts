@@ -221,10 +221,12 @@ export function stopLocationSharing(tripId: string, sharingSessionId: string) {
 
 export type LegMode = "DRIVE" | "WALK" | "BICYCLE" | "TRANSIT" | "TWO_WHEELER";
 
-// A routable endpoint: a Place ID when the stop came from Places, or a bare
-// coordinate for a stop dropped straight onto the map (issue 46), which has
-// no Place ID to offer.
-export type LegWaypoint = { placeId: string } | { latLng: { latitude: number; longitude: number } };
+// A routable endpoint: a Place ID, a bare coordinate for a stop dropped
+// straight onto the map (issue 46) which has no Place ID to offer, or both -
+// a search-picked spot has coordinates too, and sending them alongside the
+// Place ID is what lets a Japan-only provider like NAVITIME route a leg that
+// would otherwise be Place-ID-only from the server's point of view.
+export type LegWaypoint = { placeId: string; latLng?: { latitude: number; longitude: number } } | { latLng: { latitude: number; longitude: number } };
 
 export type LegRoute = {
   distanceM: number | null;
