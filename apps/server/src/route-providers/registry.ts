@@ -10,15 +10,21 @@ import type { RouteProvider } from "./types.js";
 //
 // Region is read off the trip's own `timezone` (already part of every
 // /api/legs/compute request, see routes/legs.ts) rather than a coordinate
-// bounding box: a bounding box needs a coordinate, and a Place ID endpoint
-// has none. A trip's timezone is set once and already means "this trip is in
-// Japan" for every other timing decision this server makes, so reusing it
-// costs nothing new here. NAVITIME itself is coordinate-only (see
-// toRequestCoordinate in navitime.ts), so a placeId leg still falls through
-// to Google below even when the timezone matches - a known limitation, not
-// an oversight.
+// bounding box: a bounding box needs a coordinate, and a Place ID-only
+// endpoint has none. A trip's timezone is set once and already means "this
+// trip is in Japan" for every other timing decision this server makes, so
+// reusing it costs nothing new here.
+//
+// NAVITIME itself is coordinate-only (see toRequestCoordinate in
+// navitime.ts), but a placeId endpoint usually carries coordinates too - a
+// search-picked spot has both, and WaypointSchema now preserves the pair
+// instead of the client (or this schema) discarding one. Checking for a
+// coordinate here, not for the *absence* of a placeId, is what lets NAVITIME
+// see those legs at all: almost every real spot comes from search, so
+// requiring bare coordinates would have made this branch fire on map-dropped
+// pins only.
 export function resolveProvider(mode: TravelMode, timezone: string, endpoints: { from: Waypoint; to: Waypoint }): RouteProvider {
-  const bothCoordinates = "latLng" in endpoints.from && "latLng" in endpoints.to;
+  const bothCoordinates = !!endpoints.from.latLng && !!endpoints.to.latLng;
   const wantsNavitime = mode === "TRANSIT" && timezone === "Asia/Tokyo" && bothCoordinates;
   if (wantsNavitime && navitimeRouteProvider.isConfigured()) return navitimeRouteProvider;
   return googleRouteProvider;
