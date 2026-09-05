@@ -74,6 +74,49 @@ export function routeSegmentKind(mode: PersistedLegMode, stepTravelMode?: string
   return mode === "WALK" ? "WALK" : "RIDE";
 }
 
+/** Where a mode-icon badge belongs: the first segment of a walk-or-ride run. */
+export type RouteSegmentMarker = {
+  /** Index into the `segments` array whose first coordinate the marker sits on. */
+  segmentIndex: number;
+  kind: RouteSegmentKind;
+  /** Only set for a RIDE run - which vehicle was boarded, if the provider said. */
+  vehicle: string | null;
+};
+
+/**
+ * One marker per walk-or-ride run, at the run's first segment - a run being a
+ * stretch of consecutive same-kind segments, so a transfer (ride -> walk ->
+ * ride) gets three markers, not one per raw segment. `segments` is provider
+ * step/feature granularity, always finer than or equal to run granularity.
+ *
+ * A RIDE run's vehicle comes from `transit`, matched by position: both lists
+ * are already in the order the journey is travelled, so the Nth RIDE run
+ * boards the Nth vehicle in `transit`. Neither provider tags an individual
+ * segment with its own vehicle, so this positional correlation is the only
+ * link between the two lists.
+ */
+export function routeSegmentMarkers(
+  mode: PersistedLegMode,
+  segments: Array<{ travelMode: string }>,
+  transit: Array<{ vehicle: string | null }> | null,
+): RouteSegmentMarker[] {
+  const markers: RouteSegmentMarker[] = [];
+  let previousKind: RouteSegmentKind | null = null;
+  let rideRunIndex = 0;
+  segments.forEach((segment, segmentIndex) => {
+    const kind = routeSegmentKind(mode, segment.travelMode);
+    if (kind === previousKind) return; // still inside the same run
+    previousKind = kind;
+    if (kind === "WALK") {
+      markers.push({ segmentIndex, kind, vehicle: null });
+      return;
+    }
+    markers.push({ segmentIndex, kind, vehicle: transit?.[rideRunIndex]?.vehicle ?? null });
+    rideRunIndex += 1;
+  });
+  return markers;
+}
+
 export function routeEmphasis(selected: boolean, hasSelection: boolean): RouteEmphasis {
   if (selected) return "selected";
   return hasSelection ? "dimmed" : "default";
@@ -202,9 +245,9 @@ export type RouteDirectionIcon = {
 };
 
 /**
- * The repeated perpendicular ticks that show direction of travel along a line.
- * A selected leg gets none: it is already thick and amber-cased, and ticks on
- * top of that read as noise.
+ * The repeated chevrons that show direction of travel along a line, like a
+ * transit map's ">>>" marks. A selected leg gets none: it is already thick
+ * and amber-cased, and chevrons on top of that read as noise.
  */
 export function routeDirectionIcons(input: { kind: RouteSegmentKind; emphasis: RouteEmphasis }): RouteDirectionIcon[] {
   if (input.emphasis === "selected") return [];
@@ -212,10 +255,13 @@ export function routeDirectionIcons(input: { kind: RouteSegmentKind; emphasis: R
   return [
     {
       icon: {
-        path: "M 0,-1 0,1",
+        // A chevron, not a symmetric tick: Google's IconSequence rotates a
+        // path's local +x axis to face the line's direction of travel, so
+        // the point sitting at the local origin (0,0) is what leads forward.
+        path: "M -1,-1 0,0 -1,1",
         strokeColor: ROUTE_LINE_COLORS.casing,
         strokeOpacity: input.emphasis === "dimmed" ? 0.5 : 0.9,
-        scale: dense ? 2 : 3,
+        scale: dense ? 2.5 : 3.5,
       },
       offset: "0",
       // A tighter rhythm on foot segments so they read as a dotted path even

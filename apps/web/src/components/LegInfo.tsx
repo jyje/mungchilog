@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BusFront, CarFront, Footprints, Route, TrainFront, TramFront } from "lucide-react";
+import { CarFront, Footprints, Route, TrainFront } from "lucide-react";
 import { useLeg } from "../hooks/useLeg";
 import { formatZonedClock, legEndpoints, resolveLegAnchor } from "../legTiming";
 import { directDistanceMeters, isLegacyLegMode, LEG_MODE_OPTIONS, selectedRouteIndex } from "../legPreferences";
@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Switch } from "./ui/switch";
 import { PlannerChoiceGroup, PlannerChoiceItem } from "./system/PlannerChoiceGroup";
+import { TransitVehicleIcon } from "./system/TransitVehicleIcon";
 
 const ROUTE_BADGE_LABELS: Record<RouteBadge, string> = {
   recommended: "추천",
@@ -27,12 +28,6 @@ function formatDuration(seconds: number): string {
   const mins = Math.round(seconds / 60);
   if (mins < 60) return `${mins}분`;
   return `${Math.floor(mins / 60)}시간 ${mins % 60}분`;
-}
-
-function TransitVehicleIcon({ vehicle }: { vehicle: string | null | undefined }) {
-  const normalized = vehicle?.toUpperCase() ?? "";
-  const Icon = normalized.includes("BUS") ? BusFront : normalized.includes("TRAM") ? TramFront : TrainFront;
-  return <Icon aria-hidden="true" />;
 }
 
 function modeSummaryIcon(mode: PersistedLegMode) {
