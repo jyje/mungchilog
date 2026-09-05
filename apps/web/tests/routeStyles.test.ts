@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   connectorStroke,
+  FORWARD_ARROW_ICON,
   ROUTE_LINE_COLORS,
   ROUTE_LINE_LEGEND,
   ROUTE_LINE_WIDTH_PX,
@@ -190,13 +191,15 @@ describe("walking reads differently from riding", () => {
     expect(parseInt(walk.repeat, 10)).toBeLessThan(parseInt(ride.repeat, 10));
   });
 
-  it("never references a google.maps symbol constant", () => {
+  it("never references a google.maps symbol constant directly", () => {
     // The module must stay importable under jsdom, where no Maps API exists.
-    // A SymbolPath constant here would break every test that loads it.
+    // A live SymbolPath constant here would break every test that loads it -
+    // the sentinel string is resolved to the real constant only in
+    // RouteOverlay.tsx, which runs in the browser.
     for (const kind of ["RIDE", "WALK"] as const) {
       const [icon] = routeDirectionIcons({ kind, emphasis: "default" });
       expect(typeof icon.icon.path).toBe("string");
-      expect(icon.icon.path).toMatch(/^[Mm]/);
+      expect(icon.icon.path).toBe(FORWARD_ARROW_ICON);
     }
   });
 
@@ -204,12 +207,15 @@ describe("walking reads differently from riding", () => {
     expect(routeDirectionIcons({ kind: "RIDE", emphasis: "selected" })).toEqual([]);
   });
 
-  it("points forward as a chevron, not a symmetric tick", () => {
-    // A symmetric path (e.g. "M 0,-1 0,1") shows presence but not direction -
-    // this must have the point sitting at the local origin, which is what
-    // leads forward once Google's IconSequence rotates it onto the line.
+  it("points forward as a filled arrowhead, not a symmetric tick", () => {
+    // Two hand-drawn attempts (a symmetric tick, then a custom filled
+    // triangle) both failed to read as a directional arrow once drawn on a
+    // real curving route - confirmed live, not just reasoned about from the
+    // code. Google's own FORWARD_CLOSED_ARROW replaces both.
     const [icon] = routeDirectionIcons({ kind: "RIDE", emphasis: "default" });
-    expect(icon.icon.path).toBe("M -1,-1 0,0 -1,1");
+    expect(icon.icon.path).toBe(FORWARD_ARROW_ICON);
+    expect(icon.icon.fillOpacity).toBeGreaterThan(0);
+    expect(icon.icon.strokeOpacity).toBeGreaterThan(0);
   });
 });
 
