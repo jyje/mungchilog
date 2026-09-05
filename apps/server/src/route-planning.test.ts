@@ -62,6 +62,7 @@ test("cache keys separate every input that can change the returned route", () =>
     timingKind: "AUTO" as const,
     alternatives: true,
     trafficAware: false,
+    provider: "google" as const,
   };
   const key = cacheKey(base);
 
@@ -73,6 +74,9 @@ test("cache keys separate every input that can change the returned route", () =>
   // A user-chosen departure must not read a bucket filled by a derived one.
   assert.notEqual(key, cacheKey({ ...base, timingKind: "DEPART_AT" }));
   assert.notEqual(key, cacheKey({ ...base, timingKind: "ARRIVE_BY" }));
+  // A Google-served cache row and a NAVITIME-served one must never share a
+  // slot - they can answer the same (from, to, mode) with different journeys.
+  assert.notEqual(key, cacheKey({ ...base, provider: "navitime" }));
   // Same inputs must be stable across calls, or nothing would ever cache-hit.
   assert.equal(key, cacheKey({ ...base }));
   // The geometry/schema version participates, so old entries cannot be read.
