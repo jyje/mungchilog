@@ -32,7 +32,9 @@ type ApiLeg = { steps?: ApiStep[] };
 // genuinely exists on that corridor. transitRouteDetails() already returns
 // null when a route has no TRANSIT step, so that's the whole check - reject
 // rather than cache and draw a route that was never actually transit.
-function isViableTransitRoute(mode: TravelMode, legs: ApiLeg[] | undefined): boolean {
+// Exported for a direct unit test (route-providers/google.test.ts) - the
+// filter needs no network to exercise, only the parsed-response shape.
+export function isViableTransitRoute(mode: TravelMode, legs: ApiLeg[] | undefined): boolean {
   return mode !== "TRANSIT" || transitRouteDetails(legs) !== null;
 }
 
