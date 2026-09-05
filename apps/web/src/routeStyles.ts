@@ -267,6 +267,15 @@ export type RouteDirectionIcon = {
  * The repeated arrowheads that show direction of travel along a line, like a
  * transit map's ">>>" marks. A selected leg gets none: it is already thick
  * and amber-cased, and arrowheads on top of that read as noise.
+ *
+ * Scale is kept small on purpose: the route line itself is only 3-4px wide
+ * (ROUTE_LINE_WIDTH_PX), and an arrow scaled to read clearly on its own
+ * poked out past both edges of the line - confirmed live, it looked like the
+ * line was tearing rather than carrying a direction marker. The arrow has to
+ * nest inside the line's own width, not compete with it. Repeat is wide for
+ * the same live-verified reason: at the tighter rhythm this replaced, a
+ * multi-kilometre route rendered dozens of arrows close enough to blur into
+ * a dashed texture instead of a few legible, well-spaced direction cues.
  */
 export function routeDirectionIcons(input: { kind: RouteSegmentKind; emphasis: RouteEmphasis }): RouteDirectionIcon[] {
   if (input.emphasis === "selected") return [];
@@ -279,12 +288,10 @@ export function routeDirectionIcons(input: { kind: RouteSegmentKind; emphasis: R
         fillOpacity: input.emphasis === "dimmed" ? 0.5 : 0.95,
         strokeColor: ROUTE_LINE_COLORS.casing,
         strokeOpacity: input.emphasis === "dimmed" ? 0.5 : 0.95,
-        scale: dense ? 2.2 : 3,
+        scale: dense ? 1.3 : 1.5,
       },
       offset: "0",
-      // Wider than the old tick rhythm: a solid triangle needs breathing room
-      // on both sides or consecutive arrowheads blur into a solid wedge.
-      repeat: dense ? "14px" : "20px",
+      repeat: dense ? "50px" : "70px",
     },
   ];
 }
