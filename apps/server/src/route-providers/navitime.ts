@@ -1,4 +1,4 @@
-import type { TransitRouteDetail, Waypoint } from "../route-planning.js";
+import type { RouteSegment, TransitRouteDetail, Waypoint } from "../route-planning.js";
 import { routeFingerprint } from "../route-planning.js";
 import { encodeLineStringToPolyline } from "./polylineEncoding.js";
 import type { ProviderRoute, RouteProvider } from "./types.js";
@@ -81,33 +81,61 @@ function navitimeTransitDetails(sections: NavitimeSection[]): TransitRouteDetail
   return details.length > 0 ? details : null;
 }
 
-// v1 scope: the whole-journey polyline comes from a second call to
+type NavitimeShapeFeature = {
+  geometry?: { type?: string; coordinates?: Array<[number, number]> };
+  // "walk" or "transport" per feature - verified against a live account.
+  // Only present at all when the request asks for it (see `options` below);
+  // without it every feature comes back labelled "walk" regardless of what
+  // it actually draws, which is how a real train ride went unnoticed as a
+  // straight line for a while.
+  properties?: { ways?: string };
+};
+
+// The whole-journey polyline and the walk-vs-ride segments both come from
 // shape_transit (NAVITIME documents this as the geometry-bearing sibling of
-// route_transit, not a flag on route_transit itself). Per-segment polylines
-// (walk-to-station vs. the ride, the way Google's `segments` lets the map
-// draw them differently) are deliberately left null here: matching each
-// shape_transit LineString feature back to its own route_transit section
-// needs verifying against a real response, which isn't possible without a
-// provisioned API key (see the plan's "검증의 한계" note). A NAVITIME route
-// still draws as a single whole-journey line, same as any old cache entry
-// predating per-segment geometry.
-async function fetchShapePolyline(host: string, apiKey: string, params: URLSearchParams): Promise<string | null> {
+// route_transit, not a flag on route_transit itself) - one request serves
+// both call sites, matching the Google provider's mask, which asks for
+// step-level geometry only where it draws anything different from the
+// whole-journey line.
+async function fetchShapeGeometry(
+  host: string,
+  apiKey: string,
+  params: URLSearchParams,
+): Promise<{ polyline: string | null; segments: RouteSegment[] | null }> {
   const url = new URL(`https://${host}/shape_transit`);
   for (const [key, value] of params) url.searchParams.set(key, value);
+  // Without this, shape_transit still returns geometry but every feature is
+  // labelled "walk" - including the actual train ride - so segment kind
+  // can't be told apart from it at all. With it, a feature covering an
+  // actual vehicle leg comes back "transport" instead.
+  url.searchParams.set("options", "transport_shape");
   const res = await fetch(url, { headers: { "X-RapidAPI-Key": apiKey, "X-RapidAPI-Host": host } });
-  if (!res.ok) return null;
+  if (!res.ok) return { polyline: null, segments: null };
   // The response is a bare GeoJSON FeatureCollection, verified against a live
   // account - not `{ shapes: { features: [...] } }` as the spec doc's own
   // example suggested. Getting this wrong doesn't error, it just silently
   // returns no geometry, which is how it went unnoticed until now.
-  const data = (await res.json().catch(() => null)) as {
-    features?: Array<{ geometry?: { type?: string; coordinates?: Array<[number, number]> } }>;
-  } | null;
-  const features = data?.features ?? [];
-  const coordinates = features.flatMap((feature) =>
-    feature.geometry?.type === "LineString" ? (feature.geometry.coordinates ?? []) : [],
+  const data = (await res.json().catch(() => null)) as { features?: NavitimeShapeFeature[] } | null;
+  const lineFeatures = (data?.features ?? []).filter(
+    (feature): feature is NavitimeShapeFeature & { geometry: { coordinates: Array<[number, number]> } } =>
+      feature.geometry?.type === "LineString" && (feature.geometry.coordinates?.length ?? 0) > 0,
   );
-  return coordinates.length > 0 ? encodeLineStringToPolyline(coordinates) : null;
+
+  const polyline =
+    lineFeatures.length > 0
+      ? encodeLineStringToPolyline(lineFeatures.flatMap((feature) => feature.geometry.coordinates))
+      : null;
+
+  // One feature per drawable stretch, in the order the journey is travelled -
+  // NAVITIME already splits at every turn, node, or mode change, finer than
+  // Google's per-step granularity but the same shape the client already
+  // knows how to draw one polyline per entry.
+  const segments = lineFeatures.map((feature) => ({
+    travelMode: (feature.properties?.ways === "transport" ? "TRANSIT" : "WALK") as RouteSegment["travelMode"],
+    polyline: encodeLineStringToPolyline(feature.geometry.coordinates),
+  }));
+
+  return { polyline, segments: segments.length > 0 ? segments : null };
 }
 
 function toRequestCoordinate(waypoint: Waypoint): string {
@@ -170,19 +198,36 @@ export async function fetchNavitimeRoutes(
   const data = (await res.json()) as { items?: NavitimeItem[] };
   if (!data.items?.length) throw new Error("NAVITIME returned no routes");
 
-  const polyline = await fetchShapePolyline(host, apiKey, params).catch(() => null);
+  const items = data.items.slice(0, 4);
+
+  // Unlike Google - whose one computeRoutes call carries every alternative's
+  // geometry already - shape_transit answers for exactly one route number at
+  // a time (route_transit's own items are ordered but carry no geometry of
+  // their own). Fetching one per alternative, in parallel, is what makes
+  // every alternative drawable and selectable on the map, not just the
+  // recommended one - verified live: `no=1..4` for the same leg returns
+  // genuinely distinct feature sets (e.g. 34/34/40/34 features), not the
+  // first route repeated.
+  const shapes = await Promise.all(
+    items.map((_, index) => {
+      const perRouteParams = new URLSearchParams(params);
+      perRouteParams.set("no", String(index + 1));
+      return fetchShapeGeometry(host, apiKey, perRouteParams).catch(() => ({ polyline: null, segments: null }));
+    }),
+  );
 
   return {
-    routes: data.items.slice(0, 4).map((item, index) => {
+    routes: items.map((item, index) => {
       const schedule = navitimeSchedule(item.sections);
       const totals = item.summary.move;
+      const shape = shapes[index];
       const summary = {
         distanceM: totals.distance ?? null,
         durationS: totals.time != null ? Math.round(totals.time * 60) : null,
         fareAmount: totals.fare?.unit_0 ?? null,
         // NAVITIME only covers Japan, so the currency is never ambiguous.
         fareCurrency: totals.fare?.unit_0 != null ? "JPY" : null,
-        polyline: index === 0 ? polyline : null,
+        polyline: shape.polyline,
         // No Google-style route-label concept; approximate by position -
         // the first item is NAVITIME's own top recommendation.
         label: (index === 0 ? "DEFAULT_ROUTE" : "DEFAULT_ROUTE_ALTERNATE") as "DEFAULT_ROUTE" | "DEFAULT_ROUTE_ALTERNATE",
@@ -190,10 +235,10 @@ export async function fetchNavitimeRoutes(
         arrivalTime: schedule.arrivalTime,
         transit: navitimeTransitDetails(item.sections),
       };
-      // segments stays null for the reason in fetchShapePolyline's comment -
-      // never fed into routeFingerprint either way (same rule as the Google
-      // provider: geometry never participates in the journey's identity).
-      return { ...summary, key: routeFingerprint(summary), segments: null };
+      // Geometry never participates in the journey's identity - same rule as
+      // the Google provider - so segments is attached after the fingerprint,
+      // never fed into it.
+      return { ...summary, key: routeFingerprint(summary), segments: shape.segments };
     }),
   };
 }

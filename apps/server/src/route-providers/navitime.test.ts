@@ -42,12 +42,16 @@ const ROUTE_TRANSIT_FIXTURE = {
 
 // shape_transit's real response is a bare GeoJSON FeatureCollection, not
 // `{ shapes: { features: [...] } }` - also caught only by testing against a
-// live account, since the spec doc's own example is nested that way.
+// live account, since the spec doc's own example is nested that way. Each
+// feature's `properties.ways` ("walk" or "transport") is only present at all
+// when the request carries `options=transport_shape` - without it every
+// feature, including the real train ride, comes back "walk".
 const SHAPE_TRANSIT_FIXTURE = {
   type: "FeatureCollection",
   features: [
-    { geometry: { type: "LineString", coordinates: [[135.4959, 34.7025], [135.5, 34.7]] } },
-    { geometry: { type: "LineString", coordinates: [[135.5, 34.7], [135.5091, 34.6929]] } },
+    { geometry: { type: "LineString", coordinates: [[135.4959, 34.7025], [135.499, 34.701]] }, properties: { ways: "walk" } },
+    { geometry: { type: "LineString", coordinates: [[135.499, 34.701], [135.5, 34.7]] }, properties: { ways: "transport" } },
+    { geometry: { type: "LineString", coordinates: [[135.5, 34.7], [135.5091, 34.6929]] }, properties: { ways: "walk" } },
   ],
 };
 
@@ -91,24 +95,94 @@ test("a NAVITIME route maps onto the provider-neutral shape the client expects",
       { vehicle: "BUS", line: "Osaka City Bus 62", headsign: null },
     ]);
 
-    // The two shape_transit LineString features are concatenated and
+    // The three shape_transit LineString features are concatenated and
     // re-encoded in Google's polyline format, so the client never needs to
     // know which provider answered.
     assert.equal(
       route.polyline,
       encodeLineStringToPolyline([
         [135.4959, 34.7025],
+        [135.499, 34.701],
+        [135.499, 34.701],
         [135.5, 34.7],
         [135.5, 34.7],
         [135.5091, 34.6929],
       ]),
     );
 
+    // Each feature draws as its own segment - walk, ride, walk - so the map
+    // can colour the ride differently from the walk to/from the station,
+    // same as a Google-sourced route.
+    assert.deepEqual(
+      route.segments?.map((segment) => segment.travelMode),
+      ["WALK", "TRANSIT", "WALK"],
+    );
+    assert.equal(route.segments?.[1].polyline, encodeLineStringToPolyline([[135.499, 34.701], [135.5, 34.7]]));
+
     // Geometry never participates in the journey's identity - same rule as
     // the Google provider.
     assert.equal(typeof route.key, "string");
   } finally {
     restore();
+  }
+});
+
+test("the shape request asks for transport_shape, or every feature comes back mislabelled walk", async () => {
+  const seenUrls: string[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    seenUrls.push(url);
+    const body = url.includes("/shape_transit") ? SHAPE_TRANSIT_FIXTURE : ROUTE_TRANSIT_FIXTURE;
+    return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    await fetchNavitimeRoutes("test-key", "navitime-route-totalnavi.p.rapidapi.com", FROM, TO, {});
+    const shapeUrl = seenUrls.find((url) => url.includes("/shape_transit"));
+    assert.equal(new URL(shapeUrl!).searchParams.get("options"), "transport_shape");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("every alternative gets its own geometry, not just the recommended one", async () => {
+  // Unlike Google (one call returns every alternative's geometry already),
+  // shape_transit answers for exactly one route number at a time. Selecting
+  // an alternative used to fall back to a straight line because only route 1
+  // ever had a polyline or segments at all.
+  const twoItems = {
+    items: [
+      { summary: { move: { time: 22, distance: 4200 } }, sections: [] },
+      { summary: { move: { time: 25, distance: 4600 } }, sections: [] },
+    ],
+  };
+  const seenNos: string[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    if (!url.pathname.includes("/shape_transit")) {
+      return new Response(JSON.stringify(twoItems), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    const no = url.searchParams.get("no")!;
+    seenNos.push(no);
+    // A distinct feature per route number, so each alternative's polyline is
+    // provably its own rather than one shared fetch reused for every index.
+    const body = {
+      type: "FeatureCollection",
+      features: [{ geometry: { type: "LineString", coordinates: [[135, Number(no)]] }, properties: { ways: "walk" } }],
+    };
+    return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+  }) as typeof fetch;
+  try {
+    const result = await fetchNavitimeRoutes("test-key", "navitime-route-totalnavi.p.rapidapi.com", FROM, TO, {});
+    assert.deepEqual(seenNos.sort(), ["1", "2"]);
+    assert.equal(result.routes.length, 2);
+    assert.ok(result.routes[0].polyline);
+    assert.ok(result.routes[1].polyline);
+    assert.notEqual(result.routes[0].polyline, result.routes[1].polyline);
+    assert.equal(result.routes[1].label, "DEFAULT_ROUTE_ALTERNATE");
+  } finally {
+    globalThis.fetch = original;
   }
 });
 
