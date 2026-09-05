@@ -12,11 +12,22 @@ import { z } from "zod";
 export const TRAVEL_MODES = ["DRIVE", "WALK", "BICYCLE", "TRANSIT", "TWO_WHEELER"] as const;
 export type TravelMode = (typeof TRAVEL_MODES)[number];
 
+// Which backend actually answers a route request (see route-providers/). Owned
+// here, not in route-providers/types.ts, so cacheKey can reference it without
+// a route-planning <-> route-providers import cycle.
+export const ROUTE_PROVIDER_IDS = ["google", "navitime"] as const;
+export type RouteProviderId = (typeof ROUTE_PROVIDER_IDS)[number];
+
 // A route shape is cached alongside its journey summary. Bump this whenever
 // the requested geometry, the endpoint encoding, or the timing semantics
 // change, so an old cache entry cannot conceal a newly correct route for the
 // entire 30-day TTL. Keep in sync with apps/web/src/hooks/useLeg.ts.
-export const ROUTE_GEOMETRY_VERSION = "route-segments-v5";
+//
+// v6: cacheKey() now includes the provider id. Once a second provider
+// (NAVITIME) can answer the same (from, to, mode), a Google-served cache row
+// and a NAVITIME-served one must never share a slot - they are genuinely
+// different answers, not interchangeable cache hits.
+export const ROUTE_GEOMETRY_VERSION = "route-segments-v6";
 
 // An endpoint is either a Place ID or a bare coordinate. Coordinates are what
 // make map-picked stops (issue 46) routable at all - they have no placeId.
@@ -74,6 +85,7 @@ export function cacheKey(input: {
   timingKind: TimingKind;
   alternatives: boolean;
   trafficAware: boolean;
+  provider: RouteProviderId;
 }): string {
   return [
     input.fromRef,
@@ -83,6 +95,7 @@ export function cacheKey(input: {
     input.timingKind,
     input.alternatives ? "alternatives" : "primary",
     input.trafficAware ? "traffic" : "standard",
+    input.provider,
     ROUTE_GEOMETRY_VERSION,
   ].join("|");
 }
