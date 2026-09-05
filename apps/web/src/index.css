@@ -1010,7 +1010,14 @@ body.trip-panel-resizing { cursor: col-resize; }
 .spot-card {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(4.75rem, 5.75rem) minmax(0, 1fr);
+  /* Fixed, not minmax(): .spot-card and .leg-row are each their own
+     independent grid (no shared parent grid/subgrid across the list), so a
+     flexible column would size to that row's own content. A spot's real
+     "22:05" time text stretched this to its max while a leg-row's empty
+     dashed line collapsed toward the min, so the content column started at a
+     different x per row - the leg card visibly sat left of the spot above
+     it. A fixed width guarantees identical column 1 width everywhere. */
+  grid-template-columns: 4.75rem minmax(0, 1fr);
   gap: 0.5rem;
   align-items: stretch;
 }
@@ -1537,7 +1544,13 @@ button.ghost {
 .leg-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(4.75rem, 5.75rem) minmax(0, 1fr);
+  /* Must stay pixel-identical to .spot-card's column 1 and gap - see the
+     comment there. A fixed column 1 alone wasn't enough: .spot-card also
+     sets gap: 0.5rem between its two columns, which .leg-row never declared
+     (grid gap defaults to 0), so column 2 still started 8px further left
+     here than on a spot card even after the column widths matched. */
+  grid-template-columns: 4.75rem minmax(0, 1fr);
+  gap: 0.5rem;
   min-height: 3rem;
   padding: 0.1rem 0;
 }
@@ -1552,6 +1565,14 @@ button.ghost {
 .leg-row .leg-info {
   grid-column: 2;
   display: grid;
+  /* Without an explicit track, a grid container's implicit column sizes to
+     its widest child's content (max-content) rather than to the container's
+     own available width - this is what actually let a long route-picker
+     label blow the card out past the leg-row's column 2, `max-width: 100%`
+     on this element notwithstanding: that caps .leg-info's own outer box,
+     not the auto-sized track running inside it. minmax(0, 1fr) makes the
+     one column shrinkable to the available space like a normal block. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.35rem;
   max-width: 100%;
   padding: 0.4rem 0.55rem;
@@ -1655,10 +1676,26 @@ button.ghost {
   gap: 0.45rem;
   cursor: pointer;
 }
+/* A flex/grid item defaults to min-width: auto, which refuses to shrink
+   below its content's natural (unwrapped) width - this chain of grid item
+   (.leg-route-picker inside .leg-info) then flex item (.leg-route-option)
+   then its label span is exactly why a long alternative label ("추천 · 최소
+   시간 (1시간 25분 · 37.6km · 12:00→13:25 · JPY870)") pushed the whole card
+   474px wide on a ~260px phone screen instead of wrapping. min-width: 0 at
+   each level lets the normal text-wrapping behaviour actually apply. */
+.leg-route-option {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.leg-route-option span {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
 .leg-route-picker {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
@@ -1737,8 +1774,13 @@ button.ghost {
   gap: 0.45rem;
 }
 @media (max-width: 520px) {
+  /* Fixed, not minmax() - see the comment on .spot-card above. Sharing one
+     declaration for both selectors isn't enough on its own: each row is
+     still its own independent grid, so even an identical minmax() range
+     resolves to a different actual width per row depending on that row's
+     own content. */
   .spot-card,
-  .leg-row { grid-template-columns: minmax(4.1rem, 4.75rem) minmax(0, 1fr); }
+  .leg-row { grid-template-columns: 4.1rem minmax(0, 1fr); }
   .timeline-time { padding-right: 0.72rem; }
   .itinerary-group-header { margin-left: 4.1rem; }
 }
