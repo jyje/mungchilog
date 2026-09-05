@@ -70,3 +70,22 @@ describe("the leg connector reads as a real line, not a maybe", () => {
     expect(block).not.toMatch(/dashed|dotted/);
   });
 });
+
+describe("the timeline node connects directly to its leg's line, no floating gap", () => {
+  it("draws a continuing line from the node down to the bottom of a spot card that has a following leg", () => {
+    // .spot-card and .leg-row are separate <li>s, so .leg-row::before's line
+    // only ever spans its own (short) row - it never reached up into the
+    // spot card above it. Any spot card taller than its node (any card with
+    // items, notes, opening hours, etc.) left a visibly blank stretch below
+    // the number before the connector line picked back up in the next row.
+    const block = blockFor(".spot-card.has-next-leg .timeline-schedule::after");
+    expect(block).toMatch(/background:\s*var\(--text-muted\)/);
+    expect(block).toMatch(/bottom:\s*0/);
+  });
+
+  it("only draws that line when a leg actually follows (not on the day's last spot)", () => {
+    // Without gating on .has-next-leg, the last spot of the day would trail
+    // a line into nothing below it.
+    expect(css).toMatch(/\.spot-card\.has-next-leg\s+\.timeline-schedule::after/);
+  });
+});

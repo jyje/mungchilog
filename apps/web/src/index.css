@@ -1073,6 +1073,9 @@ body.trip-panel-resizing { cursor: col-resize; }
   right: -0.35rem;
   width: 0.72rem;
   height: 0.72rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 2px solid var(--accent);
   border-radius: 999px;
   background: var(--surface);
@@ -1080,6 +1083,44 @@ body.trip-panel-resizing { cursor: col-resize; }
 }
 .timeline-schedule.unscheduled .timeline-node {
   border-color: var(--text-muted);
+}
+.timeline-node.has-number {
+  /* Big enough to hold a 1-2 digit number legibly; filled with the same
+     color as the map pin it corresponds to, so the two read as one marker. */
+  width: 1.1rem;
+  height: 1.1rem;
+  background: var(--accent);
+}
+.timeline-schedule.unscheduled .timeline-node.has-number {
+  background: var(--text-muted);
+}
+.timeline-node-number {
+  font-size: 0.62rem;
+  font-weight: 750;
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+/* The vertical line connecting this spot's node to the next leg's own line
+   (.leg-row::before) - without it, a spot card taller than the node (any
+   card with items, notes, etc.) left a blank stretch of nothing between the
+   number and where the dashed/solid connector picked back up, so the two
+   looked disconnected instead of one continuous timeline. Drawn only when a
+   leg actually follows this spot (.has-next-leg), so the last spot of a day
+   doesn't trail a line into empty space. */
+.spot-card.has-next-leg .timeline-schedule::after {
+  content: "";
+  position: absolute;
+  top: calc(1.28rem + 0.72rem / 2);
+  right: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--text-muted);
+}
+/* The numbered node is bigger than the plain dot (see .timeline-node.has-number
+   above) - start the line at its actual bottom edge, not the smaller dot's. */
+.spot-card.has-next-leg .timeline-schedule:has(.timeline-node.has-number)::after {
+  top: calc(1.28rem + 1.1rem / 2);
 }
 .drag-handle {
   color: var(--text-muted);
