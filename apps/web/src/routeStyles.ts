@@ -117,6 +117,33 @@ export function routeSegmentMarkers(
   return markers;
 }
 
+/**
+ * Which segments belong to the Nth ride run (0-based among RIDE runs only,
+ * same order as `transit`/transitSummary() and routeSegmentMarkers()'s own
+ * ride-run counter) - what lets clicking one boarded vehicle in the leg
+ * summary highlight just that vehicle's stretch of the polyline instead of
+ * the whole leg. Walking segments never match; there is nothing "the Nth
+ * walk" would mean to a rider clicking a vehicle name.
+ */
+export function routeSegmentsInRideRun(
+  mode: PersistedLegMode,
+  segments: Array<{ travelMode: string }>,
+  rideRunIndex: number,
+): boolean[] {
+  const inRun: boolean[] = new Array(segments.length).fill(false);
+  let previousKind: RouteSegmentKind | null = null;
+  let currentRideRun = -1;
+  segments.forEach((segment, index) => {
+    const kind = routeSegmentKind(mode, segment.travelMode);
+    if (kind !== previousKind) {
+      previousKind = kind;
+      if (kind === "RIDE") currentRideRun += 1;
+    }
+    inRun[index] = kind === "RIDE" && currentRideRun === rideRunIndex;
+  });
+  return inRun;
+}
+
 export function routeEmphasis(selected: boolean, hasSelection: boolean): RouteEmphasis {
   if (selected) return "selected";
   return hasSelection ? "dimmed" : "default";

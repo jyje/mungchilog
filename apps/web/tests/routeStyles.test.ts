@@ -10,6 +10,7 @@ import {
   routeEmphasis,
   routeSegmentKind,
   routeSegmentMarkers,
+  routeSegmentsInRideRun,
   routeStrokeLayers,
 } from "../src/routeStyles";
 
@@ -81,6 +82,38 @@ describe("placing a mode-icon marker at the start of each walk-or-ride run", () 
 
   it("an empty segment list places no markers", () => {
     expect(routeSegmentMarkers("TRANSIT", [], null)).toEqual([]);
+  });
+});
+
+describe("highlighting just the one boarded vehicle a rider clicked", () => {
+  it("marks only the segments belonging to the Nth ride run", () => {
+    // subway, walk (transfer), bus - clicking the bus in the leg summary
+    // must highlight only its own segment, not the subway's.
+    const segments = [
+      { travelMode: "TRANSIT" },
+      { travelMode: "WALK" },
+      { travelMode: "TRANSIT" },
+    ];
+    expect(routeSegmentsInRideRun("TRANSIT", segments, 0)).toEqual([true, false, false]);
+    expect(routeSegmentsInRideRun("TRANSIT", segments, 1)).toEqual([false, false, true]);
+  });
+
+  it("spans every raw segment of a multi-segment ride run", () => {
+    // A single ride can arrive as several provider steps/features - all of
+    // them belong to the same ride run and must all highlight together.
+    const segments = [
+      { travelMode: "WALK" },
+      { travelMode: "TRANSIT" },
+      { travelMode: "TRANSIT" },
+      { travelMode: "TRANSIT" },
+      { travelMode: "WALK" },
+    ];
+    expect(routeSegmentsInRideRun("TRANSIT", segments, 0)).toEqual([false, true, true, true, false]);
+  });
+
+  it("matches nothing for a walk-only leg or an out-of-range run index", () => {
+    expect(routeSegmentsInRideRun("WALK", [{ travelMode: "WALK" }], 0)).toEqual([false]);
+    expect(routeSegmentsInRideRun("TRANSIT", [{ travelMode: "TRANSIT" }], 3)).toEqual([false]);
   });
 });
 

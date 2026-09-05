@@ -8,6 +8,7 @@ import {
   routeEmphasis,
   routeSegmentKind,
   routeSegmentMarkers,
+  routeSegmentsInRideRun,
   routeStrokeLayers,
   type RouteEmphasis,
   type RouteSegmentKind,
@@ -273,6 +274,7 @@ function RouteLeg({
   timezone,
   preference,
   selected,
+  rideRunIndex,
   hasSelection,
   onSelect,
 }: {
@@ -282,6 +284,9 @@ function RouteLeg({
   timezone: string;
   preference: LegPreference;
   selected: boolean;
+  // Set only when a specific boarded vehicle (not the whole leg) was
+  // clicked in LegInfo's summary - see routeSegmentsInRideRun().
+  rideRunIndex?: number;
   hasSelection: boolean;
   onSelect: () => void;
 }) {
@@ -301,6 +306,12 @@ function RouteLeg({
     // - a walk or drive leg, or an entry cached before step geometry was
     // requested - is one uniform line.
     const segments = selectedRoute.segments;
+    // A ride-run selection narrows "selected" down to just that run's
+    // segments; every other segment of this same leg (including its own
+    // walk portions) falls back to "default", not dimmed - it's still the
+    // selected leg, just not the part being pointed at.
+    const inTargetRun =
+      selected && rideRunIndex != null && segments?.length ? routeSegmentsInRideRun(mode, segments, rideRunIndex) : null;
     return (
       <>
         {segments?.length ? (
@@ -309,7 +320,7 @@ function RouteLeg({
               key={`${index}:${segment.polyline.slice(0, 16)}`}
               encodedPath={segment.polyline}
               kind={routeSegmentKind(mode, segment.travelMode)}
-              emphasis={emphasis}
+              emphasis={inTargetRun ? (inTargetRun[index] ? "selected" : "default") : emphasis}
               onSelect={onSelect}
             />
           ))
@@ -389,6 +400,11 @@ export function RouteOverlay({
           timezone={timezone}
           preference={legPreferenceFor(legPreferences, spot.id, sorted[i + 1].id)}
           selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
+          rideRunIndex={
+            selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id
+              ? selection.rideRunIndex
+              : undefined
+          }
           hasSelection={selection !== null}
           onSelect={() => onSelect({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
         />

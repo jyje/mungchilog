@@ -606,7 +606,12 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
           timezone={tripTimezone}
           preference={preference}
           selected={selection?.kind === "leg" && selection.fromId === from.id && selection.toId === to.id}
-          onSelect={() => selectItinerary({ kind: "leg", fromId: from.id, toId: to.id })}
+          selectedRideRunIndex={
+            selection?.kind === "leg" && selection.fromId === from.id && selection.toId === to.id
+              ? selection.rideRunIndex
+              : undefined
+          }
+          onSelect={(rideRunIndex) => selectItinerary({ kind: "leg", fromId: from.id, toId: to.id, rideRunIndex })}
           onChange={(patch) => saveLegPreference(from.id, to.id, patch)}
         />
       </li>
