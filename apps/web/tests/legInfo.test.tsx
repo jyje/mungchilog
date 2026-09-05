@@ -183,7 +183,7 @@ describe("route alternatives", () => {
     useLegMock.mockReturnValue({ data: legOf([{ durationS: 600 }, { durationS: 1500 }]), isError: false, isLoading: false });
     renderLeg();
     // AUTO timing: 09:00 arrival + 30m dwell = 09:30 departure, +10m = 09:40.
-    expect(screen.getByLabelText(/추천 경로/).closest("label")).toHaveTextContent("10분 · 1.0km · 09:30→09:40");
+    expect(screen.getByLabelText(/추천/).closest("label")).toHaveTextContent("10분 · 1.0km · 09:30→09:40");
     expect(screen.getByLabelText(/대안 1/).closest("label")).toHaveTextContent("25분 · 1.0km · 09:30→09:55");
   });
 
@@ -202,7 +202,24 @@ describe("route alternatives", () => {
       isLoading: false,
     });
     renderLeg({ preference: preferenceOf({ routeIndex: 1, routeKey: "key-1" }) });
-    expect(screen.getByLabelText(/추천 경로/)).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByLabelText(/추천/)).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("labels alternatives by what actually makes them different, not just position", () => {
+    useLegMock.mockReturnValue({
+      data: legOf([
+        { label: "DEFAULT_ROUTE_ALTERNATE", durationS: 900, distanceM: 4000, fareAmount: 1500 },
+        { label: "DEFAULT_ROUTE", durationS: 600, distanceM: 5000, fareAmount: 1200 },
+      ]),
+      isError: false,
+      isLoading: false,
+    });
+    renderLeg();
+    // The faster, cheaper, but longer route is the recommended one - and
+    // "fastest"/"cheapest" follow it, while "shortest" stays on the other.
+    expect(screen.getByLabelText(/최소 시간/).closest("label")).toHaveTextContent("추천");
+    expect(screen.getByLabelText(/최소 시간/).closest("label")).toHaveTextContent("최저 요금");
+    expect(screen.getByLabelText(/최단 거리/).closest("label")).not.toHaveTextContent("추천");
   });
 
   it("hides the picker when there is nothing to choose between", () => {

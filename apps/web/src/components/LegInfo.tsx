@@ -3,7 +3,15 @@ import { BusFront, CarFront, Footprints, Route, TrainFront, TramFront } from "lu
 import { useLeg } from "../hooks/useLeg";
 import { formatZonedClock, legEndpoints, resolveLegAnchor } from "../legTiming";
 import { directDistanceMeters, isLegacyLegMode, LEG_MODE_OPTIONS, selectedRouteIndex } from "../legPreferences";
+import { routeBadges, type RouteBadge } from "../routeChoices";
 import type { LegPreference, LegTiming, PersistedLegMode, Spot } from "../types";
+
+const ROUTE_BADGE_LABELS: Record<RouteBadge, string> = {
+  recommended: "추천",
+  fastest: "최소 시간",
+  shortest: "최단 거리",
+  cheapest: "최저 요금",
+};
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
@@ -255,26 +263,34 @@ export function LegInfo({
               onChange({ routeIndex: index, routeKey: leg.routes[index]?.key });
             }}
           >
-            {leg.routes.map((route, index) => {
-              const endpoints = legEndpoints(anchor.when, anchor.isArrival, route.durationS);
-              const departure = formatZonedClock(endpoints.departure, timezone);
-              const arrival = formatZonedClock(endpoints.arrival, timezone);
-              const routeParts = [
-                route.durationS != null ? formatDuration(route.durationS) : null,
-                route.distanceM != null ? `${(route.distanceM / 1000).toFixed(1)}km` : null,
-                departure && arrival ? `${departure}→${arrival}` : null,
-                route.fareAmount != null ? `${route.fareCurrency ?? ""}${route.fareAmount.toLocaleString()}` : null,
-              ].filter(Boolean);
-              return (
-                <label key={route.key} className="leg-route-option">
-                  <RadioGroupItem value={String(index)} />
-                  <span>
-                    {index === 0 ? "추천 경로" : `대안 ${index}`}
-                    {routeParts.length > 0 && ` (${routeParts.join(" · ")})`}
-                  </span>
-                </label>
-              );
-            })}
+            {(() => {
+              const badgesByRoute = routeBadges(leg.routes);
+              return leg.routes.map((route, index) => {
+                const endpoints = legEndpoints(anchor.when, anchor.isArrival, route.durationS);
+                const departure = formatZonedClock(endpoints.departure, timezone);
+                const arrival = formatZonedClock(endpoints.arrival, timezone);
+                const routeParts = [
+                  route.durationS != null ? formatDuration(route.durationS) : null,
+                  route.distanceM != null ? `${(route.distanceM / 1000).toFixed(1)}km` : null,
+                  departure && arrival ? `${departure}→${arrival}` : null,
+                  route.fareAmount != null ? `${route.fareCurrency ?? ""}${route.fareAmount.toLocaleString()}` : null,
+                ].filter(Boolean);
+                // T-map style ranking badges (추천/최소 시간/최단 거리/최저 요금)
+                // when they apply; a route with none falls back to the old
+                // position-based label so it's never unlabeled.
+                const badges = badgesByRoute[index] ?? [];
+                const label = badges.length > 0 ? badges.map((badge) => ROUTE_BADGE_LABELS[badge]).join(" · ") : `대안 ${index}`;
+                return (
+                  <label key={route.key} className="leg-route-option">
+                    <RadioGroupItem value={String(index)} />
+                    <span>
+                      {label}
+                      {routeParts.length > 0 && ` (${routeParts.join(" · ")})`}
+                    </span>
+                  </label>
+                );
+              });
+            })()}
           </RadioGroup>
         </fieldset>
       )}
