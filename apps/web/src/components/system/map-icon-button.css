@@ -2,10 +2,20 @@
  * App-owned map controls deliberately use one translucent surface in both
  * themes. This distinguishes their compact vertical rail from Google Maps'
  * native zoom, fullscreen, and Street View controls without covering them.
+ *
+ * The background alone is only ~72% opaque; the rest of its "looks like a
+ * button" contrast comes from backdrop-filter's blur. That blur is a
+ * hypothesis for why this control reportedly reads as a bare icon with no
+ * visible chrome on the real map: the map is WebGL vector rendering
+ * (mapId set, see TripMap.tsx), and backdrop-filter compositing over a
+ * WebGL canvas is not guaranteed across every renderer. 88% keeps a
+ * translucent feel (still not fully opaque) while giving the button a
+ * baseline contrast that doesn't depend on the blur actually compositing -
+ * not confirmed as the fix, so re-check on the real app after this change.
  */
 .map-icon-button[data-slot="button"] {
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
-  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
   color: var(--text);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--surface) 58%, transparent),
@@ -16,7 +26,7 @@
 
 .map-icon-button[data-slot="button"]:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--border) 92%, transparent);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
   color: var(--text);
 }
 
