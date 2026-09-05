@@ -140,6 +140,19 @@ function RouteAccessConnectors({
 }
 
 /**
+ * routeStyles.ts hands back a sentinel path name instead of a `google.maps`
+ * constant, so it can stay jsdom-safe (see FORWARD_ARROW_ICON's own comment).
+ * This is the one place that resolves it - right before the options reach a
+ * real `<Polyline>`, which only ever mounts in the browser.
+ */
+function resolveDirectionIcons(icons: ReturnType<typeof routeDirectionIcons>): google.maps.IconSequence[] {
+  return icons.map(({ icon, ...rest }) => ({
+    ...rest,
+    icon: { ...icon, path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
+  }));
+}
+
+/**
  * One route line, drawn as a white casing beneath a coloured core. Google
  * Maps has no native casing, so it has to be two stacked polylines; the
  * casing is what separates the line from water and parks on the basemap.
@@ -168,7 +181,7 @@ function CasedRoute({
   return (
     <>
       {casing && <Polyline {...geometry} {...casing} clickable={false} />}
-      <Polyline {...geometry} {...core} icons={routeDirectionIcons({ kind, emphasis })} onClick={onSelect} />
+      <Polyline {...geometry} {...core} icons={resolveDirectionIcons(routeDirectionIcons({ kind, emphasis }))} onClick={onSelect} />
     </>
   );
 }

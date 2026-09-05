@@ -238,16 +238,44 @@ export function connectorStroke(
   };
 }
 
+// A sentinel, not a raw SVG path string: two hand-drawn attempts (a
+// symmetric tick, then a custom filled-triangle path) both failed to render
+// as a recognizable arrow in the live app - confirmed on a real device, not
+// just guessed at from code. Google's own FORWARD_CLOSED_ARROW is a built-in
+// SymbolPath built for exactly this "arrow repeated along a line" case, so
+// this hands the caller a name to resolve instead of a path. `routeStyles.ts`
+// still never touches `google.*` itself - RouteOverlay.tsx (browser-only,
+// already using `google.maps.SymbolPath.CIRCLE` for access connectors)
+// resolves this sentinel to the real constant right before handing the
+// options to <Polyline icons=...>.
+export const FORWARD_ARROW_ICON = "FORWARD_CLOSED_ARROW" as const;
+
 export type RouteDirectionIcon = {
-  icon: { path: string; strokeColor?: string; strokeOpacity: number; scale: number };
+  icon: {
+    path: typeof FORWARD_ARROW_ICON;
+    fillColor: string;
+    fillOpacity: number;
+    strokeColor: string;
+    strokeOpacity: number;
+    scale: number;
+  };
   offset: string;
   repeat: string;
 };
 
 /**
- * The repeated chevrons that show direction of travel along a line, like a
+ * The repeated arrowheads that show direction of travel along a line, like a
  * transit map's ">>>" marks. A selected leg gets none: it is already thick
- * and amber-cased, and chevrons on top of that read as noise.
+ * and amber-cased, and arrowheads on top of that read as noise.
+ *
+ * Scale is kept small on purpose: the route line itself is only 3-4px wide
+ * (ROUTE_LINE_WIDTH_PX), and an arrow scaled to read clearly on its own
+ * poked out past both edges of the line - confirmed live, it looked like the
+ * line was tearing rather than carrying a direction marker. The arrow has to
+ * nest inside the line's own width, not compete with it. Repeat is wide for
+ * the same live-verified reason: at the tighter rhythm this replaced, a
+ * multi-kilometre route rendered dozens of arrows close enough to blur into
+ * a dashed texture instead of a few legible, well-spaced direction cues.
  */
 export function routeDirectionIcons(input: { kind: RouteSegmentKind; emphasis: RouteEmphasis }): RouteDirectionIcon[] {
   if (input.emphasis === "selected") return [];
@@ -255,18 +283,15 @@ export function routeDirectionIcons(input: { kind: RouteSegmentKind; emphasis: R
   return [
     {
       icon: {
-        // A chevron, not a symmetric tick: Google's IconSequence rotates a
-        // path's local +x axis to face the line's direction of travel, so
-        // the point sitting at the local origin (0,0) is what leads forward.
-        path: "M -1,-1 0,0 -1,1",
+        path: FORWARD_ARROW_ICON,
+        fillColor: ROUTE_LINE_COLORS.casing,
+        fillOpacity: input.emphasis === "dimmed" ? 0.5 : 0.95,
         strokeColor: ROUTE_LINE_COLORS.casing,
-        strokeOpacity: input.emphasis === "dimmed" ? 0.5 : 0.9,
-        scale: dense ? 2.5 : 3.5,
+        strokeOpacity: input.emphasis === "dimmed" ? 0.5 : 0.95,
+        scale: dense ? 1.3 : 1.5,
       },
       offset: "0",
-      // A tighter rhythm on foot segments so they read as a dotted path even
-      // before the colour registers.
-      repeat: dense ? "8px" : "12px",
+      repeat: dense ? "50px" : "70px",
     },
   ];
 }
