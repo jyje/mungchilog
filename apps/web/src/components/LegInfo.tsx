@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CarFront, Footprints, Route, TrainFront } from "lucide-react";
+import { CarFront, Footprints, Pencil, Route, TrainFront } from "lucide-react";
 import { useLeg } from "../hooks/useLeg";
 import { formatZonedClock, legEndpoints, resolveLegAnchor } from "../legTiming";
 import { directDistanceMeters, isLegacyLegMode, LEG_MODE_OPTIONS, selectedRouteIndex } from "../legPreferences";
@@ -163,6 +163,7 @@ export function LegInfo({
   timezone,
   preference,
   selected,
+  selectedRideRunIndex,
   onSelect,
   onChange,
 }: {
@@ -172,9 +173,16 @@ export function LegInfo({
   timezone: string;
   preference: LegPreference;
   selected: boolean;
-  onSelect: () => void;
+  // Which boarded vehicle (0-based, matching transitSummary()'s order) is
+  // the one currently highlighted on the map, if any - see RouteOverlay.tsx.
+  selectedRideRunIndex?: number;
+  // No argument selects the whole leg, same as clicking its line on the map.
+  // A ride-run index selects just that one vehicle's stretch of the route -
+  // see routeSegmentsInRideRun() in routeStyles.ts.
+  onSelect: (rideRunIndex?: number) => void;
   onChange: (patch: LegPatch) => void;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
   const { mode, timing, trafficAware } = preference;
   const { data: leg, isError, isLoading } = useLeg(from, to, mode, trafficAware, date, timezone, timing);
   const hasMapLeg = (from.lat != null && from.lng != null && to.lat != null && to.lng != null) || (!!from.placeId && !!to.placeId);
@@ -198,117 +206,149 @@ export function LegInfo({
 
   return (
     <div className={`leg-info${selected ? " selected" : ""}`} aria-label={`${from.name}에서 ${to.name}까지 동선`}>
-      <Button
-        type="button"
-        variant={selected ? "secondary" : "ghost"}
-        className="leg-summary meta"
-        onClick={onSelect}
-        aria-pressed={selected}
-      >
+      <div className="leg-summary-row">
         {mode === "TRANSIT" ? (
-          <>
+          // Not a single <Button>: each boarded vehicle needs its own click
+          // target (highlight just that vehicle's stretch on the map), and
+          // a button element can't nest inside another one.
+          <div className={`leg-summary meta${selected && selectedRideRunIndex == null ? " selected" : ""}`}>
             {transitLegs ? (
               // One icon per boarded vehicle, so a subway-to-bus transfer
               // shows the bus icon once the ride actually changes, instead of
               // the subway icon carrying through the whole summary.
-              transitLegs.map((leg, index) => (
+              transitLegs.map((transitLeg, index) => (
                 <span className="leg-transit-vehicle" key={index}>
                   {index > 0 && <span aria-hidden="true"> → </span>}
-                  <TransitVehicleIcon vehicle={leg.vehicle} />
-                  <span>{leg.text}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="leg-transit-vehicle-button"
+                    aria-pressed={selected && selectedRideRunIndex === index}
+                    aria-label={`${transitLeg.text} 구간을 지도에서 강조`}
+                    onClick={() => onSelect(index)}
+                  >
+                    <TransitVehicleIcon vehicle={transitLeg.vehicle} />
+                    <span>{transitLeg.text}</span>
+                  </Button>
                 </span>
               ))
             ) : (
-              <>
+              <Button type="button" variant="ghost" className="leg-transit-vehicle-button" onClick={() => onSelect()}>
                 <TransitVehicleIcon vehicle={null} />
                 <span>경로 정보 없음</span>
-              </>
+              </Button>
             )}
-            {parts.length > 0 && <span className="leg-summary-meta">{parts.join(" · ")}</span>}
-          </>
+            {parts.length > 0 && (
+              <Button type="button" variant="ghost" className="leg-summary-meta" onClick={() => onSelect()}>
+                {parts.join(" · ")}
+              </Button>
+            )}
+          </div>
         ) : (
-          <>
+          <Button
+            type="button"
+            variant={selected ? "secondary" : "ghost"}
+            className="leg-summary meta"
+            onClick={() => onSelect()}
+            aria-pressed={selected}
+          >
             {modeSummaryIcon(mode)}
             <span>{parts.join(" · ") || `${modeLabel} 동선`}</span>
-          </>
+          </Button>
         )}
-      </Button>
 
-      <PlannerChoiceGroup
-        value={legacyMode ? "" : mode}
-        // Radix reports "" when the active item is pressed again. Ignore it:
-        // a leg always travels by some means, so there is no "no mode" state
-        // to fall back to.
-        onValueChange={(next) => { if (next) onChange({ mode: next as PersistedLegMode }); }}
-        className="leg-mode-toggle"
-        aria-label={`${from.name}에서 ${to.name}까지 이동 수단`}
-      >
-        {LEG_MODE_OPTIONS.map((option) => (
-          <PlannerChoiceItem key={option.mode} value={option.mode} aria-label={option.description} title={option.description}>
-            {option.label}
-          </PlannerChoiceItem>
-        ))}
-      </PlannerChoiceGroup>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="leg-edit-toggle"
+          aria-label={isEditing ? "이동 수단·경로 수정 닫기" : "이동 수단·경로 수정"}
+          aria-expanded={isEditing}
+          onClick={() => setIsEditing((value) => !value)}
+        >
+          <Pencil aria-hidden="true" />
+        </Button>
+      </div>
 
-      {legacyMode && (
-        <p className="leg-legacy-note" role="status">
-          직선 표시는 더 이상 지원하지 않습니다. 이동 수단을 선택하면 실제 경로로 바뀝니다.
-        </p>
-      )}
-
-      {mode === "TRANSIT" && (
-        <TransitTimingEditor timing={timing} dayDate={date} onApply={(next) => onChange({ timing: next })} />
-      )}
-
-      {mode === "DRIVE" && (
-        <label className="leg-traffic-toggle">
-          <Switch checked={trafficAware} onCheckedChange={(next) => onChange({ trafficAware: next })} />
-          실시간 교통 반영
-        </label>
-      )}
-
-      {!legacyMode && leg && leg.routes.length > 1 && (
-        <fieldset className="leg-route-picker">
-          <legend>경로 선택</legend>
-          <RadioGroup
-            value={String(routeIndex)}
-            onValueChange={(next) => {
-              const index = Number(next);
-              // Persist the fingerprint, not just the position: the list can
-              // come back in a different order after a cache refresh.
-              onChange({ routeIndex: index, routeKey: leg.routes[index]?.key });
-            }}
+      {isEditing && (
+        <>
+          <PlannerChoiceGroup
+            value={legacyMode ? "" : mode}
+            // Radix reports "" when the active item is pressed again. Ignore it:
+            // a leg always travels by some means, so there is no "no mode" state
+            // to fall back to.
+            onValueChange={(next) => { if (next) onChange({ mode: next as PersistedLegMode }); }}
+            className="leg-mode-toggle"
+            aria-label={`${from.name}에서 ${to.name}까지 이동 수단`}
           >
-            {(() => {
-              const badgesByRoute = routeBadges(leg.routes);
-              return leg.routes.map((route, index) => {
-                const endpoints = legEndpoints(anchor.when, anchor.isArrival, route.durationS);
-                const departure = formatZonedClock(endpoints.departure, timezone);
-                const arrival = formatZonedClock(endpoints.arrival, timezone);
-                const routeParts = [
-                  route.durationS != null ? formatDuration(route.durationS) : null,
-                  route.distanceM != null ? `${(route.distanceM / 1000).toFixed(1)}km` : null,
-                  departure && arrival ? `${departure}→${arrival}` : null,
-                  route.fareAmount != null ? `${route.fareCurrency ?? ""}${route.fareAmount.toLocaleString()}` : null,
-                ].filter(Boolean);
-                // T-map style ranking badges (추천/최소 시간/최단 거리/최저 요금)
-                // when they apply; a route with none falls back to the old
-                // position-based label so it's never unlabeled.
-                const badges = badgesByRoute[index] ?? [];
-                const label = badges.length > 0 ? badges.map((badge) => ROUTE_BADGE_LABELS[badge]).join(" · ") : `대안 ${index}`;
-                return (
-                  <label key={route.key} className="leg-route-option">
-                    <RadioGroupItem value={String(index)} />
-                    <span>
-                      {label}
-                      {routeParts.length > 0 && ` (${routeParts.join(" · ")})`}
-                    </span>
-                  </label>
-                );
-              });
-            })()}
-          </RadioGroup>
-        </fieldset>
+            {LEG_MODE_OPTIONS.map((option) => (
+              <PlannerChoiceItem key={option.mode} value={option.mode} aria-label={option.description} title={option.description}>
+                {option.label}
+              </PlannerChoiceItem>
+            ))}
+          </PlannerChoiceGroup>
+
+          {legacyMode && (
+            <p className="leg-legacy-note" role="status">
+              직선 표시는 더 이상 지원하지 않습니다. 이동 수단을 선택하면 실제 경로로 바뀝니다.
+            </p>
+          )}
+
+          {mode === "TRANSIT" && (
+            <TransitTimingEditor timing={timing} dayDate={date} onApply={(next) => onChange({ timing: next })} />
+          )}
+
+          {mode === "DRIVE" && (
+            <label className="leg-traffic-toggle">
+              <Switch checked={trafficAware} onCheckedChange={(next) => onChange({ trafficAware: next })} />
+              실시간 교통 반영
+            </label>
+          )}
+
+          {!legacyMode && leg && leg.routes.length > 1 && (
+            <fieldset className="leg-route-picker">
+              <legend>경로 선택</legend>
+              <RadioGroup
+                value={String(routeIndex)}
+                onValueChange={(next) => {
+                  const index = Number(next);
+                  // Persist the fingerprint, not just the position: the list can
+                  // come back in a different order after a cache refresh.
+                  onChange({ routeIndex: index, routeKey: leg.routes[index]?.key });
+                }}
+              >
+                {(() => {
+                  const badgesByRoute = routeBadges(leg.routes);
+                  return leg.routes.map((route, index) => {
+                    const endpoints = legEndpoints(anchor.when, anchor.isArrival, route.durationS);
+                    const departure = formatZonedClock(endpoints.departure, timezone);
+                    const arrival = formatZonedClock(endpoints.arrival, timezone);
+                    const routeParts = [
+                      route.durationS != null ? formatDuration(route.durationS) : null,
+                      route.distanceM != null ? `${(route.distanceM / 1000).toFixed(1)}km` : null,
+                      departure && arrival ? `${departure}→${arrival}` : null,
+                      route.fareAmount != null ? `${route.fareCurrency ?? ""}${route.fareAmount.toLocaleString()}` : null,
+                    ].filter(Boolean);
+                    // T-map style ranking badges (추천/최소 시간/최단 거리/최저 요금)
+                    // when they apply; a route with none falls back to the old
+                    // position-based label so it's never unlabeled.
+                    const badges = badgesByRoute[index] ?? [];
+                    const label = badges.length > 0 ? badges.map((badge) => ROUTE_BADGE_LABELS[badge]).join(" · ") : `대안 ${index}`;
+                    return (
+                      <label key={route.key} className="leg-route-option">
+                        <RadioGroupItem value={String(index)} />
+                        <span>
+                          {label}
+                          {routeParts.length > 0 && ` (${routeParts.join(" · ")})`}
+                        </span>
+                      </label>
+                    );
+                  });
+                })()}
+              </RadioGroup>
+            </fieldset>
+          )}
+        </>
       )}
 
       {trafficAware && mode === "DRIVE" && !isError && (

@@ -55,8 +55,13 @@ function legOf(routes: Array<Partial<Leg["routes"][number]>>): Leg {
   };
 }
 
-function renderLeg(overrides: Partial<React.ComponentProps<typeof LegInfo>> = {}) {
+// Everything below "수정" (mode toggle, timing, traffic switch, route
+// picker) renders collapsed by default (see "editing the leg" below for that
+// behaviour itself); every other describe block here is about what's inside
+// once open, so the helper opens it unless a test asks not to.
+function renderLeg(overrides: Partial<React.ComponentProps<typeof LegInfo>> = {}, options: { edit?: boolean } = {}) {
   const onChange = vi.fn();
+  const onSelect = vi.fn();
   const { container } = render(
     <LegInfo
       from={from}
@@ -65,12 +70,13 @@ function renderLeg(overrides: Partial<React.ComponentProps<typeof LegInfo>> = {}
       timezone="Asia/Tokyo"
       preference={preferenceOf()}
       selected={false}
-      onSelect={vi.fn()}
+      onSelect={onSelect}
       onChange={onChange}
       {...overrides}
     />,
   );
-  return { onChange, container };
+  if (options.edit ?? true) fireEvent.click(screen.getByRole("button", { name: /경로 수정/ }));
+  return { onChange, onSelect, container };
 }
 
 beforeEach(() => {
@@ -172,9 +178,12 @@ describe("route alternatives", () => {
       isError: false,
       isLoading: false,
     });
-    renderLeg();
+    const { container } = renderLeg();
 
-    const summary = screen.getByRole("button", { name: /Sakaisuji Line.*Tenjinbashisuji 6-chome/ });
+    // Not a single button: each boarded vehicle is its own click target (see
+    // "selecting one boarded vehicle" below), so the summary is a plain
+    // container now rather than one <button role>.
+    const summary = container.querySelector(".leg-summary");
     expect(summary).toHaveTextContent("Sakaisuji Line · Tenjinbashisuji 6-chome");
     expect(summary).not.toHaveTextContent("대중교통");
   });
@@ -192,7 +201,7 @@ describe("route alternatives", () => {
     });
     const { container } = renderLeg();
 
-    const summary = screen.getByRole("button", { name: /Sakaisuji Line.*Osaka City Bus 62/ });
+    const summary = container.querySelector(".leg-summary");
     expect(summary).toHaveTextContent("Sakaisuji Line · Tenjinbashisuji 6-chome 방면 → Osaka City Bus 62 · Osaka Station 방면");
     // The icon changes at the transfer - not a subway icon carried through
     // the whole line, and not just a train icon for a bus leg.
@@ -276,5 +285,58 @@ describe("when the provider cannot answer", () => {
     expect(screen.getByRole("status")).toHaveTextContent("임시로 직선 미리보기");
     // The picker still reports transit, so the failure did not rewrite the save.
     expect(screen.getByRole("radio", { name: /대중교통 시간표 경로/ })).toHaveAttribute("aria-checked", "true");
+  });
+});
+
+describe("editing the leg", () => {
+  it("keeps the mode toggle and route picker collapsed until 수정 is opened", () => {
+    renderLeg({}, { edit: false });
+    expect(screen.queryByRole("radiogroup", { name: /이동 수단/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /경로 수정/ }));
+    expect(screen.getByRole("radiogroup", { name: /이동 수단/ })).toBeInTheDocument();
+  });
+
+  it("closes again on a second click", () => {
+    renderLeg({}, { edit: false });
+    const toggle = screen.getByRole("button", { name: /경로 수정/ });
+    fireEvent.click(toggle);
+    expect(screen.getByRole("radiogroup", { name: /이동 수단/ })).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("radiogroup", { name: /이동 수단/ })).toBeNull();
+  });
+});
+
+describe("selecting one boarded vehicle from the summary", () => {
+  function transitLeg(overrides: Partial<React.ComponentProps<typeof LegInfo>> = {}) {
+    useLegMock.mockReturnValue({
+      data: legOf([{
+        transit: [
+          { vehicle: "SUBWAY", line: "Sakaisuji Line", headsign: "Tenjinbashisuji 6-chome" },
+          { vehicle: "BUS", line: "Osaka City Bus 62", headsign: "Osaka Station" },
+        ],
+      }]),
+      isError: false,
+      isLoading: false,
+    });
+    return renderLeg({ selected: true, ...overrides }, { edit: false });
+  }
+
+  it("passes the vehicle's own index, not the whole-leg selection", () => {
+    const { onSelect } = transitLeg();
+    fireEvent.click(screen.getByRole("button", { name: /Osaka City Bus 62.*강조/ }));
+    expect(onSelect).toHaveBeenCalledWith(1);
+  });
+
+  it("selects the whole leg (no index) from the duration/fare summary instead", () => {
+    useLegMock.mockReturnValue({ data: legOf([{ durationS: 600, distanceM: 1000 }]), isError: false, isLoading: false });
+    const { onSelect } = renderLeg({ selected: true }, { edit: false });
+    fireEvent.click(screen.getByText(/10분/));
+    expect(onSelect).toHaveBeenCalledWith();
+  });
+
+  it("marks only the boarded vehicle matching selectedRideRunIndex as pressed", () => {
+    transitLeg({ selectedRideRunIndex: 1 });
+    expect(screen.getByRole("button", { name: /Sakaisuji Line.*강조/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /Osaka City Bus 62.*강조/ })).toHaveAttribute("aria-pressed", "true");
   });
 });

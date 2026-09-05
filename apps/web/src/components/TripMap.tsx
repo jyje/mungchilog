@@ -22,7 +22,11 @@ type LocatedSpot = Spot & { lat: number; lng: number };
 
 export type ItinerarySelection =
   | { kind: "spot"; spotId: string }
-  | { kind: "leg"; fromId: string; toId: string }
+  // rideRunIndex: which boarded vehicle (0-based, transitSummary()'s order)
+  // to highlight alone on the map - see routeSegmentsInRideRun() in
+  // routeStyles.ts. Omitted (or undefined) selects the whole leg, same as
+  // clicking its line on the map.
+  | { kind: "leg"; fromId: string; toId: string; rideRunIndex?: number }
   | null;
 
 export type SharedMapLocation = {

@@ -1596,6 +1596,19 @@ button.ghost {
   background: color-mix(in srgb, #f59e0b 14%, transparent);
   color: var(--text);
 }
+.leg-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.leg-summary-row .leg-summary {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.leg-edit-toggle {
+  flex: none;
+  color: var(--text-muted);
+}
 .leg-summary {
   display: flex;
   align-items: center;
@@ -1621,9 +1634,43 @@ button.ghost {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.leg-summary.selected {
+  /* The TRANSIT summary is a plain div now (each vehicle is its own
+     <button>, which can't nest inside another button), so it needs its own
+     selected treatment instead of inheriting shadcn's Button variant. */
+  background: color-mix(in srgb, #f59e0b 14%, transparent);
+  border-radius: 4px;
+}
+/* These render via shadcn's Button (variant="ghost") for oxlint's
+   uiPrimitiveAdoption check, but need to sit inline with plain text at its
+   own line-height rather than Button's default fixed h-8 control size. */
+.leg-transit-vehicle-button {
+  display: inline-flex;
+  height: auto;
+  min-height: 0;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.3rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+.leg-transit-vehicle-button[aria-pressed="true"] {
+  background: color-mix(in srgb, #f59e0b 24%, transparent);
+  color: var(--text);
+}
 .leg-summary-meta {
   flex: none;
+  height: auto;
+  min-height: 0;
+  border: 0;
+  padding: 0 0.2rem;
+  border-radius: 4px;
+  background: none;
   color: var(--text-muted);
+  font: inherit;
   font-variant-numeric: tabular-nums;
 }
 /* Mode picker: one compact segmented control per leg. Each segment keeps a
