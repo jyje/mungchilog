@@ -1,6 +1,7 @@
 import { AdvancedMarker, Polyline } from "@vis.gl/react-google-maps";
 import { CarFront, Footprints } from "lucide-react";
 import { useLeg } from "../hooks/useLeg";
+import { useMapZoom } from "../hooks/useMapZoom";
 import { isLegacyLegMode, legPreferenceFor, selectedRouteIndex } from "../legPreferences";
 import {
   connectorStroke,
@@ -22,6 +23,11 @@ type Coordinate = { lat: number; lng: number };
 
 const ACCESS_CONNECTOR_MIN_METERS = 8;
 const ACCESS_CONNECTOR_MAX_METERS = 120;
+// Below this, a day with several legs would show every walk/ride badge at
+// once across a whole-city view - more clutter than the icons are worth
+// before there's room to actually tell them apart. Roughly "streets are
+// individually visible" on Google's zoom scale.
+const MODE_MARKER_MIN_ZOOM = 15;
 
 function decodeEncodedPolyline(encodedPath: string): Coordinate[] {
   const coordinates: Coordinate[] = [];
@@ -296,6 +302,12 @@ function RouteLeg({
   // alternatives between cache refreshes.
   const selectedRoute = leg?.routes[selectedRouteIndex(leg?.routes, preference)];
   const emphasis = routeEmphasis(selected, hasSelection);
+  const zoom = useMapZoom();
+  // A full day's itinerary can have several legs, each with several
+  // walk/ride runs - showing every mode badge at a zoomed-out, whole-city
+  // view buries the map in icons before there's room to tell them apart.
+  // null (zoom not known yet) shows them rather than hiding by default.
+  const showModeMarkers = zoom == null || zoom >= MODE_MARKER_MIN_ZOOM;
 
   if (!isLegacyLegMode(mode) && selectedRoute?.polyline) {
     // Real road/rail-following route from the Routes API - what "the
@@ -332,7 +344,7 @@ function RouteLeg({
             onSelect={onSelect}
           />
         )}
-        {emphasis !== "dimmed" && (
+        {emphasis !== "dimmed" && showModeMarkers && (
           <RouteModeMarkers mode={mode} polyline={selectedRoute.polyline} segments={segments} transit={selectedRoute.transit ?? null} />
         )}
         <RouteAccessConnectors
