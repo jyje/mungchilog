@@ -3,17 +3,26 @@
  * themes. This distinguishes their compact vertical rail from Google Maps'
  * native zoom, fullscreen, and Street View controls without covering them.
  *
+ * Every one of these buttons is rendered via MapIconButton, which always
+ * wraps the underlying shadcn Button in a Radix <TooltipTrigger asChild> for
+ * its hover label. Radix's Slot merges TooltipTrigger's own data-slot
+ * ("tooltip-trigger") onto the button element, overwriting the Button
+ * component's own data-slot="button" - so a selector gated on
+ * [data-slot="button"] never matches here at all. That was the actual bug
+ * behind these controls reading as a bare icon with no visible chrome: none
+ * of this file's rules (including the "raise opacity" change below) were
+ * ever applied. The .map-icon-button class name is the reliable hook - it's
+ * set directly in this component's own className and isn't touched by the
+ * Slot merge.
+ *
  * The background alone is only ~72% opaque; the rest of its "looks like a
- * button" contrast comes from backdrop-filter's blur. That blur is a
- * hypothesis for why this control reportedly reads as a bare icon with no
- * visible chrome on the real map: the map is WebGL vector rendering
- * (mapId set, see TripMap.tsx), and backdrop-filter compositing over a
- * WebGL canvas is not guaranteed across every renderer. 88% keeps a
- * translucent feel (still not fully opaque) while giving the button a
- * baseline contrast that doesn't depend on the blur actually compositing -
- * not confirmed as the fix, so re-check on the real app after this change.
+ * button" contrast comes from backdrop-filter's blur, which is not
+ * guaranteed to composite over this map's WebGL vector rendering (mapId set,
+ * see TripMap.tsx) on every renderer. 88% keeps a translucent feel (still
+ * not fully opaque) while giving the button a baseline contrast that doesn't
+ * depend on the blur actually compositing.
  */
-.map-icon-button[data-slot="button"] {
+.map-icon-button {
   border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   color: var(--text);
@@ -24,17 +33,17 @@
   -webkit-backdrop-filter: blur(14px) saturate(1.08);
 }
 
-.map-icon-button[data-slot="button"]:hover:not(:disabled) {
+.map-icon-button:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--border) 92%, transparent);
   background: color-mix(in srgb, var(--surface) 96%, transparent);
   color: var(--text);
 }
 
-.map-icon-button[data-slot="button"]:active:not(:disabled) {
+.map-icon-button:active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.map-icon-button[data-slot="button"][data-selected="true"] {
+.map-icon-button[data-selected="true"] {
   border-color: color-mix(in srgb, var(--accent) 75%, var(--surface));
   background: color-mix(in srgb, var(--accent) 76%, transparent);
   color: var(--accent-contrast);
@@ -43,19 +52,19 @@
     0 0.4rem 1rem color-mix(in srgb, var(--accent) 28%, var(--shadow-color));
 }
 
-.map-icon-button[data-slot="button"]:focus-visible {
+.map-icon-button:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--accent) 62%, transparent);
   outline-offset: 3px;
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .map-icon-button[data-slot="button"] {
+  .map-icon-button {
     background: var(--surface);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
 
-  .map-icon-button[data-slot="button"][data-selected="true"] {
+  .map-icon-button[data-selected="true"] {
     background: var(--accent);
   }
 }
