@@ -5,6 +5,12 @@ import { formatZonedClock, legEndpoints, resolveLegAnchor } from "../legTiming";
 import { directDistanceMeters, isLegacyLegMode, LEG_MODE_OPTIONS, selectedRouteIndex } from "../legPreferences";
 import { routeBadges, type RouteBadge } from "../routeChoices";
 import type { LegPreference, LegTiming, PersistedLegMode, Spot } from "../types";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Switch } from "./ui/switch";
+import { PlannerChoiceGroup, PlannerChoiceItem } from "./system/PlannerChoiceGroup";
 
 const ROUTE_BADGE_LABELS: Record<RouteBadge, string> = {
   recommended: "추천",
@@ -12,12 +18,6 @@ const ROUTE_BADGE_LABELS: Record<RouteBadge, string> = {
   shortest: "최단 거리",
   cheapest: "최저 요금",
 };
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
-import { Switch } from "./ui/switch";
-import { PlannerChoiceGroup, PlannerChoiceItem } from "./system/PlannerChoiceGroup";
 
 type LegPatch = Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware">> & {
   mode?: PersistedLegMode;
@@ -42,18 +42,26 @@ function modeSummaryIcon(mode: PersistedLegMode) {
   return <Route aria-hidden="true" />;
 }
 
-function transitSummary(details: Array<{ vehicle: string | null; line: string | null; headsign: string | null }> | null | undefined): string | null {
+type TransitLeg = { vehicle: string | null; text: string };
+
+// One entry per boarded vehicle, each carrying its own vehicle kind so the
+// summary line can draw a matching icon next to it - a bus-after-subway
+// transfer must not keep showing the subway icon through the whole line.
+function transitSummary(details: Array<{ vehicle: string | null; line: string | null; headsign: string | null }> | null | undefined): TransitLeg[] | null {
   if (!details?.length) return null;
   return details.map((detail) => {
-    if (detail.line && detail.headsign) return `${detail.line} · ${detail.headsign} 방면`;
-    if (detail.line) return detail.line;
-    if (detail.headsign) return detail.headsign;
-    const vehicle = detail.vehicle?.toUpperCase() ?? "";
-    if (vehicle.includes("BUS")) return "버스";
-    if (vehicle.includes("TRAM")) return "트램";
-    if (vehicle) return "철도";
-    return "경로 정보 없음";
-  }).join(" → ");
+    const text = (() => {
+      if (detail.line && detail.headsign) return `${detail.line} · ${detail.headsign} 방면`;
+      if (detail.line) return detail.line;
+      if (detail.headsign) return detail.headsign;
+      const vehicle = detail.vehicle?.toUpperCase() ?? "";
+      if (vehicle.includes("BUS")) return "버스";
+      if (vehicle.includes("TRAM")) return "트램";
+      if (vehicle) return "철도";
+      return "경로 정보 없음";
+    })();
+    return { vehicle: detail.vehicle, text };
+  });
 }
 
 const TIMING_LABELS: Record<LegTiming["kind"], string> = {
@@ -191,9 +199,7 @@ export function LegInfo({
     if (straight != null) parts.push(`직선 ${(straight / 1000).toFixed(1)}km`);
   }
   const modeLabel = LEG_MODE_OPTIONS.find((option) => option.mode === mode)?.label ?? "직선(사용 중지됨)";
-  const transitDetails = selectedRoute?.transit;
-  const transitLabel = transitSummary(transitDetails);
-  const firstTransit = transitDetails?.[0];
+  const transitLegs = transitSummary(selectedRoute?.transit);
 
   return (
     <div className={`leg-info${selected ? " selected" : ""}`} aria-label={`${from.name}에서 ${to.name}까지 동선`}>
@@ -206,8 +212,23 @@ export function LegInfo({
       >
         {mode === "TRANSIT" ? (
           <>
-            <TransitVehicleIcon vehicle={firstTransit?.vehicle} />
-            <span>{transitLabel ?? "경로 정보 없음"}</span>
+            {transitLegs ? (
+              // One icon per boarded vehicle, so a subway-to-bus transfer
+              // shows the bus icon once the ride actually changes, instead of
+              // the subway icon carrying through the whole summary.
+              transitLegs.map((leg, index) => (
+                <span className="leg-transit-vehicle" key={index}>
+                  {index > 0 && <span aria-hidden="true"> → </span>}
+                  <TransitVehicleIcon vehicle={leg.vehicle} />
+                  <span>{leg.text}</span>
+                </span>
+              ))
+            ) : (
+              <>
+                <TransitVehicleIcon vehicle={null} />
+                <span>경로 정보 없음</span>
+              </>
+            )}
             {parts.length > 0 && <span className="leg-summary-meta">{parts.join(" · ")}</span>}
           </>
         ) : (
