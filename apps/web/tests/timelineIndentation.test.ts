@@ -26,6 +26,14 @@ function gridTemplateColumnsFor(selector: string): string[] {
   return values;
 }
 
+/** The declarations inside the first top-level block for exactly this selector. */
+function blockFor(selector: string): string {
+  const pattern = new RegExp(`(?:^|[,{}]\\s*)${selector.replace(/[.]/g, "\\.")}\\s*(?:,[^{]*)?\\{([^}]*)\\}`, "s");
+  const match = pattern.exec(css);
+  if (!match) throw new Error(`no block for selector: ${selector}`);
+  return match[1];
+}
+
 describe("the timeline's first column stays the same width on every row", () => {
   it(".spot-card and .leg-row never use a flexible (minmax) first column", () => {
     // .spot-card and .leg-row are each their own independent CSS Grid (no
@@ -46,5 +54,19 @@ describe("the timeline's first column stays the same width on every row", () => 
     const spotCardColumns = gridTemplateColumnsFor(".spot-card");
     const legRowColumns = gridTemplateColumnsFor(".leg-row");
     expect(spotCardColumns).toEqual(legRowColumns);
+  });
+});
+
+describe("the leg connector reads as a real line, not a maybe", () => {
+  it("is solid, not dashed or dotted", () => {
+    // Dashed/dotted is a deliberate signal for tentative, editable, or
+    // conditional state in common timeline conventions (Material UI's
+    // TimelineConnector has no dashed variant at all - solid is the only
+    // option). This line connects every leg unconditionally, confirmed or
+    // not, so a permanent dashed style misapplied that signal - and its
+    // color-mix-diluted opacity made it barely visible either way.
+    const block = blockFor(".leg-row::before");
+    expect(block).toMatch(/border-left:\s*[\d.]+px\s+solid\s+var\(--text-muted\)/);
+    expect(block).not.toMatch(/dashed|dotted/);
   });
 });

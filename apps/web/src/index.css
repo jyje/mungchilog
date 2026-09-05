@@ -1557,9 +1557,16 @@ button.ghost {
 .leg-row::before {
   grid-column: 1;
   justify-self: end;
-  width: 1px;
+  width: 1.5px;
   height: 100%;
-  border-left: 1px dashed color-mix(in srgb, var(--text-muted) 48%, transparent);
+  /* Solid, not dashed, and no color-mix dilution: a dashed/dotted line is a
+     deliberate signal for "tentative, editable, or conditional" in common
+     timeline conventions (Material UI's TimelineConnector has no dashed
+     variant at all - solid is the only option) and this line connects every
+     leg unconditionally, confirmed or not, so a permanent dashed style
+     misapplied that signal. Diluting text-muted to 48% opacity on top of
+     that made it barely visible at all. */
+  border-left: 1.5px solid var(--text-muted);
   content: "";
 }
 .leg-row .leg-info {
