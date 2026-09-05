@@ -114,52 +114,11 @@
   margin-top: 2rem;
 }
 
-.auth-action-primary,
-.auth-action-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.55rem;
-  min-block-size: 48px;
-  border-radius: 0.75rem;
-  padding: 0.7rem 1rem;
+.auth-action-button {
   font-weight: 700;
-  line-height: 1.25;
-  cursor: pointer;
 }
 
-.auth-action-primary {
-  border: 1px solid #0369a1;
-  background: #0369a1;
-  color: #ffffff;
-}
-
-.auth-action-secondary {
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-}
-
-.auth-action-primary:hover,
-.auth-action-primary:focus-visible {
-  filter: brightness(0.96);
-}
-
-.auth-action-secondary:hover,
-.auth-action-secondary:focus-visible {
-  border-color: var(--accent);
-  background: var(--secondary);
-}
-
-.auth-action-primary:focus-visible,
-.auth-action-secondary:focus-visible,
-.auth-text-button:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  outline-offset: 3px;
-}
-
-.auth-action-primary:disabled,
-.auth-action-secondary:disabled,
+.auth-action-button:disabled,
 .auth-text-button:disabled {
   cursor: wait;
   opacity: 0.72;
@@ -178,19 +137,10 @@
 }
 
 .auth-text-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
   width: fit-content;
   min-block-size: 44px;
   margin: 0.15rem auto 0;
-  border: 0;
-  border-radius: 0.5rem;
-  background: transparent;
-  color: var(--accent);
   font-weight: 700;
-  cursor: pointer;
 }
 
 .auth-status {
@@ -207,16 +157,14 @@
 }
 
 .auth-status svg,
-.auth-action-primary svg,
-.auth-action-secondary svg {
+.auth-action-button svg {
   flex: none;
   inline-size: 1.15rem;
   block-size: 1.15rem;
   margin-top: 0.05rem;
 }
 
-.auth-action-primary svg,
-.auth-action-secondary svg {
+.auth-action-button svg {
   margin-top: 0;
 }
 
@@ -229,19 +177,12 @@
   color: var(--accent-contrast);
 }
 
-:root.dark .auth-action-primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
 @keyframes auth-spin {
   to { transform: rotate(1turn); }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .auth-action-primary,
-  .auth-action-secondary,
+  .auth-action-button,
   .auth-text-button {
     transition: border-color 0.15s ease, background-color 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
   }

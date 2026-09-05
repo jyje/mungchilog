@@ -1,17 +1,17 @@
 import { Polyline } from "@vis.gl/react-google-maps";
 import { useLeg } from "../hooks/useLeg";
-import type { LegPreference, PersistedLegMode, Spot } from "../types";
+import { isLegacyLegMode, legPreferenceFor, selectedRouteIndex } from "../legPreferences";
+import {
+  connectorStroke,
+  routeDirectionIcons,
+  routeEmphasis,
+  routeSegmentKind,
+  routeStrokeLayers,
+  type RouteEmphasis,
+  type RouteSegmentKind,
+} from "../routeStyles";
+import type { LegPreference, Spot } from "../types";
 import type { ItinerarySelection } from "./TripMap";
-
-// Direction arrows repeated along the line, not just an arrowhead at the
-// end - readable at a glance for a multi-stop day, not just point A to B.
-const ARROW_ICONS: google.maps.IconSequence[] = [
-  {
-    icon: { path: "M 0,-1 0,1", strokeOpacity: 1, scale: 3 },
-    offset: "0",
-    repeat: "12px",
-  },
-];
 
 type Coordinate = { lat: number; lng: number };
 
@@ -80,15 +80,15 @@ function RouteAccessConnectors({
   encodedPath,
   from,
   to,
-  selected,
-  hasSelection,
+  emphasis,
+  kind,
   onSelect,
 }: {
   encodedPath: string;
   from: Spot;
   to: Spot;
-  selected: boolean;
-  hasSelection: boolean;
+  emphasis: RouteEmphasis;
+  kind: RouteSegmentKind;
   onSelect: () => void;
 }) {
   const coordinates = decodeEncodedPolyline(encodedPath);
@@ -102,27 +102,27 @@ function RouteAccessConnectors({
 
   // Access connectors are part of the same itinerary leg, not an unrelated
   // annotation. Their color and emphasis therefore track the route itself.
-  const color = selected ? "#f59e0b" : "#7dd3fc";
-  const opacity = selected ? 1 : hasSelection ? 0.28 : 0.85;
+  const { strokeColor, strokeOpacity, strokeWeight, zIndex } = connectorStroke(emphasis, kind);
   return (
     <>
       {paths.map((path) => (
         <Polyline
           key={`${path[0].lat}:${path[0].lng}:${path[1].lat}:${path[1].lng}`}
           path={path}
-          strokeColor={color}
+          strokeColor={strokeColor}
           strokeOpacity={0}
-          strokeWeight={selected ? 4 : 3}
+          strokeWeight={strokeWeight}
+          zIndex={zIndex}
           icons={[
             {
               icon: {
                 path: google.maps.SymbolPath.CIRCLE,
-                fillColor: color,
-                fillOpacity: opacity,
-                strokeColor: color,
-                strokeOpacity: opacity,
+                fillColor: strokeColor,
+                fillOpacity: strokeOpacity,
+                strokeColor,
+                strokeOpacity,
                 strokeWeight: 1,
-                scale: selected ? 2.4 : 2,
+                scale: emphasis === "selected" ? 2.4 : 2,
               },
               offset: "0",
               repeat: "7px",
@@ -135,14 +135,46 @@ function RouteAccessConnectors({
   );
 }
 
+/**
+ * One route line, drawn as a white casing beneath a coloured core. Google
+ * Maps has no native casing, so it has to be two stacked polylines; the
+ * casing is what separates the line from water and parks on the basemap.
+ *
+ * The casing is never clickable. It is wider than the core, so leaving it
+ * clickable would let it swallow clicks meant for its own core and, where two
+ * legs run alongside each other, for the neighbouring leg as well.
+ */
+function CasedRoute({
+  encodedPath,
+  path,
+  kind,
+  emphasis,
+  fallback,
+  onSelect,
+}: {
+  encodedPath?: string;
+  path?: Coordinate[];
+  kind: RouteSegmentKind;
+  emphasis: RouteEmphasis;
+  fallback?: boolean;
+  onSelect: () => void;
+}) {
+  const { casing, core } = routeStrokeLayers({ kind, emphasis, fallback });
+  const geometry = encodedPath ? { encodedPath } : { path };
+  return (
+    <>
+      {casing && <Polyline {...geometry} {...casing} clickable={false} />}
+      <Polyline {...geometry} {...core} icons={routeDirectionIcons({ kind, emphasis })} onClick={onSelect} />
+    </>
+  );
+}
+
 function RouteLeg({
   from,
   to,
   date,
   timezone,
-  mode,
-  routeIndex,
-  trafficAware,
+  preference,
   selected,
   hasSelection,
   onSelect,
@@ -151,60 +183,78 @@ function RouteLeg({
   to: Spot;
   date: string;
   timezone: string;
-  mode: PersistedLegMode;
-  routeIndex: number;
-  trafficAware: boolean;
+  preference: LegPreference;
   selected: boolean;
   hasSelection: boolean;
   onSelect: () => void;
 }) {
-  const { data: leg } = useLeg(from, to, mode, trafficAware, date, timezone);
-  const selectedRoute = leg?.routes[Math.min(routeIndex, Math.max(0, (leg?.routes.length ?? 1) - 1))];
-  const strokeColor = selected ? "#f59e0b" : "#7dd3fc";
-  const strokeOpacity = selected ? 1 : hasSelection ? 0.28 : 0.85;
-  const strokeWeight = selected ? 7 : 4;
+  const mode = preference.mode;
+  const { data: leg } = useLeg(from, to, mode, preference.trafficAware, date, timezone, preference.timing);
+  // Resolve by fingerprint, not position: the provider may reorder
+  // alternatives between cache refreshes.
+  const selectedRoute = leg?.routes[selectedRouteIndex(leg?.routes, preference)];
+  const emphasis = routeEmphasis(selected, hasSelection);
 
-  if (mode !== "DIRECT" && selectedRoute?.polyline) {
+  if (!isLegacyLegMode(mode) && selectedRoute?.polyline) {
     // Real road/rail-following route from the Routes API - what "the
     // route between stops" actually means once a server key exists.
+    //
+    // A transit journey arrives split into steps, which is the only way to
+    // draw the walk to the station differently from the ride. Everything else
+    // - a walk or drive leg, or an entry cached before step geometry was
+    // requested - is one uniform line.
+    const segments = selectedRoute.segments;
     return (
       <>
-        <Polyline
-          encodedPath={selectedRoute.polyline}
-          strokeColor={strokeColor}
-          strokeOpacity={strokeOpacity}
-          strokeWeight={strokeWeight}
-          icons={selected ? [] : ARROW_ICONS}
-          onClick={onSelect}
-        />
+        {segments?.length ? (
+          segments.map((segment, index) => (
+            <CasedRoute
+              key={`${index}:${segment.polyline.slice(0, 16)}`}
+              encodedPath={segment.polyline}
+              kind={routeSegmentKind(mode, segment.travelMode)}
+              emphasis={emphasis}
+              onSelect={onSelect}
+            />
+          ))
+        ) : (
+          <CasedRoute
+            encodedPath={selectedRoute.polyline}
+            kind={routeSegmentKind(mode)}
+            emphasis={emphasis}
+            onSelect={onSelect}
+          />
+        )}
         <RouteAccessConnectors
+          // Deliberately the whole-journey line, not a segment: the connectors
+          // bridge the gap between the route's real ends and the stops, and
+          // the first and last segments are the same ends.
           encodedPath={selectedRoute.polyline}
           from={from}
           to={to}
-          selected={selected}
-          hasSelection={hasSelection}
+          emphasis={emphasis}
+          kind={routeSegmentKind(mode)}
           onSelect={onSelect}
         />
       </>
     );
   }
 
-  // No key yet, or this leg hasn't resolved: a straight dashed line is
-  // still a useful "you go this way next" cue as long as both ends have
-  // coordinates, and it upgrades to the real route with no code change
-  // once the leg above returns data.
+  // No key yet, or this leg hasn't resolved: a straight line is still a
+  // useful "you go this way next" cue as long as both ends have coordinates,
+  // and it upgrades to the real route with no code change once the leg above
+  // returns data. Drawn grey rather than route-coloured so it never passes
+  // for a real route.
   if (from.lat == null || from.lng == null || to.lat == null || to.lng == null) return null;
   return (
-    <Polyline
+    <CasedRoute
       path={[
         { lat: from.lat, lng: from.lng },
         { lat: to.lat, lng: to.lng },
       ]}
-      strokeColor={strokeColor}
-      strokeOpacity={selected ? 1 : hasSelection ? 0.2 : 0.7}
-      strokeWeight={strokeWeight}
-      icons={mode === "DIRECT" || selected ? [] : [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.6, scale: 3 }, offset: "0", repeat: "10px" }]}
-      onClick={onSelect}
+      kind={routeSegmentKind(mode)}
+      emphasis={emphasis}
+      fallback
+      onSelect={onSelect}
     />
   );
 }
@@ -237,9 +287,7 @@ export function RouteOverlay({
           to={sorted[i + 1]}
           date={date}
           timezone={timezone}
-          mode={legPreferences.find((preference) => preference.fromSpotId === spot.id && preference.toSpotId === sorted[i + 1].id)?.mode ?? "TRANSIT"}
-          routeIndex={legPreferences.find((preference) => preference.fromSpotId === spot.id && preference.toSpotId === sorted[i + 1].id)?.routeIndex ?? 0}
-          trafficAware={legPreferences.find((preference) => preference.fromSpotId === spot.id && preference.toSpotId === sorted[i + 1].id)?.trafficAware ?? false}
+          preference={legPreferenceFor(legPreferences, spot.id, sorted[i + 1].id)}
           selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
           hasSelection={selection !== null}
           onSelect={() => onSelect({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}

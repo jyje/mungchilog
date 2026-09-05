@@ -63,7 +63,7 @@ describe("map control geometry", () => {
     expect(nativeControls.every((control) => !rectsIntersect(placement!.rect, control, 12)), fixture.name).toBe(true);
   });
 
-  it("moves the rail away from a native lower-right control cluster", () => {
+  it("moves the rail inward before lifting it above a native lower-right control cluster", () => {
     const viewport = { width: 360, height: 800 };
     const nativeLowerRight = { left: 276, top: 610, right: 360, bottom: 800 };
     const placement = chooseMapControlRail(viewport, {
@@ -76,7 +76,7 @@ describe("map control geometry", () => {
 
     expect(placement).toEqual({
       side: "right",
-      rect: { left: 300, top: 346, right: 348, bottom: 454 },
+      rect: { left: 204, top: 680, right: 252, bottom: 788 },
     });
     expect(rectsIntersect(placement!.rect, nativeLowerRight, 12)).toBe(false);
   });
@@ -97,8 +97,23 @@ describe("map control geometry", () => {
     });
 
     expect(placement?.side).toBe("right");
-    expect(placement?.rect).toEqual({ left: 1224, top: 158, right: 1268, bottom: 258 });
+    expect(placement?.rect).toEqual({ left: 957, top: 306, right: 1001, bottom: 406 });
     expect(nativeControls.every((control) => !rectsIntersect(placement!.rect, control, 12))).toBe(true);
+  });
+
+  it("keeps the rail at the lower map edge when a bottom panel leaves a short map", () => {
+    const shortMap = { width: 390, height: 400 };
+    const nativeLowerRight = { left: 320, top: 188, right: 390, bottom: 400 };
+    const placement = chooseMapControlRail(shortMap, {
+      itemCount: 2,
+      controlSize,
+      gap: 12,
+      edgeGap: 12,
+      exclusions: [nativeLowerRight],
+    });
+
+    expect(placement?.rect).toEqual({ left: 248, top: 280, right: 296, bottom: 388 });
+    expect(rectsIntersect(placement!.rect, nativeLowerRight, 12)).toBe(false);
   });
 
   it("shifts inward before using the opposite side when the right rail is occupied", () => {

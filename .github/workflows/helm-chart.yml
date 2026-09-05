@@ -38,3 +38,13 @@ jobs:
           --set database.postgres.existingSecret=mungchilog-postgres
           --set database.postgres.connectionMode=components
           > /tmp/mungchilog-postgres.yaml
+      - run: >-
+          helm template mungchilog charts/mungchilog
+          --set serviceAccount.create=true
+          --set serviceAccount.name=mungchilog-monitoring
+          --set usageMonitoring.googleCloud.enabled=true
+          --set usageMonitoring.googleCloud.projectId=example-project
+          --set usageMonitoring.googleCloud.workloadIdentity.enabled=true
+          --set-string usageMonitoring.googleCloud.workloadIdentity.audience=https://iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/example/providers/kubernetes
+          --set usageMonitoring.googleCloud.workloadIdentity.credentialConfigMap=mungchilog-google-wif
+          > /tmp/mungchilog-google-monitoring.yaml

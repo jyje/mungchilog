@@ -15,6 +15,11 @@
   pointer-events: auto;
 }
 
+.map-control-rail[data-placement="hidden"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 @media (max-width: 480px) {
   .map-control-rail {
     right: max(0.5rem, calc(var(--map-control-right, 0px) + 4rem));

@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1.7
+# A promotion image is intentionally a thin derivative of a verified source
+# image. It copies only deployment identity into the final filesystem layer.
+
+ARG BASE_IMAGE
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build-info
+WORKDIR /metadata
+COPY apps/server/scripts/write-build-info.mjs ./write-build-info.mjs
+ARG BUILD_ENV
+ARG BUILD_NUMBER
+ARG IMAGE_TAG
+ARG COMMIT_SHA
+ARG BUILD_BRANCH
+ARG BUILD_TIME
+ARG RELEASE_VERSION
+RUN BUILD_ENV="$BUILD_ENV" \
+    BUILD_NUMBER="$BUILD_NUMBER" \
+    IMAGE_TAG="$IMAGE_TAG" \
+    COMMIT_SHA="$COMMIT_SHA" \
+    BUILD_BRANCH="$BUILD_BRANCH" \
+    BUILD_TIME="$BUILD_TIME" \
+    RELEASE_VERSION="$RELEASE_VERSION" \
+    BUILD_INFO_OUTPUT=/metadata/build-info.js \
+    node ./write-build-info.mjs
+
+FROM ${BASE_IMAGE}
+ARG BUILD_ENV
+ARG COMMIT_SHA
+ARG SOURCE_IMAGE
+ARG SOURCE_TAG
+ARG SOURCE_REVISION
+LABEL org.opencontainers.image.revision=$COMMIT_SHA \
+      io.mungchilog.environment=$BUILD_ENV \
+      io.mungchilog.source.image=$SOURCE_IMAGE \
+      io.mungchilog.source.tag=$SOURCE_TAG \
+      io.mungchilog.source.revision=$SOURCE_REVISION
+COPY --from=build-info /metadata/build-info.js /app/public/build-info.js

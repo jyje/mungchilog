@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getDbProvider, getPostgresConnectionString, migrateLegRoutesColumn, migrateUserIdentityColumns, toPostgresPlaceholders, type Database } from "./db.js";
+import { getDbProvider, getPostgresConnectionString, migrateLegRoutesColumn, migratePlaceDetailsColumn, migrateUserIdentityColumns, toPostgresPlaceholders, type Database } from "./db.js";
 
 test("SQLite remains the default provider", () => {
   assert.equal(getDbProvider({}), "sqlite");
@@ -75,4 +75,33 @@ test("SQLite leg migration adds the route alternatives cache column", async () =
   await migrateLegRoutesColumn(database, "sqlite");
 
   assert.deepEqual(statements, ["ALTER TABLE legs ADD COLUMN routes_json TEXT"]);
+});
+
+test("SQLite place migration adds independent cached details columns", async () => {
+  const sql: string[] = [];
+  const database = {
+    all: async () => [{ name: "place_id" }, { name: "opening_hours" }, { name: "fetched_at" }],
+    exec: async (statement: string) => { sql.push(statement); },
+  } as unknown as Database;
+
+  await migratePlaceDetailsColumn(database, "sqlite");
+  assert.deepEqual(sql, [
+    "ALTER TABLE places ADD COLUMN details_json TEXT",
+    "ALTER TABLE places ADD COLUMN details_fetched_at TEXT",
+  ]);
+});
+
+test("SQLite place migration preserves existing cached details columns", async () => {
+  const sql: string[] = [];
+  const database = {
+    all: async () => [
+      { name: "place_id" },
+      { name: "details_json" },
+      { name: "details_fetched_at" },
+    ],
+    exec: async (statement: string) => { sql.push(statement); },
+  } as unknown as Database;
+
+  await migratePlaceDetailsColumn(database, "sqlite");
+  assert.deepEqual(sql, []);
 });

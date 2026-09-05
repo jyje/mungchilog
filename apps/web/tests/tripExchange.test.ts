@@ -13,7 +13,7 @@ const trip = {
 };
 const normalizedTrip = {
   ...trip,
-  days: [{ ...trip.days[0], legPreferences: [], spots: [{ ...trip.days[0].spots[0], bufferMinutes: 10 }] }],
+  days: [{ ...trip.days[0], legPreferences: [], groups: [], spots: [{ ...trip.days[0].spots[0], bufferMinutes: 10 }] }],
 };
 
 describe("portable trip exchange", () => {
@@ -46,5 +46,29 @@ describe("portable trip exchange", () => {
 
   it("rejects an unsupported exchange version", () => {
     expect(() => parseTripExchange({ format: TRIP_EXCHANGE_FORMAT, version: 2, exportedAt: "2026-08-29T00:00:00.000Z", trip })).toThrow();
+  });
+
+  it("round-trips reservation semantics and keeps legacy times compatible", () => {
+    const scheduled = {
+      ...trip,
+      days: [{
+        ...trip.days[0],
+        spots: [{ ...trip.days[0].spots[0], plannedArrival: "19:00", timeKind: "RESERVATION" as const, dwellMinutes: 90 }],
+      }],
+    };
+
+    const exchange = createTripExchange(scheduled);
+    expect(exchange.trip.days[0].spots[0]).toMatchObject({
+      plannedArrival: "19:00",
+      timeKind: "RESERVATION",
+      dwellMinutes: 90,
+    });
+
+    const legacy = parseTripExchange({
+      ...trip,
+      days: [{ ...trip.days[0], spots: [{ ...trip.days[0].spots[0], plannedArrival: "10:30" }] }],
+    });
+    expect(legacy.days[0].spots[0]).toMatchObject({ plannedArrival: "10:30" });
+    expect(legacy.days[0].spots[0].timeKind).toBeUndefined();
   });
 });

@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, MapPinPlus } from "lucide-react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { getTrip, saveTrip } from "../api";
-import type { Item, Spot, Trip } from "../types";
-import { TripMap, type ItinerarySelection } from "../components/TripMap";
+import type { Day, Item, Spot, Trip } from "../types";
+import { TripMap, type ItinerarySelection, type MapPlaceSelection, type MapPoint } from "../components/TripMap";
 import { MapsScope } from "../components/MapsScope";
-import { SplitMapShell } from "../components/SplitMapShell";
+import { SplitMapShell, type TripPanelActions } from "../components/SplitMapShell";
 import { SpotCard } from "../components/SpotCard";
 import { LegInfo } from "../components/LegInfo";
 import { SpotForm, type SpotFormValues } from "../components/SpotForm";
@@ -16,11 +16,19 @@ import { TripShareButton } from "../components/TripShareButton";
 import { useTripLocationSharing, type SharedLocationWithName } from "../hooks/useTripLocationSharing";
 import { TripActionsMenu } from "../components/TripActionsMenu";
 import { DateAddSplitButton } from "../components/system/DateAddSplitButton";
+import { PlannerChoiceGroup, PlannerChoiceItem } from "../components/system/PlannerChoiceGroup";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { NativeSelect, NativeSelectOption } from "../components/ui/native-select";
 import { legPreferenceFor, removeSpotLegPreferences, replaceLegPreference } from "../legPreferences";
-import type { PersistedLegMode } from "../types";
+import type { LegPreference, PersistedLegMode } from "../types";
 import type { Me } from "../api";
 import { downloadTripExchange } from "../tripExchange";
+import { PlaceDetailsPanel } from "../components/PlaceDetailsPanel";
+import type { PlaceSelection } from "../components/PlaceAutocompleteInput";
+import { PlannerPanelTabs, type PlannerPanelTab } from "../components/system/PlannerPanelTabs";
+import { scheduleWarnings } from "../schedule";
+import { itineraryBlocks, normalizeItineraryGroups, removeSpotFromItineraryGroups } from "../itineraryGroups";
 
 function nextDate(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
@@ -59,15 +67,27 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [dateEditValue, setDateEditValue] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
+  const [groupEditorOpen, setGroupEditorOpen] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupStartId, setGroupStartId] = useState("");
+  const [groupEndId, setGroupEndId] = useState("");
+  const [groupError, setGroupError] = useState<string | null>(null);
   const [selection, setSelection] = useState<ItinerarySelection>(null);
   const [sharedLocations, setSharedLocations] = useState<SharedLocationWithName[]>([]);
   const [focusedSharedUserId, setFocusedSharedUserId] = useState<string | null>(null);
   const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const [legSaveError, setLegSaveError] = useState<string | null>(null);
+  const [pointPickActive, setPointPickActive] = useState(false);
+  const [pendingCoordinate, setPendingCoordinate] = useState<MapPoint | null>(null);
+  const [pendingPlace, setPendingPlace] = useState<PlaceSelection | null>(null);
+  const [selectedPlace, setSelectedPlace] = useState<MapPlaceSelection | null>(null);
+  const [panelTab, setPanelTab] = useState<PlannerPanelTab>("itinerary");
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ignoreNextDayClick = useRef(false);
   const focusedSharedUserIdRef = useRef<string | null>(null);
+  const previousItinerarySelectionRef = useRef<ItinerarySelection>(null);
+  const panelActionsRef = useRef<TripPanelActions | null>(null);
 
   const setSharedLocationFocus = useCallback((userId: string | null) => {
     focusedSharedUserIdRef.current = userId;
@@ -76,9 +96,12 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   const clearSelection = useCallback(() => {
     setSelection(null);
+    previousItinerarySelectionRef.current = null;
+    setSelectedPlace(null);
+    setPanelTab("itinerary");
     setSharedLocationFocus(null);
     removeSelectionHistoryState();
-  }, [setSharedLocationFocus]);
+  }, [setPanelTab, setSelectedPlace, setSharedLocationFocus]);
 
   function selectItinerary(next: Exclude<ItinerarySelection, null>) {
     const isSameSelection =
@@ -92,6 +115,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return;
     }
     setSharedLocationFocus(null);
+    setSelectedPlace(null);
+    setPanelTab("itinerary");
+    previousItinerarySelectionRef.current = next;
     setSelection(next);
   }
 
@@ -101,8 +127,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return;
     }
     setSelection(null);
+    previousItinerarySelectionRef.current = null;
+    setSelectedPlace(null);
+    setPanelTab("itinerary");
     setSharedLocationFocus(userId);
-  }, [clearSelection, setSharedLocationFocus]);
+  }, [clearSelection, setPanelTab, setSelectedPlace, setSharedLocationFocus]);
 
   const handleSharedLocations = useCallback((locations: SharedLocationWithName[]) => {
     setSharedLocations(locations);
@@ -119,23 +148,35 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   });
 
   useEffect(() => {
-    if (!selection && !focusedSharedUserId) return;
+    if (!selection && !focusedSharedUserId && !selectedPlace && !pointPickActive && !addingSpot) return;
     const state = (window.history.state ?? {}) as Record<string, unknown>;
     const nextState = { ...state, [SELECTION_HISTORY_KEY]: true };
     if (state[SELECTION_HISTORY_KEY]) window.history.replaceState(nextState, "", window.location.href);
     else window.history.pushState(nextState, "", window.location.href);
-  }, [focusedSharedUserId, selection]);
+  }, [addingSpot, focusedSharedUserId, pointPickActive, selectedPlace, selection]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape" || (!selection && !focusedSharedUserId)) return;
+      if (event.key !== "Escape" || (!selection && !focusedSharedUserId && !selectedPlace && !pointPickActive && !addingSpot)) return;
       event.preventDefault();
+      if (pointPickActive || addingSpot) {
+        setPointPickActive(false);
+        setAddingSpot(false);
+        setPendingCoordinate(null);
+      }
       clearSelection();
     }
     function onPopState() {
-      if (selection || focusedSharedUserId) {
+      if (selection || focusedSharedUserId || selectedPlace || pointPickActive || addingSpot) {
         setSelection(null);
+        previousItinerarySelectionRef.current = null;
         setSharedLocationFocus(null);
+        setPointPickActive(false);
+        setAddingSpot(false);
+        setPendingCoordinate(null);
+        setPendingPlace(null);
+        setSelectedPlace(null);
+        setPanelTab("itinerary");
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -144,7 +185,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("popstate", onPopState);
     };
-  }, [clearSelection, focusedSharedUserId, selection, setSharedLocationFocus]);
+  }, [addingSpot, clearSelection, focusedSharedUserId, pointPickActive, selectedPlace, selection, setSharedLocationFocus]);
 
   const mutation = useMutation({
     mutationFn: (next: Trip) => {
@@ -174,7 +215,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   if (error) return <p className="error">{String((error as Error).message ?? error)}</p>;
   if (!trip) return <p className="meta">불러오는 중...</p>;
 
+  const tripTimezone = trip.timezone;
   const day = trip.days[dayIndex];
+  const orderedSpots = [...(day?.spots ?? [])].sort((a, b) => a.order - b.order);
+  const scheduleWarningBySpotId = new Map(scheduleWarnings(orderedSpots, day?.date, trip.timezone).map((warning) => [warning.spotId, warning.message]));
 
   function defaultNewDayDate() {
     if (!trip) return "";
@@ -193,7 +237,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return false;
     }
 
-    const days = sortDays([...trip.days, { date, spots: [], legPreferences: [] }]);
+    const days = sortDays([...trip.days, { date, spots: [], legPreferences: [], groups: [] }]);
     const startDate = date < trip.startDate ? date : trip.startDate;
     const endDate = date > trip.endDate ? date : trip.endDate;
     saveNow({ ...trip, startDate, endDate, days });
@@ -302,6 +346,69 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     const days = trip.days.map((d, i) => (i === dayIndex ? { ...d, spots: [...d.spots, spot] } : d));
     saveNow({ ...trip, days });
     setAddingSpot(false);
+    setPendingCoordinate(null);
+    setPendingPlace(null);
+    setPointPickActive(false);
+    setSelectedPlace(null);
+    setPanelTab("itinerary");
+    const nextSelection = { kind: "spot", spotId: spot.id } as const;
+    previousItinerarySelectionRef.current = nextSelection;
+    setSelection(nextSelection);
+  }
+
+  function startPointPick() {
+    clearSelection();
+    setAddingSpot(false);
+    setPendingCoordinate(null);
+    setPendingPlace(null);
+    setPointPickActive(true);
+  }
+
+  function cancelPointPick() {
+    setPointPickActive(false);
+    setPendingCoordinate(null);
+  }
+
+  function pickMapPoint(point: MapPoint) {
+    setPointPickActive(false);
+    setPendingCoordinate(point);
+    setPendingPlace(null);
+    setSelectedPlace(null);
+    setPanelTab("itinerary");
+    setAddingSpot(true);
+    panelActionsRef.current?.setPanelVisible(true);
+  }
+
+  function selectMapPlace(place: MapPlaceSelection) {
+    if (selection) previousItinerarySelectionRef.current = selection;
+    setSelection(null);
+    setSharedLocationFocus(null);
+    setPointPickActive(false);
+    setPendingCoordinate(null);
+    setSelectedPlace(place);
+    setPanelTab("places");
+    panelActionsRef.current?.setPanelVisible(true);
+  }
+
+  function addSelectedPlace(place: PlaceSelection) {
+    previousItinerarySelectionRef.current = null;
+    setPendingCoordinate(null);
+    setPendingPlace(place);
+    setSelectedPlace(null);
+    setAddingSpot(true);
+    setPanelTab("itinerary");
+    panelActionsRef.current?.setPanelVisible(true);
+  }
+
+  function changePanelTab(next: PlannerPanelTab) {
+    if (next === panelTab) return;
+    if (next === "places") {
+      if (selection) previousItinerarySelectionRef.current = selection;
+      setSelection(null);
+    } else {
+      setSelection(previousItinerarySelectionRef.current);
+    }
+    setPanelTab(next);
   }
 
   function editSpot(spotId: string, updates: SpotFormValues) {
@@ -317,7 +424,12 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     const days = trip.days.map((d, i) => (
       i !== dayIndex
         ? d
-        : { ...d, spots: d.spots.filter((s) => s.id !== spotId), legPreferences: removeSpotLegPreferences(d.legPreferences, spotId) }
+        : {
+            ...d,
+            spots: d.spots.filter((s) => s.id !== spotId),
+            legPreferences: removeSpotLegPreferences(d.legPreferences, spotId),
+            groups: removeSpotFromItineraryGroups(d.groups, spotId),
+          }
     ));
     const cover = trip.cover?.spotId === spotId
       ? (trip.cover.imageDataUrl ? { imageDataUrl: trip.cover.imageDataUrl } : null)
@@ -358,17 +470,78 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     const oldIndex = spots.findIndex((s) => s.id === active.id);
     const newIndex = spots.findIndex((s) => s.id === over.id);
     const reordered = arrayMove(spots, oldIndex, newIndex).map((s, i) => ({ ...s, order: i }));
-    const days = trip.days.map((d, i) => (i === dayIndex ? { ...d, spots: reordered } : d));
+    const days = trip.days.map((d, i) => (
+      i === dayIndex ? { ...d, spots: reordered, groups: normalizeItineraryGroups(d.groups, reordered) } : d
+    ));
     scheduleSave({ ...trip, days });
   }
 
-  function saveLegPreference(fromSpotId: string, toSpotId: string, mode: PersistedLegMode, routeIndex = 0, trafficAware = false) {
+  function openGroupEditor() {
+    const spots = [...(day?.spots ?? [])].sort((a, b) => a.order - b.order);
+    if (spots.length < 2) return;
+    setGroupName("");
+    setGroupStartId(spots[0].id);
+    setGroupEndId(spots[1].id);
+    setGroupError(null);
+    setGroupEditorOpen(true);
+  }
+
+  function createGroup() {
+    if (!trip || !day) return;
+    const spots = [...day.spots].sort((a, b) => a.order - b.order);
+    const start = spots.findIndex((spot) => spot.id === groupStartId);
+    const end = spots.findIndex((spot) => spot.id === groupEndId);
+    if (start < 0 || end < 0 || start === end) {
+      setGroupError("그룹의 시작과 마지막 장소를 각각 선택해주세요.");
+      return;
+    }
+    const spotIds = spots.slice(Math.min(start, end), Math.max(start, end) + 1).map((spot) => spot.id);
+    const occupied = new Set((day.groups ?? []).flatMap((group) => group.spotIds));
+    if (spotIds.some((spotId) => occupied.has(spotId))) {
+      setGroupError("이미 다른 그룹에 속한 장소는 다시 묶을 수 없습니다.");
+      return;
+    }
+    const name = groupName.trim() || `${spots[Math.min(start, end)].name} 그룹`;
+    const groups = [...(day.groups ?? []), { id: crypto.randomUUID(), name, spotIds }];
+    const days = trip.days.map((candidate, index) => index === dayIndex ? { ...candidate, groups } : candidate);
+    saveNow({ ...trip, days });
+    setGroupEditorOpen(false);
+    setGroupError(null);
+  }
+
+  function removeGroup(groupId: string) {
+    if (!trip) return;
+    const days = trip.days.map((candidate, index) => (
+      index === dayIndex ? { ...candidate, groups: (candidate.groups ?? []).filter((group) => group.id !== groupId) } : candidate
+    ));
+    saveNow({ ...trip, days });
+  }
+
+  // One entry point for every leg edit. The caller sends only what changed;
+  // anything it leaves out keeps its saved value, except that changing the
+  // mode discards the previous route choice - an alternative belongs to the
+  // journey it came from, so carrying it across modes would point at an
+  // unrelated route.
+  function saveLegPreference(
+    fromSpotId: string,
+    toSpotId: string,
+    patch: Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware">> & { mode?: PersistedLegMode },
+  ) {
     if (!trip || !day) return;
     const previous = trip;
+    const current = legPreferenceFor(day.legPreferences, fromSpotId, toSpotId);
+    const mode = patch.mode ?? current.mode;
+    const modeChanged = mode !== current.mode;
+    const options = {
+      routeIndex: patch.routeIndex ?? (modeChanged ? 0 : current.routeIndex),
+      routeKey: patch.routeKey ?? (modeChanged ? undefined : current.routeKey),
+      timing: patch.timing ?? current.timing,
+      trafficAware: patch.trafficAware ?? current.trafficAware,
+    };
     const days = trip.days.map((candidate, index) => (
       index !== dayIndex
         ? candidate
-        : { ...candidate, legPreferences: replaceLegPreference(candidate.legPreferences, fromSpotId, toSpotId, mode, { routeIndex, trafficAware }) }
+        : { ...candidate, legPreferences: replaceLegPreference(candidate.legPreferences, fromSpotId, toSpotId, mode, options) }
     ));
     const next = { ...trip, days };
     qc.setQueryData(queryKey, next);
@@ -383,9 +556,6 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     });
   }
 
-  function setLegMode(fromSpotId: string, toSpotId: string, mode: PersistedLegMode) {
-    saveLegPreference(fromSpotId, toSpotId, mode);
-  }
 
   function toggleItem(spotId: string, itemId: string) {
     if (!trip) return;
@@ -403,6 +573,46 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     scheduleSave({ ...trip, days });
   }
 
+  function renderSpotCard(spot: Spot, currentDay: Day) {
+    return (
+      <SpotCard
+        key={spot.id}
+        spot={spot}
+        onToggleItem={(itemId) => toggleItem(spot.id, itemId)}
+        onDeleteItem={(itemId) => deleteItem(spot.id, itemId)}
+        onAddItem={(item) => addItem(spot.id, item)}
+        onDeleteSpot={() => deleteSpot(spot.id)}
+        onEditSpot={(updates) => editSpot(spot.id, updates)}
+        selected={
+          (selection?.kind === "spot" && selection.spotId === spot.id) ||
+          (selection?.kind === "leg" && (selection.fromId === spot.id || selection.toId === spot.id))
+        }
+        onSelect={() => selectItinerary({ kind: "spot", spotId: spot.id })}
+        date={currentDay.date}
+        timezone={tripTimezone}
+        scheduleWarning={scheduleWarningBySpotId.get(spot.id)}
+      />
+    );
+  }
+
+  function renderLegRow(from: Spot, to: Spot, currentDay: Day) {
+    const preference = legPreferenceFor(currentDay.legPreferences, from.id, to.id);
+    return (
+      <li key={`${from.id}-${to.id}-leg`} className="leg-row">
+        <LegInfo
+          from={from}
+          to={to}
+          date={currentDay.date}
+          timezone={tripTimezone}
+          preference={preference}
+          selected={selection?.kind === "leg" && selection.fromId === from.id && selection.toId === to.id}
+          onSelect={() => selectItinerary({ kind: "leg", fromId: from.id, toId: to.id })}
+          onChange={(patch) => saveLegPreference(from.id, to.id, patch)}
+        />
+      </li>
+    );
+  }
+
   return (
     <MapsScope>
       <SplitMapShell
@@ -414,22 +624,29 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             legPreferences={day?.legPreferences ?? []}
             selection={selection}
             onSelect={selectItinerary}
+            onClearSelection={clearSelection}
             sharedLocations={sharedLocations}
             focusedSharedUserId={focusedSharedUserId}
             onFocusSharedLocation={selectSharedLocation}
             locationSharing={locationSharing}
             onOpenLocationSharing={() => setSharePanelOpen(true)}
+            pointPickActive={pointPickActive}
+            onPickPoint={pickMapPoint}
+            onCancelPointPick={cancelPointPick}
+            selectedPlace={panelTab === "places" ? selectedPlace : null}
+            onSelectPlace={selectMapPlace}
           />
         }
         headerLeft={
-          <Button asChild variant="ghost" size="icon-lg" className="map-hero-back">
+          <Button asChild variant="secondary" size="icon-lg" className="map-hero-back">
             <a href="/trips" aria-label="여행 목록으로" title="여행 목록으로" onClick={(e) => { e.preventDefault(); navigate("/trips"); }}>
               <ArrowLeft aria-hidden="true" />
             </a>
           </Button>
         }
-        headerRight={(panelActions) => (
-          <>
+        headerRight={(panelActions) => {
+          panelActionsRef.current = panelActions;
+          return <>
             <TripShareButton
               tripId={id}
               me={me}
@@ -440,8 +657,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               onFocusLocation={selectSharedLocation}
             />
             <TripActionsMenu trip={trip} onSave={saveNow} onExport={() => downloadTripExchange(trip)} saving={mutation.isPending} panelActions={panelActions} />
-          </>
-        )}
+          </>;
+        }}
         title={trip.title}
         subtitle={
           <>
@@ -449,31 +666,43 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
           </>
         }
         panel={
-          <>
+          <PlannerPanelTabs
+            value={panelTab}
+            onValueChange={changePanelTab}
+            placeSelected={!!selectedPlace}
+            itinerary={<>
             <div className="day-tabs-wrap">
               <div className="day-tabs">
-                {trip.days.map((d, i) => (
-                  <Button
-                    key={d.date}
-                    type="button"
-                    variant={i === dayIndex ? "default" : "outline"}
-                    className={i === dayIndex ? "active" : undefined}
-                    onClick={() => selectDay(i)}
-                    onContextMenu={(event) => {
-                      event.preventDefault();
-                      openDateEditor(d.date);
-                    }}
-                    onPointerDown={(event) => {
-                      if (event.pointerType !== "mouse" || event.button === 0) startDayLongPress(d.date);
-                    }}
-                    onPointerUp={cancelDayLongPress}
-                    onPointerCancel={cancelDayLongPress}
-                    onPointerLeave={cancelDayLongPress}
-                    aria-label={`${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리`}
-                  >
-                    {formatScheduleDate(d.date)}
-                  </Button>
-                ))}
+                <PlannerChoiceGroup
+                  value={day?.date ?? ""}
+                  onValueChange={(date) => {
+                    const nextIndex = trip.days.findIndex((candidate) => candidate.date === date);
+                    if (nextIndex >= 0) selectDay(nextIndex);
+                  }}
+                  className="day-choice-group"
+                  aria-label="여행 날짜"
+                >
+                  {trip.days.map((d, i) => (
+                    <PlannerChoiceItem
+                      key={d.date}
+                      value={d.date}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        openDateEditor(d.date);
+                      }}
+                      onPointerDown={(event) => {
+                        if (event.pointerType !== "mouse" || event.button === 0) startDayLongPress(d.date);
+                      }}
+                      onPointerUp={cancelDayLongPress}
+                      onPointerCancel={cancelDayLongPress}
+                      onPointerLeave={cancelDayLongPress}
+                      aria-current={i === dayIndex ? "date" : undefined}
+                      aria-label={`${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리`}
+                    >
+                      {formatScheduleDate(d.date)}
+                    </PlannerChoiceItem>
+                  ))}
+                </PlannerChoiceGroup>
                 <DateAddSplitButton onAddDay={addDay} onOpenDateAdd={openDateAdd} />
                 {day && (
                   <Button type="button" variant="ghost" size="icon-lg" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
@@ -486,12 +715,12 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 <div className="day-date-popover" role="dialog" aria-label="특정 날짜 추가">
                   <label>
                     일정 날짜
-                    <input type="date" value={customDate} onChange={(event) => setCustomDate(event.target.value)} />
+                    <Input className="min-h-11" type="date" value={customDate} onChange={(event) => setCustomDate(event.target.value)} />
                   </label>
                   {dateError && <p className="error day-date-error">{dateError}</p>}
                   <div className="day-date-actions">
-                    <Button type="button" onClick={addCustomDay}>추가</Button>
-                    <Button type="button" variant="ghost" onClick={closeDatePopover}>취소</Button>
+                    <Button type="button" className="min-h-11" onClick={addCustomDay}>추가</Button>
+                    <Button type="button" variant="ghost" className="min-h-11" onClick={closeDatePopover}>취소</Button>
                   </div>
                 </div>
               )}
@@ -500,14 +729,14 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 <div className="day-date-popover" role="dialog" aria-label={`${editingDate} 날짜 관리`}>
                   <label>
                     일정 날짜
-                    <input type="date" value={dateEditValue} onChange={(event) => setDateEditValue(event.target.value)} />
+                    <Input className="min-h-11" type="date" value={dateEditValue} onChange={(event) => setDateEditValue(event.target.value)} />
                   </label>
                   <p className="meta day-date-hint">날짜를 바꾸면 해당 날짜의 메모와 스팟도 함께 이동합니다.</p>
                   {dateError && <p className="error day-date-error">{dateError}</p>}
                   <div className="day-date-actions">
-                    <Button type="button" onClick={updateDayDate}>변경 저장</Button>
-                    <Button type="button" variant="ghost" onClick={closeDatePopover}>취소</Button>
-                    <Button type="button" variant="outline" className="day-delete" onClick={() => deleteDay(editingDate)}>날짜 삭제</Button>
+                    <Button type="button" className="min-h-11" onClick={updateDayDate}>변경 저장</Button>
+                    <Button type="button" variant="ghost" className="min-h-11" onClick={closeDatePopover}>취소</Button>
+                    <Button type="button" variant="destructive" className="day-delete min-h-11" onClick={() => deleteDay(editingDate)}>날짜 삭제</Button>
                   </div>
                 </div>
               )}
@@ -533,67 +762,99 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 )}
 
                 <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={day.spots.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                  <SortableContext items={orderedSpots.map((spot) => spot.id)} strategy={verticalListSortingStrategy}>
                     <ul className="spot-list">
-                      {[...day.spots]
-                        .sort((a, b) => a.order - b.order)
-                        .flatMap((spot, i, sorted) => {
-                          const card = (
-                            <SpotCard
-                              key={spot.id}
-                              spot={spot}
-                              onToggleItem={(itemId) => toggleItem(spot.id, itemId)}
-                              onDeleteItem={(itemId) => deleteItem(spot.id, itemId)}
-                              onAddItem={(item) => addItem(spot.id, item)}
-                              onDeleteSpot={() => deleteSpot(spot.id)}
-                              onEditSpot={(updates) => editSpot(spot.id, updates)}
-                              selected={
-                                (selection?.kind === "spot" && selection.spotId === spot.id) ||
-                                (selection?.kind === "leg" && (selection.fromId === spot.id || selection.toId === spot.id))
-                              }
-                              onSelect={() => selectItinerary({ kind: "spot", spotId: spot.id })}
-                              date={day.date}
-                            />
+                      {(() => {
+                        const blocks = itineraryBlocks(orderedSpots, day.groups);
+                        const firstSpot = (block: typeof blocks[number]) => block.kind === "group" ? block.spots[0] : block.spot;
+                        const lastSpot = (block: typeof blocks[number]) => block.kind === "group" ? block.spots.at(-1)! : block.spot;
+                        return blocks.map((block, index) => {
+                          const next = blocks[index + 1];
+                          const trailingLeg = next ? renderLegRow(lastSpot(block), firstSpot(next), day) : null;
+                          if (block.kind === "spot") {
+                            return (
+                              <Fragment key={block.spot.id}>
+                                {renderSpotCard(block.spot, day)}
+                                {trailingLeg}
+                              </Fragment>
+                            );
+                          }
+                          return (
+                            <Fragment key={block.group.id}>
+                              <li className="itinerary-group">
+                                <div className="itinerary-group-header">
+                                  <span className="itinerary-group-title">{block.group.name}</span>
+                                  <Button type="button" variant="ghost" size="sm" onClick={() => removeGroup(block.group.id)}>
+                                    그룹 해제
+                                  </Button>
+                                </div>
+                                <ol className="itinerary-group-stops">
+                                  {block.spots.map((spot, spotIndex) => (
+                                    <Fragment key={spot.id}>
+                                      {renderSpotCard(spot, day)}
+                                      {spotIndex < block.spots.length - 1 && renderLegRow(spot, block.spots[spotIndex + 1], day)}
+                                    </Fragment>
+                                  ))}
+                                </ol>
+                              </li>
+                              {trailingLeg}
+                            </Fragment>
                           );
-                          if (i === sorted.length - 1) return [card];
-                          // Plain <li>, not a sortable item - dnd-kit's SortableContext
-                          // only tracks elements that call useSortable (see SpotCard),
-                          // so an inert row interleaved between them is safe.
-                          return [
-                            card,
-                            <li key={`${spot.id}-leg`} className="leg-row">
-                              {(() => {
-                                const preference = legPreferenceFor(day.legPreferences, spot.id, sorted[i + 1].id);
-                                return <LegInfo
-                                  from={spot}
-                                  to={sorted[i + 1]}
-                                  date={day.date}
-                                  timezone={trip.timezone}
-                                  mode={preference.mode}
-                                  routeIndex={preference.routeIndex}
-                                  trafficAware={preference.trafficAware}
-                                  selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
-                                  onSelect={() => selectItinerary({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
-                                  onModeChange={(mode) => setLegMode(spot.id, sorted[i + 1].id, mode)}
-                                  onRouteIndexChange={(routeIndex) => saveLegPreference(spot.id, sorted[i + 1].id, preference.mode, routeIndex, preference.trafficAware)}
-                                  onTrafficAwareChange={(trafficAware) => saveLegPreference(spot.id, sorted[i + 1].id, preference.mode, preference.routeIndex, trafficAware)}
-                                />;
-                              })()}
-                            </li>,
-                          ];
-                        })}
+                        });
+                      })()}
                       {addingSpot && (
                         <li>
-                          <SpotForm onSubmit={addSpot} onCancel={() => setAddingSpot(false)} />
+                          <SpotForm
+                            initialLocation={pendingCoordinate ?? undefined}
+                            initialPlace={pendingPlace ?? undefined}
+                            date={day.date}
+                            timezone={trip.timezone}
+                            onSubmit={addSpot}
+                            onCancel={() => { setAddingSpot(false); setPendingCoordinate(null); setPendingPlace(null); }}
+                          />
                         </li>
                       )}
                     </ul>
                   </SortableContext>
                 </DndContext>
                 {!addingSpot && (
-                  <Button type="button" variant="outline" className="add-spot-button" onClick={() => setAddingSpot(true)}>
-                    + 스팟 추가
-                  </Button>
+                  <div className="add-spot-actions">
+                    <Button type="button" variant="outline" className="add-spot-button" onClick={() => { setPendingCoordinate(null); setPendingPlace(null); setAddingSpot(true); }}>
+                      + 스팟 추가
+                    </Button>
+                    <Button type="button" variant="outline" className="add-spot-button" aria-pressed={pointPickActive} onClick={pointPickActive ? cancelPointPick : startPointPick}>
+                      <MapPinPlus aria-hidden="true" /> {pointPickActive ? "지도 선택 취소" : "지도에서 선택"}
+                    </Button>
+                    <Button type="button" variant="outline" className="add-spot-button" onClick={openGroupEditor} disabled={orderedSpots.length < 2}>
+                      + 그룹 만들기
+                    </Button>
+                  </div>
+                )}
+                {groupEditorOpen && (
+                  <div className="itinerary-group-editor" role="dialog" aria-label="일정 그룹 만들기">
+                    <label>
+                      그룹 이름
+                      <Input value={groupName} onChange={(event) => { setGroupName(event.target.value); setGroupError(null); }} placeholder="예: 기타하마 산책" />
+                    </label>
+                    <label>
+                      시작 장소
+                      <NativeSelect value={groupStartId} onChange={(event) => { setGroupStartId(event.target.value); setGroupError(null); }}>
+                        {orderedSpots.map((spot) => <NativeSelectOption key={spot.id} value={spot.id}>{spot.name}</NativeSelectOption>)}
+                      </NativeSelect>
+                    </label>
+                    <label>
+                      마지막 장소
+                      <NativeSelect value={groupEndId} onChange={(event) => { setGroupEndId(event.target.value); setGroupError(null); }}>
+                        {orderedSpots.map((spot) => <NativeSelectOption key={spot.id} value={spot.id}>{spot.name}</NativeSelectOption>)}
+                      </NativeSelect>
+                    </label>
+                    <p className="meta">연속된 장소만 하나의 점선 그룹으로 묶습니다.</p>
+                    {groupError && <p className="error" role="alert">{groupError}</p>}
+                    <div className="itinerary-group-editor-actions">
+                      <Button type="button" onClick={createGroup}>그룹 만들기</Button>
+                      <Button type="button" variant="ghost" onClick={() => setGroupEditorOpen(false)}>취소</Button>
+                    </div>
+                  </div>
                 )}
               </>
             ) : (
@@ -601,7 +862,16 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 일자가 없습니다. 위 <strong>+ 날짜</strong> 버튼으로 추가하세요.
               </p>
             )}
-          </>
+            </>}
+            places={
+              <PlaceDetailsPanel
+                selection={selectedPlace}
+                onAdd={addSelectedPlace}
+                onClose={() => { setSelectedPlace(null); setPanelTab("itinerary"); }}
+                canAdd={!!day}
+              />
+            }
+          />
         }
       />
     </MapsScope>

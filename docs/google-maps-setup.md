@@ -61,3 +61,5 @@ https://console.cloud.google.com/billing/budgets 에서:
 
 - Maps JS 키 (그대로 채팅에 붙여넣으셔도 됩니다 — HTTP 리퍼러로 제한 걸려 있어서 이 도메인 밖에서는 못 씁니다)
 - 서버 키는 **평문으로 채팅에 붙여넣지 마세요** — "서버 키 발급했어요"라고만 말씀하시면 안전하게 넣는 절차를 진행합니다
+
+관리자 화면에서 API 요청 수와 지연시간을 확인하려면 [관리자 사용량 모니터링](admin-usage-monitoring.md)을 추가로 설정하세요. 이 연동은 Maps API 키와 별개이며 Google 서비스 계정 키 파일을 사용하지 않습니다.

@@ -79,4 +79,20 @@ describe("spot card actions", () => {
     fireEvent.click(screen.getByRole("button", { name: "+ 살 것/먹을 것 추가" }));
     expect(screen.getByRole("button", { name: "추가" })).toBeDisabled();
   });
+
+  it("shows reservation semantics, duration, and advisory overlap text without color-only meaning", () => {
+    renderCard({
+      spot: { ...spot, plannedArrival: "19:00", timeKind: "RESERVATION", dwellMinutes: 90 },
+      scheduleWarning: "앞 일정의 예상 종료 19:30와 겹칩니다.",
+    });
+
+    expect(screen.getByText("19:00")).toBeVisible();
+    expect(screen.getByText("20:30")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent("앞 일정의 예상 종료 19:30와 겹칩니다.");
+  });
+
+  it("labels unscheduled stops instead of hiding their state", () => {
+    renderCard();
+    expect(screen.getByRole("button", { name: "남산 시작 시각 입력" })).toHaveTextContent(/시간 입력\s*필요/);
+  });
 });

@@ -2,12 +2,33 @@ import { Hono } from "hono";
 import { db } from "../db.js";
 import { requireAuth, requireApproved, requireAdmin, listUsers, setUserStatus, findUserById, type AuthEnv } from "../auth.js";
 import { locationSharingStore } from "../location-sharing-store.js";
+import { readApplicationUsage, USAGE_WINDOWS, type AdminUsageResponse, type UsageWindow } from "../admin-usage.js";
+import { googleUsageProvider } from "../google-monitoring.js";
 
 export const admin = new Hono<AuthEnv>();
 admin.use("*", requireAuth, requireApproved, requireAdmin);
 
 admin.get("/users", async (c) => {
   return c.json(await listUsers());
+});
+
+admin.get("/usage", async (c) => {
+  const window = c.req.query("window") ?? "24h";
+  const refresh = c.req.query("refresh");
+  if (!USAGE_WINDOWS.includes(window as UsageWindow)) {
+    return c.json({ error: `window must be one of: ${USAGE_WINDOWS.join(", ")}` }, 400);
+  }
+  if (refresh && refresh !== "1") return c.json({ error: "refresh must be 1 when provided" }, 400);
+
+  const generatedAt = new Date();
+  const response: AdminUsageResponse = {
+    window: window as UsageWindow,
+    generatedAt: generatedAt.toISOString(),
+    application: await readApplicationUsage(db, generatedAt),
+    google: await googleUsageProvider.get(window as UsageWindow, refresh === "1"),
+  };
+  c.header("Cache-Control", "private, no-store");
+  return c.json(response);
 });
 
 admin.post("/users/:id/approve", async (c) => {

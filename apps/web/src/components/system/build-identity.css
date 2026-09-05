@@ -27,7 +27,7 @@
   outline-offset: 2px;
 }
 
-.build-identity dl {
+.build-identity-popover {
   position: absolute;
   right: 0;
   bottom: calc(100% + 0.5rem);
@@ -41,6 +41,26 @@
   border-radius: 8px;
   background: var(--surface);
   box-shadow: 0 8px 24px color-mix(in srgb, var(--shadow-color) 35%, transparent);
+}
+
+.build-identity-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.build-identity-popover-header [data-slot="button"] {
+  flex: none;
+}
+
+.build-identity dl {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
 }
 
 .build-identity dl div {

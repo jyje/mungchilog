@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FocusEvent } from "react";
 import { MarkdownView } from "./MarkdownView";
 import { Button } from "./ui/button";
+import { Textarea } from "./ui/textarea";
+import { PlannerChoiceGroup, PlannerChoiceItem } from "./system/PlannerChoiceGroup";
 
 type EditorMode = "edit" | "read";
 
@@ -90,20 +92,18 @@ export function MarkdownEditor({
   return (
     <div className="markdown-editor" onBlurCapture={warnWhenLeavingEditor}>
       <div className="markdown-editor-tabs">
-        <Button type="button" variant={mode === "edit" ? "default" : "outline"} className={mode === "edit" ? "active" : undefined} aria-pressed={mode === "edit"} onClick={() => changeMode("edit")}>
-          편집
-        </Button>
-        <Button type="button" variant={mode === "read" ? "default" : "outline"} className={mode === "read" ? "active" : undefined} aria-pressed={mode === "read"} onClick={() => changeMode("read")}>
-          읽기
-        </Button>
+        <PlannerChoiceGroup value={mode} onValueChange={(next) => next && changeMode(next as EditorMode)} aria-label="메모 보기 방식">
+          <PlannerChoiceItem value="edit">편집</PlannerChoiceItem>
+          <PlannerChoiceItem value="read">읽기</PlannerChoiceItem>
+        </PlannerChoiceGroup>
         {saveMode && (
-          <Button type="button" className="markdown-editor-save" onClick={save} disabled={!dirty}>
+          <Button type="button" className="markdown-editor-save min-h-11" onClick={save} disabled={!dirty}>
             저장
           </Button>
         )}
       </div>
       {mode === "edit" ? (
-        <textarea
+        <Textarea
           ref={textarea}
           className="markdown-editor-textarea"
           value={editorValue}

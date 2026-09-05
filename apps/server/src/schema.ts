@@ -55,6 +55,15 @@ export const ItemSchema = z.object({
   photoUrl: z.string().url().optional(),
 });
 
+export const SpotTimeKindSchema = z.enum(["APPROXIMATE", "RESERVATION"]);
+const WALL_CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+export const ItineraryGroupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(80),
+  spotIds: z.array(z.string().min(1)).min(2),
+});
+
 export const SpotSchema = z.object({
   id: z.string(),
   order: z.number().int().nonnegative(),
@@ -63,10 +72,11 @@ export const SpotSchema = z.object({
   // on-screen to staff, drivers, station clerks on the ground.
   nameLocal: z.string().optional(),
   placeId: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
   category: z.string().optional(),
-  plannedArrival: z.string().optional(), // "HH:mm"
+  plannedArrival: z.string().regex(WALL_CLOCK_TIME, "planned arrival must use HH:mm in 24-hour time").optional(),
+  timeKind: SpotTimeKindSchema.optional(),
   dwellMinutes: z.number().int().nonnegative().optional(),
   // Transfer/walking buffer (minutes). Bump this for major transit
   // hubs, wherever the trip is - Google routinely underestimates
@@ -77,21 +87,66 @@ export const SpotSchema = z.object({
   // as markdown client-side, stored as plain text server-side either way.
   note: z.string().optional(),
   items: z.array(ItemSchema).default([]),
+}).superRefine((spot, ctx) => {
+  if ((spot.lat == null) !== (spot.lng == null)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [spot.lat == null ? "lat" : "lng"], message: "latitude and longitude must be stored together" });
+  }
+  if (spot.timeKind && !spot.plannedArrival) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["plannedArrival"], message: "a time kind requires a planned arrival" });
+  }
 });
 
 // This is a user decision for an itinerary edge, not the `legs` database
 // cache entry that stores a Google Routes response. Pairing both spot IDs
 // means reordering cannot accidentally apply a mode to a new destination.
+// DIRECT is a legacy value: a straight line is a drawing, not a route, so it
+// stays readable for existing itineraries but is never offered as a new
+// choice. Clients show it as an unavailable fallback and require a real mode
+// once the user edits that leg.
+export const SELECTABLE_LEG_MODES = ["WALK", "TRANSIT", "DRIVE"] as const;
 export const PersistedLegModeSchema = z.enum(["DIRECT", "TRANSIT", "DRIVE", "WALK"]);
-export const LegPreferenceSchema = z.object({
-  fromSpotId: z.string().min(1),
-  toSpotId: z.string().min(1),
-  mode: PersistedLegModeSchema,
-  routeIndex: z.number().int().min(0).max(3).default(0),
-  // Traffic-aware Routes requests use the higher Pro SKU. Keep this opt-in
-  // and meaningful only for road routes.
-  trafficAware: z.boolean().default(false),
+
+// When the leg should happen, in the trip's own local time. AUTO is derived
+// from the preceding stop's planned arrival plus its dwell time, so it stores
+// no clock of its own.
+export const LegTimingSchema = z.object({
+  kind: z.enum(["AUTO", "DEPART_AT", "ARRIVE_BY"]).default("AUTO"),
+  // "YYYY-MM-DD" / "HH:mm" in the trip timezone. The date is optional and
+  // defaults to the day the leg belongs to; an overnight transit leg is what
+  // makes it worth storing at all.
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
 });
+
+export const LegPreferenceSchema = z
+  .object({
+    fromSpotId: z.string().min(1),
+    toSpotId: z.string().min(1),
+    mode: PersistedLegModeSchema,
+    // Legacy positional selection. Retained so existing itineraries keep
+    // resolving, but `routeKey` wins whenever it is present.
+    routeIndex: z.number().int().min(0).max(3).default(0),
+    // Fingerprint of the chosen alternative (see route-planning.ts). Google
+    // may reorder alternatives between cache refreshes, so an index alone
+    // would silently select a different journey than the saved one.
+    routeKey: z.string().min(1).optional(),
+    timing: LegTimingSchema.default({ kind: "AUTO" }),
+    // Traffic-aware Routes requests use the higher Pro SKU. Keep this opt-in
+    // and meaningful only for road routes.
+    trafficAware: z.boolean().default(false),
+  })
+  .superRefine((preference, ctx) => {
+    const { kind, date, time } = preference.timing;
+    if (kind === "ARRIVE_BY" && preference.mode !== "TRANSIT") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing", "kind"], message: "arrive-by timing is only available for transit legs" });
+    }
+    if (kind === "AUTO" && (time != null || date != null)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing"], message: "automatic timing cannot carry a stored date or time" });
+    }
+    if (kind !== "AUTO" && time == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing", "time"], message: "a chosen departure or arrival needs a time" });
+    }
+  });
 
 export const DaySchema = z
   .object({
@@ -104,10 +159,16 @@ export const DaySchema = z
     // Omitted by all existing itineraries. Defaulting preserves their legacy
     // TRANSIT display behavior until a person makes an explicit choice.
     legPreferences: z.array(LegPreferenceSchema).default([]),
+    // Existing trip JSON omits groups. Defaulting keeps those itineraries
+    // importable until the user explicitly creates a visual group.
+    groups: z.array(ItineraryGroupSchema).default([]),
   })
   .superRefine((day, ctx) => {
     const spotIds = new Set(day.spots.map((spot) => spot.id));
+    const orderedSpots = [...day.spots].sort((a, b) => a.order - b.order);
     const pairs = new Set<string>();
+    const groupIds = new Set<string>();
+    const groupedSpotIds = new Set<string>();
     day.legPreferences.forEach((preference, index) => {
       const path = ["legPreferences", index];
       if (preference.fromSpotId === preference.toSpotId) {
@@ -124,6 +185,39 @@ export const DaySchema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "only one preference is allowed per directed leg" });
       }
       pairs.add(pair);
+    });
+
+    day.groups.forEach((group, index) => {
+      const path = ["groups", index];
+      if (groupIds.has(group.id)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "id"], message: "group ids must be unique within a day" });
+      }
+      groupIds.add(group.id);
+
+      const indexes = group.spotIds.map((spotId, spotIndex) => {
+        if (!spotIds.has(spotId)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds", spotIndex], message: "group spots must belong to the same day" });
+        }
+        if (groupedSpotIds.has(spotId)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds", spotIndex], message: "a spot may belong to only one group" });
+        }
+        groupedSpotIds.add(spotId);
+        return orderedSpots.findIndex((spot) => spot.id === spotId);
+      });
+
+      const uniqueIndexes = [...new Set(indexes)].sort((a, b) => a - b);
+      if (uniqueIndexes.length !== group.spotIds.length) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds"], message: "a group cannot contain duplicate spots" });
+      }
+      if (
+        uniqueIndexes.some(
+          (spotIndex, index) =>
+            spotIndex < 0 ||
+            (index > 0 && spotIndex !== uniqueIndexes[index - 1] + 1),
+        )
+      ) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds"], message: "group spots must be contiguous in the itinerary" });
+      }
     });
   });
 

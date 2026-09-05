@@ -1,4 +1,12 @@
+{{- $monitoring := .Values.usageMonitoring.googleCloud -}}
+{{- $workloadIdentity := $monitoring.workloadIdentity -}}
 {{- $locationSharing := .Values.locationSharing -}}
+{{- if and $workloadIdentity.enabled (not $monitoring.enabled) -}}
+{{- fail "usageMonitoring.googleCloud.enabled must be true when workloadIdentity is enabled" -}}
+{{- end -}}
+{{- if and $workloadIdentity.enabled (not (or .Values.serviceAccount.create .Values.serviceAccount.name)) -}}
+{{- fail "serviceAccount.create or serviceAccount.name is required for Google workload identity" -}}
+{{- end -}}
 {{- if and $locationSharing.enabled (ne (int .Values.replicaCount) 1) -}}
 {{- fail "locationSharing.enabled requires replicaCount: 1 because coordinates are held only in process memory" -}}
 {{- end -}}
@@ -29,6 +37,10 @@ spec:
       labels:
         app: mungchilog
     spec:
+      {{- if or .Values.serviceAccount.create .Values.serviceAccount.name }}
+      serviceAccountName: {{ default "mungchilog" .Values.serviceAccount.name }}
+      {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       containers:
         - name: mungchilog
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -98,6 +110,18 @@ spec:
                   key: {{ required "auth.initialAdmin.key is required when auth.initialAdmin.existingSecret is set" .key }}
             {{- end }}
             {{- end }}
+            {{- if $monitoring.enabled }}
+            - name: USAGE_MONITORING_GOOGLE_ENABLED
+              value: "true"
+            - name: GOOGLE_CLOUD_PROJECT_ID
+              value: {{ required "usageMonitoring.googleCloud.projectId is required when Google monitoring is enabled" $monitoring.projectId | quote }}
+            - name: GOOGLE_MAPS_MONITORED_SERVICES
+              value: {{ required "usageMonitoring.googleCloud.monitoredServices must contain at least one service" (join "," $monitoring.monitoredServices) | quote }}
+            {{- if $workloadIdentity.enabled }}
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: /etc/workload-identity/credential-configuration.json
+            {{- end }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -119,14 +143,41 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
-          {{- if .Values.persistence.enabled }}
+          {{- if or .Values.persistence.enabled $workloadIdentity.enabled }}
           volumeMounts:
+            {{- if .Values.persistence.enabled }}
             - name: data
               mountPath: {{ .Values.persistence.mountPath }}
+            {{- end }}
+            {{- if $workloadIdentity.enabled }}
+            - name: google-workload-identity-token
+              mountPath: /var/run/service-account
+              readOnly: true
+            - name: google-workload-identity-config
+              mountPath: /etc/workload-identity
+              readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if .Values.persistence.enabled }}
+      {{- if or .Values.persistence.enabled $workloadIdentity.enabled }}
       volumes:
+        {{- if .Values.persistence.enabled }}
         - name: data
           persistentVolumeClaim:
             claimName: mungchilog-data
+        {{- end }}
+        {{- if $workloadIdentity.enabled }}
+        - name: google-workload-identity-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: {{ required "usageMonitoring.googleCloud.workloadIdentity.audience is required" $workloadIdentity.audience | quote }}
+                  expirationSeconds: {{ $workloadIdentity.tokenExpirationSeconds }}
+                  path: token
+        - name: google-workload-identity-config
+          configMap:
+            name: {{ required "usageMonitoring.googleCloud.workloadIdentity.credentialConfigMap is required" $workloadIdentity.credentialConfigMap }}
+            items:
+              - key: {{ required "usageMonitoring.googleCloud.workloadIdentity.credentialConfigKey is required" $workloadIdentity.credentialConfigKey }}
+                path: credential-configuration.json
+        {{- end }}
       {{- end }}

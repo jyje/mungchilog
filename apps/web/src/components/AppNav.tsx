@@ -1,6 +1,7 @@
-import { useState } from "react";
 import { logout, type Me } from "../api";
 import { ThemeToggleButton } from "./system/ThemeToggle";
+import { Button } from "./ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "./ui/dropdown-menu";
 
 // Systematic top nav for every "normal" (non-map) page: brand/home,
 // admin link when applicable, and a user menu with logout. TripDayPage
@@ -8,8 +9,6 @@ import { ThemeToggleButton } from "./system/ThemeToggle";
 // carries the back/menu/share controls, and stacking a second full nav
 // bar on top would fight the "map is the main event" goal there.
 export function AppNav({ me, navigate }: { me: Me; navigate: (path: string) => void }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
   function go(path: string) {
     return (e: React.MouseEvent) => {
       e.preventDefault();
@@ -27,7 +26,8 @@ export function AppNav({ me, navigate }: { me: Me; navigate: (path: string) => v
   return (
     <nav className="app-nav">
       <a className="app-nav-brand" href="/trips" onClick={go("/trips")}>
-        🐾 뭉치로그
+        <img src="/branding/mungchilog-paw.png" width="32" height="32" alt="" />
+        <span>뭉치로그</span>
       </a>
       <div className="app-nav-spacer" />
       {me.role === "admin" && (
@@ -36,22 +36,17 @@ export function AppNav({ me, navigate }: { me: Me; navigate: (path: string) => v
         </a>
       )}
       <ThemeToggleButton />
-      <div className="menu-anchor">
-        <button type="button" className="app-nav-avatar" aria-label="사용자 메뉴" onClick={() => setMenuOpen((o) => !o)}>
-          {initial}
-        </button>
-        {menuOpen && (
-          <>
-            <button type="button" className="menu-backdrop" aria-label="닫기" onClick={() => setMenuOpen(false)} />
-            <div className="layout-menu layout-menu-right" role="menu">
-              <p className="app-nav-menu-identity">{me.name ?? me.email}</p>
-              <button type="button" onClick={handleLogout}>
-                로그아웃
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="secondary" size="icon-lg" className="app-nav-avatar" aria-label="사용자 메뉴">
+            {initial}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>{me.name ?? me.email}</DropdownMenuLabel>
+          <DropdownMenuItem onSelect={() => void handleLogout()}>로그아웃</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </nav>
   );
 }

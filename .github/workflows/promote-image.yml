@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       target:
-        description: Environment that receives the existing OCI manifest
+        description: Environment that receives the verified source image
         required: true
         type: choice
         options:
@@ -33,16 +33,22 @@ env:
   PRD_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  promote:
+  metadata:
     # Run the dispatch from the target environment branch. The branch contains
     # the reviewed deployment configuration, while source_tag identifies the
-    # already-built image to copy.
+    # previously verified application image.
     if: github.ref == format('refs/heads/{0}', inputs.target)
-    runs-on: ubuntu-26.04-arm
-    environment:
-      name: ${{ inputs.target }}
+    runs-on: ubuntu-26.04
+    outputs:
+      source_image: ${{ steps.metadata.outputs.source_image }}
+      target_image: ${{ steps.metadata.outputs.target_image }}
+      target_tag: ${{ steps.metadata.outputs.target_tag }}
+      alias_tag: ${{ steps.metadata.outputs.alias_tag }}
+      source_revision: ${{ steps.metadata.outputs.source_revision }}
+      build_time: ${{ steps.metadata.outputs.build_time }}
+      release_version: ${{ steps.metadata.outputs.release_version }}
     steps:
-      - name: Validate promotion path and target tag
+      - name: Validate promotion path and target tags
         id: metadata
         shell: bash
         env:
@@ -53,46 +59,109 @@ jobs:
           STG_IMAGE: ${{ env.STG_IMAGE }}
           PRD_IMAGE: ${{ env.PRD_IMAGE }}
         run: |
+          if [[ ! "$SOURCE_TAG" =~ ^r[0-9]+-[0-9a-f]{7}$ ]]; then
+            echo "source_tag must be an immutable r<run>-<sha> tag" >&2
+            exit 1
+          fi
+
+          source_revision="${SOURCE_TAG##*-}"
           case "$TARGET" in
             stg)
-              if [[ ! "$SOURCE_TAG" =~ ^r[0-9]+-[0-9a-f]{7}$ ]]; then
-                echo "stg promotion requires an r<run>-<sha> development tag" >&2
-                exit 1
-              fi
-
               if [[ -n "$RELEASE_VERSION" ]]; then
                 echo "release_version is only valid for production promotion" >&2
                 exit 1
               fi
-
-              source_revision="${SOURCE_TAG##*-}"
-              echo "source_image=${DEV_IMAGE}" >> "$GITHUB_OUTPUT"
-              echo "target_image=${STG_IMAGE}" >> "$GITHUB_OUTPUT"
-              echo "target_tag=r${GITHUB_RUN_NUMBER}-${source_revision}" >> "$GITHUB_OUTPUT"
-              echo "alias_tag=" >> "$GITHUB_OUTPUT"
+              source_image="$DEV_IMAGE"
+              target_image="$STG_IMAGE"
+              target_tag="r${GITHUB_RUN_NUMBER}-${source_revision}"
+              alias_tag=""
+              release_version=""
               ;;
             prd)
-              if [[ ! "$SOURCE_TAG" =~ ^r[0-9]+-[0-9a-f]{7}$ ]]; then
-                echo "production promotion requires an r<run>-<sha> staging tag" >&2
-                exit 1
-              fi
-
               if [[ ! "$RELEASE_VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
                 echo "production promotion requires release_version in stable vMAJOR.MINOR.PATCH form" >&2
                 exit 1
               fi
-
-              source_revision="${SOURCE_TAG##*-}"
-              echo "source_image=${STG_IMAGE}" >> "$GITHUB_OUTPUT"
-              echo "target_image=${PRD_IMAGE}" >> "$GITHUB_OUTPUT"
-              echo "target_tag=${RELEASE_VERSION}-r${GITHUB_RUN_NUMBER}-${source_revision}" >> "$GITHUB_OUTPUT"
-              echo "alias_tag=${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
+              source_image="$STG_IMAGE"
+              target_image="$PRD_IMAGE"
+              target_tag="${RELEASE_VERSION}-r${GITHUB_RUN_NUMBER}-${source_revision}"
+              alias_tag="$RELEASE_VERSION"
+              release_version="$RELEASE_VERSION"
               ;;
             *)
               echo "Unsupported promotion target: $TARGET" >&2
               exit 1
               ;;
           esac
+
+          {
+            echo "source_image=$source_image"
+            echo "target_image=$target_image"
+            echo "target_tag=$target_tag"
+            echo "alias_tag=$alias_tag"
+            echo "source_revision=$source_revision"
+            echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "release_version=$release_version"
+          } >> "$GITHUB_OUTPUT"
+
+  preflight:
+    needs: metadata
+    runs-on: ubuntu-26.04
+    environment:
+      name: ${{ inputs.target }}
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Require unused immutable target tags
+        env:
+          SOURCE_IMAGE: ${{ needs.metadata.outputs.source_image }}
+          SOURCE_TAG: ${{ inputs.source_tag }}
+          TARGET_IMAGE: ${{ needs.metadata.outputs.target_image }}
+          TARGET_TAG: ${{ needs.metadata.outputs.target_tag }}
+          ALIAS_TAG: ${{ needs.metadata.outputs.alias_tag }}
+        run: |
+          docker buildx imagetools inspect "${SOURCE_IMAGE}:${SOURCE_TAG}" --raw | jq -e '
+            [.manifests[].platform
+             | select(.os == "linux")
+             | .architecture]
+            | sort == ["amd64", "arm64"]
+          '
+
+          target_tags=("$TARGET_TAG")
+          if [[ -n "$ALIAS_TAG" ]]; then
+            target_tags+=("$ALIAS_TAG")
+          fi
+
+          for tag in "${target_tags[@]}"; do
+            if docker buildx imagetools inspect "${TARGET_IMAGE}:${tag}" >/dev/null 2>&1; then
+              echo "Refusing to move immutable tag ${TARGET_IMAGE}:${tag}" >&2
+              exit 1
+            fi
+          done
+
+  derive:
+    needs: [metadata, preflight]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-26.04
+            artifact_suffix: amd64
+          - platform: linux/arm64
+            runner: ubuntu-26.04-arm
+            artifact_suffix: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -104,68 +173,149 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Copy the multi-architecture OCI manifest
-        env:
-          SOURCE_TAG: ${{ inputs.source_tag }}
-          SOURCE_IMAGE: ${{ steps.metadata.outputs.source_image }}
-          TARGET_IMAGE: ${{ steps.metadata.outputs.target_image }}
-          TARGET_TAG: ${{ steps.metadata.outputs.target_tag }}
-          ALIAS_TAG: ${{ steps.metadata.outputs.alias_tag }}
+      - name: Add deployment identity in the final image layer
+        id: build_push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/server/Dockerfile.release
+          platforms: ${{ matrix.platform }}
+          # The base is the immutable preceding-environment image. This build
+          # does not compile the application and only copies build-info.js.
+          outputs: type=image,name=${{ needs.metadata.outputs.target_image }},push-by-digest=true,name-canonical=true,push=true
+          build-args: |
+            BASE_IMAGE=${{ needs.metadata.outputs.source_image }}:${{ inputs.source_tag }}
+            BUILD_ENV=${{ inputs.target }}
+            BUILD_NUMBER=${{ github.run_number }}
+            IMAGE_TAG=${{ needs.metadata.outputs.target_tag }}
+            COMMIT_SHA=${{ needs.metadata.outputs.source_revision }}
+            BUILD_BRANCH=${{ inputs.target }}
+            BUILD_TIME=${{ needs.metadata.outputs.build_time }}
+            RELEASE_VERSION=${{ needs.metadata.outputs.release_version }}
+            SOURCE_IMAGE=${{ needs.metadata.outputs.source_image }}
+            SOURCE_TAG=${{ inputs.source_tag }}
+            SOURCE_REVISION=${{ needs.metadata.outputs.source_revision }}
+
+      - name: Export platform digest
         run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build_push.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload platform digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.artifact_suffix }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  finalize:
+    needs: [metadata, derive]
+    runs-on: ubuntu-26.04-arm
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download platform digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: digests-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Publish immutable multi-architecture image tags
+        env:
+          TARGET_IMAGE: ${{ needs.metadata.outputs.target_image }}
+          TARGET_TAG: ${{ needs.metadata.outputs.target_tag }}
+          ALIAS_TAG: ${{ needs.metadata.outputs.alias_tag }}
+        run: |
+          shopt -s nullglob
+          digest_files=(/tmp/digests/*)
+          test "${#digest_files[@]}" -eq 2
+
+          references=()
+          for digest_file in "${digest_files[@]}"; do
+            digest="$(basename "$digest_file")"
+            [[ "$digest" =~ ^[a-f0-9]{64}$ ]]
+            references+=("${TARGET_IMAGE}@sha256:${digest}")
+          done
+
+          tag_args=(--tag "${TARGET_IMAGE}:${TARGET_TAG}")
+          if [[ -n "$ALIAS_TAG" ]]; then
+            tag_args+=(--tag "${TARGET_IMAGE}:${ALIAS_TAG}")
+          fi
+
+          docker buildx imagetools create "${tag_args[@]}" "${references[@]}"
+
+      - name: Verify platform variants and the generated public identity
+        env:
+          TARGET: ${{ inputs.target }}
+          TARGET_IMAGE: ${{ needs.metadata.outputs.target_image }}
+          TARGET_TAG: ${{ needs.metadata.outputs.target_tag }}
+          ALIAS_TAG: ${{ needs.metadata.outputs.alias_tag }}
+          SOURCE_IMAGE: ${{ needs.metadata.outputs.source_image }}
+          SOURCE_TAG: ${{ inputs.source_tag }}
+          SOURCE_REVISION: ${{ needs.metadata.outputs.source_revision }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.release_version }}
+        run: |
+          target_ref="${TARGET_IMAGE}:${TARGET_TAG}"
           source_ref="${SOURCE_IMAGE}:${SOURCE_TAG}"
-          source_digest="$(
-            docker buildx imagetools inspect "$source_ref" \
-              | awk '$1 == "Digest:" { print $2; exit }'
-          )"
-          test -n "$source_digest"
+          docker buildx imagetools inspect "$source_ref" --raw > /tmp/source-index.json
+          docker buildx imagetools inspect "$target_ref" --raw > /tmp/target-index.json
+          docker buildx imagetools inspect "$target_ref" --raw | jq -e '
+            [.manifests[].platform
+             | select(.os == "linux")
+             | .architecture]
+            | sort == ["amd64", "arm64"]
+          '
 
-          target_tags=("$TARGET_TAG")
           if [[ -n "$ALIAS_TAG" ]]; then
-            target_tags+=("$ALIAS_TAG")
+            docker buildx imagetools inspect "${TARGET_IMAGE}:${ALIAS_TAG}" --raw > /tmp/release.json
+            docker buildx imagetools inspect "$target_ref" --raw > /tmp/full-tag.json
+            cmp /tmp/release.json /tmp/full-tag.json
           fi
 
-          tag_args=()
-          for tag in "${target_tags[@]}"; do
-            target_ref="${TARGET_IMAGE}:${tag}"
-            existing_digest="$(
-              docker buildx imagetools inspect "$target_ref" 2>/dev/null \
-                | awk '$1 == "Digest:" { print $2; exit }' \
-                || true
-            )"
-
-            if [[ -n "$existing_digest" && "$existing_digest" != "$source_digest" ]]; then
-              echo "Refusing to move immutable tag ${tag} from ${existing_digest} to ${source_digest}" >&2
-              exit 1
-            fi
-
-            tag_args+=(--tag "$target_ref")
+          # A promotion may add its build-info.js layer, but it must preserve
+          # every source application layer for both supported architectures.
+          for architecture in amd64 arm64; do
+            source_digest="$(jq -r --arg architecture "$architecture" '
+              .manifests[] | select(.platform.os == "linux" and .platform.architecture == $architecture) | .digest
+            ' /tmp/source-index.json)"
+            target_digest="$(jq -r --arg architecture "$architecture" '
+              .manifests[] | select(.platform.os == "linux" and .platform.architecture == $architecture) | .digest
+            ' /tmp/target-index.json)"
+            [[ "$source_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+            [[ "$target_digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+            docker buildx imagetools inspect "${SOURCE_IMAGE}@${source_digest}" --raw > "/tmp/source-${architecture}.json"
+            docker buildx imagetools inspect "${TARGET_IMAGE}@${target_digest}" --raw > "/tmp/target-${architecture}.json"
+            jq -e --slurpfile source "/tmp/source-${architecture}.json" '
+              (.layers | map(.digest)) as $target_layers
+              | ($source[0].layers | map(.digest)) as $source_layers
+              | ($target_layers | length) == (($source_layers | length) + 1)
+                and $target_layers[0:($source_layers | length)] == $source_layers
+            ' "/tmp/target-${architecture}.json"
           done
 
-          docker buildx imagetools create "${tag_args[@]}" "$source_ref"
-
-      - name: Verify manifest identity and platform variants
-        env:
-          SOURCE_TAG: ${{ inputs.source_tag }}
-          SOURCE_IMAGE: ${{ steps.metadata.outputs.source_image }}
-          TARGET_IMAGE: ${{ steps.metadata.outputs.target_image }}
-          TARGET_TAG: ${{ steps.metadata.outputs.target_tag }}
-          ALIAS_TAG: ${{ steps.metadata.outputs.alias_tag }}
-        run: |
-          docker buildx imagetools inspect "${SOURCE_IMAGE}:${SOURCE_TAG}" --raw > /tmp/source-manifest.json
-
-          target_tags=("$TARGET_TAG")
-          if [[ -n "$ALIAS_TAG" ]]; then
-            target_tags+=("$ALIAS_TAG")
+          docker pull --platform linux/arm64 "$target_ref"
+          docker run --rm --entrypoint cat "$target_ref" /app/public/build-info.js > /tmp/build-info.js
+          grep -F "\"environment\":\"${TARGET}\"" /tmp/build-info.js
+          grep -F "\"io.mungchilog.source.image\":\"${SOURCE_IMAGE}\"" <(
+            docker image inspect "$target_ref" --format '{{json .Config.Labels}}'
+          )
+          grep -F "\"io.mungchilog.source.tag\":\"${SOURCE_TAG}\"" <(
+            docker image inspect "$target_ref" --format '{{json .Config.Labels}}'
+          )
+          grep -F "\"io.mungchilog.source.revision\":\"${SOURCE_REVISION}\"" <(
+            docker image inspect "$target_ref" --format '{{json .Config.Labels}}'
+          )
+          if [[ "$TARGET" == "prd" ]]; then
+            grep -F "\"releaseVersion\":\"${RELEASE_VERSION}\"" /tmp/build-info.js
           fi
-
-          for tag in "${target_tags[@]}"; do
-            target_manifest="/tmp/target-${tag//[^a-zA-Z0-9._-]/_}.json"
-            docker buildx imagetools inspect "${TARGET_IMAGE}:${tag}" --raw > "$target_manifest"
-            cmp /tmp/source-manifest.json "$target_manifest"
-            jq -e '
-              [.manifests[].platform
-               | select(.os == "linux")
-               | .architecture]
-              | sort == ["amd64", "arm64"]
-            ' "$target_manifest"
-          done

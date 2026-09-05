@@ -1,66 +1,60 @@
 import { useQuery } from "@tanstack/react-query";
-import { computeLeg } from "../api";
-import type { PersistedLegMode, Spot } from "../types";
+import { computeLeg, type LegWaypoint } from "../api";
+import { resolveLegAnchor } from "../legTiming";
+import { isLegacyLegMode } from "../legPreferences";
+import type { LegTiming, PersistedLegMode, Spot } from "../types";
 
 // Keep browser-persisted route data aligned with the server cache whenever
-// route geometry changes. The same version is used by the server's cache key.
-// Keep this in sync with apps/server/src/routes/legs.ts so a geometry/schema
+// route geometry, endpoint encoding, or timing semantics change. Keep this in
+// sync with ROUTE_GEOMETRY_VERSION in apps/server/src/route-planning.ts so a
 // change invalidates both the browser query cache and the server cache.
-const ROUTE_GEOMETRY_VERSION = "alternatives-v1";
+const ROUTE_GEOMETRY_VERSION = "route-segments-v5";
 
-// Converts a "wall-clock time in an arbitrary IANA timezone" into a UTC
-// ISO string, without a date library. Standard single-correction trick:
-// guess the UTC instant assuming offset 0, ask what wall-clock time that
-// instant reads as in `timeZone`, then shift by the difference. Accurate
-// except within the ~1-2h window of a DST transition itself - fine for
-// picking a cache bucket, not fine for scheduling a rocket launch.
-function zonedIso(date: string, time: string | undefined, timeZone: string): string {
-  const [year, month, day] = date.split("-").map(Number);
-  const [hour, minute] = (time ?? "12:00").split(":").map(Number);
-  const guessMs = Date.UTC(year, month - 1, day, hour, minute, 0);
-
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })
-      .formatToParts(new Date(guessMs))
-      .map((p) => [p.type, p.value]),
-  );
-  const zonedMs = Date.UTC(
-    Number(parts.year),
-    Number(parts.month) - 1,
-    Number(parts.day),
-    Number(parts.hour),
-    Number(parts.minute),
-    Number(parts.second),
-  );
-  const offsetMs = zonedMs - guessMs;
-  return new Date(guessMs - offsetMs).toISOString();
+// A Place ID is preferred where one exists: it survives a venue moving a few
+// metres and lets Google snap to the right entrance. A map-picked stop has
+// only coordinates, and is still perfectly routable.
+export function waypointForSpot(spot: Spot): LegWaypoint | null {
+  if (spot.placeId) return { placeId: spot.placeId };
+  if (spot.lat != null && spot.lng != null) return { latLng: { latitude: spot.lat, longitude: spot.lng } };
+  return null;
 }
 
 // Shared by LegInfo (text summary) and RouteOverlay (map polyline) so
 // both read from the same TanStack Query cache entry instead of firing
 // the request twice.
-export function useLeg(from: Spot, to: Spot, mode: PersistedLegMode, trafficAware: boolean, date: string, timezone: string) {
-  const enabled = mode !== "DIRECT" && !!from.placeId && !!to.placeId;
-  // day.date + the departing spot's plannedArrival, in the trip's own
-  // timezone - not the browser's, not the test runner's. Falls back to
-  // noon when no arrival time is set, which still gets the weekday
-  // right, which is what actually determines the server's cache bucket
-  // and the TRANSIT schedule Google returns.
-  const when = zonedIso(date, from.plannedArrival, timezone);
+export function useLeg(
+  from: Spot,
+  to: Spot,
+  mode: PersistedLegMode,
+  trafficAware: boolean,
+  date: string,
+  timezone: string,
+  timing: LegTiming,
+) {
+  const fromWaypoint = waypointForSpot(from);
+  const toWaypoint = waypointForSpot(to);
+  // A legacy DIRECT leg has no provider route to fetch - it stays a straight
+  // line until the user picks a real mode.
+  const enabled = !isLegacyLegMode(mode) && !!fromWaypoint && !!toWaypoint;
+
+  const anchor = resolveLegAnchor(from, timing, date, timezone);
 
   return useQuery({
-    queryKey: ["leg", from.placeId, to.placeId, mode, trafficAware, when, ROUTE_GEOMETRY_VERSION],
-    queryFn: () => computeLeg(from.placeId!, to.placeId!, mode as Exclude<PersistedLegMode, "DIRECT">, when, timezone, trafficAware),
+    queryKey: ["leg", fromWaypoint, toWaypoint, mode, trafficAware, anchor.when, timing.kind, ROUTE_GEOMETRY_VERSION],
+    queryFn: () =>
+      computeLeg({
+        from: fromWaypoint!,
+        to: toWaypoint!,
+        mode: mode as Exclude<PersistedLegMode, "DIRECT">,
+        when: anchor.when,
+        timingKind: timing.kind,
+        timezone,
+        trafficAware,
+      }),
     enabled,
-    staleTime: 1000 * 60 * 60 * 24 * 30, // matches the server's 30-day leg cache
+    // Traffic-aware driving is deliberately short-lived: presenting a
+    // half-hour-old estimate as live traffic would be a lie. Everything else
+    // keeps the long cache the server also uses.
+    staleTime: trafficAware ? 1000 * 60 * 5 : 1000 * 60 * 60 * 24 * 30,
   });
 }

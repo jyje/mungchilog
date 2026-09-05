@@ -39,4 +39,6 @@ for (const path of [
 const privateRoute = routes.find(([, handler]) => handler instanceof NetworkOnly)?.[0];
 assert.equal(privateRoute({ url: new URL("https://example.test/api/trips/example") }), false,
   "Ordinary offline itinerary handling must remain separate");
+assert.equal(readFileSync(new URL("../dist/sw.js", import.meta.url), "utf8").includes("build-info.js"), false,
+  "Deployment-specific build info must not enter the service-worker precache");
 console.log("Generated service worker excludes location sharing from persistent caching.");

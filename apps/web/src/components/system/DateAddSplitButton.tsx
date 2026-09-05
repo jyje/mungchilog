@@ -2,7 +2,6 @@ import { ChevronDown } from "lucide-react";
 import { Button } from "../ui/button";
 import { ButtonGroup } from "../ui/button-group";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
-import "./date-add-split-button.css";
 
 type DateAddSplitButtonProps = {
   onAddDay: () => void;
@@ -12,8 +11,8 @@ type DateAddSplitButtonProps = {
 /** Shared split-button treatment for the default and custom date actions. */
 export function DateAddSplitButton({ onAddDay, onOpenDateAdd }: DateAddSplitButtonProps) {
   return (
-    <ButtonGroup className="date-add-split-group" role="group" aria-label="날짜 추가">
-      <Button type="button" variant="outline" className="date-add-split-primary" onClick={onAddDay}>
+    <ButtonGroup role="group" aria-label="날짜 추가" className="shrink-0">
+      <Button type="button" variant="outline" size="lg" className="min-h-11" onClick={onAddDay}>
         + 날짜
       </Button>
       <DropdownMenu>
@@ -22,7 +21,7 @@ export function DateAddSplitButton({ onAddDay, onOpenDateAdd }: DateAddSplitButt
             type="button"
             variant="outline"
             size="icon-lg"
-            className="date-add-split-trigger"
+            className="min-h-11 min-w-11"
             aria-label="특정 날짜 추가"
           >
             <ChevronDown aria-hidden="true" />

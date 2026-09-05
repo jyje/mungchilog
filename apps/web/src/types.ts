@@ -39,32 +39,84 @@ export const ItemSchema = z.object({
   photoUrl: z.string().url().optional(),
 });
 
+export const SpotTimeKindSchema = z.enum(["APPROXIMATE", "RESERVATION"]);
+const WALL_CLOCK_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+export const ItineraryGroupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(80),
+  spotIds: z.array(z.string().min(1)).min(2),
+});
+
 export const SpotSchema = z.object({
   id: z.string(),
   order: z.number().int().nonnegative(),
   name: z.string().min(1),
   nameLocal: z.string().optional(),
   placeId: z.string().optional(),
-  lat: z.number().optional(),
-  lng: z.number().optional(),
+  lat: z.number().min(-90).max(90).optional(),
+  lng: z.number().min(-180).max(180).optional(),
   category: z.string().optional(),
-  plannedArrival: z.string().optional(),
+  plannedArrival: z.string().regex(WALL_CLOCK_TIME, "시간은 24시간제 HH:mm 형식이어야 합니다.").optional(),
+  timeKind: SpotTimeKindSchema.optional(),
   dwellMinutes: z.number().int().nonnegative().optional(),
   bufferMinutes: z.number().int().nonnegative().default(10),
   note: z.string().optional(),
   items: z.array(ItemSchema).default([]),
+}).superRefine((spot, ctx) => {
+  if ((spot.lat == null) !== (spot.lng == null)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [spot.lat == null ? "lat" : "lng"], message: "위도와 경도는 함께 저장해야 합니다." });
+  }
+  if (spot.timeKind && !spot.plannedArrival) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["plannedArrival"], message: "시간 유형을 선택하면 시각도 입력해야 합니다." });
+  }
 });
 
 // Mirrors the server schema. The preference belongs to a directed pair of
 // spots so it cannot silently move to a different destination after reorder.
+// DIRECT is a legacy value: a straight line is a drawing, not a route, so it
+// stays readable for existing itineraries but is never offered as a new
+// choice. The picker shows it as an unavailable fallback and requires a real
+// mode once the user edits that leg.
+export const SELECTABLE_LEG_MODES = ["WALK", "TRANSIT", "DRIVE"] as const;
 export const PersistedLegModeSchema = z.enum(["DIRECT", "TRANSIT", "DRIVE", "WALK"]);
-export const LegPreferenceSchema = z.object({
-  fromSpotId: z.string().min(1),
-  toSpotId: z.string().min(1),
-  mode: PersistedLegModeSchema,
-  routeIndex: z.number().int().min(0).max(3).default(0),
-  trafficAware: z.boolean().default(false),
+
+// When the leg should happen, in the trip's own local time. AUTO is derived
+// from the preceding stop's planned arrival plus its dwell time, so it stores
+// no clock of its own.
+export const LegTimingSchema = z.object({
+  kind: z.enum(["AUTO", "DEPART_AT", "ARRIVE_BY"]).default("AUTO"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
 });
+
+export const LegPreferenceSchema = z
+  .object({
+    fromSpotId: z.string().min(1),
+    toSpotId: z.string().min(1),
+    mode: PersistedLegModeSchema,
+    // Legacy positional selection. Retained so existing itineraries keep
+    // resolving, but `routeKey` wins whenever it is present.
+    routeIndex: z.number().int().min(0).max(3).default(0),
+    // Fingerprint of the chosen alternative, from the server. Google may
+    // reorder alternatives between cache refreshes, so an index alone would
+    // silently select a different journey than the saved one.
+    routeKey: z.string().min(1).optional(),
+    timing: LegTimingSchema.default({ kind: "AUTO" }),
+    trafficAware: z.boolean().default(false),
+  })
+  .superRefine((preference, ctx) => {
+    const { kind, date, time } = preference.timing;
+    if (kind === "ARRIVE_BY" && preference.mode !== "TRANSIT") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing", "kind"], message: "도착 시각 지정은 대중교통 동선에서만 사용할 수 있습니다." });
+    }
+    if (kind === "AUTO" && (time != null || date != null)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing"], message: "자동 시각에는 날짜나 시각을 저장할 수 없습니다." });
+    }
+    if (kind !== "AUTO" && time == null) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing", "time"], message: "출발 또는 도착 시각을 입력해주세요." });
+    }
+  });
 
 export const DaySchema = z
   .object({
@@ -72,10 +124,16 @@ export const DaySchema = z
     note: z.string().optional(),
     spots: z.array(SpotSchema).default([]),
     legPreferences: z.array(LegPreferenceSchema).default([]),
+    // Groups are a named, contiguous range in the day's ordered itinerary.
+    // The field is optional for existing exports and defaults safely.
+    groups: z.array(ItineraryGroupSchema).default([]),
   })
   .superRefine((day, ctx) => {
     const spotIds = new Set(day.spots.map((spot) => spot.id));
+    const orderedSpots = [...day.spots].sort((a, b) => a.order - b.order);
     const pairs = new Set<string>();
+    const groupIds = new Set<string>();
+    const groupedSpotIds = new Set<string>();
     day.legPreferences.forEach((preference, index) => {
       const path = ["legPreferences", index];
       if (preference.fromSpotId === preference.toSpotId) {
@@ -92,6 +150,39 @@ export const DaySchema = z
         ctx.addIssue({ code: z.ZodIssueCode.custom, path, message: "같은 구간에는 동선을 하나만 저장할 수 있습니다." });
       }
       pairs.add(pair);
+    });
+
+    day.groups.forEach((group, index) => {
+      const path = ["groups", index];
+      if (groupIds.has(group.id)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "id"], message: "그룹 ID는 날짜 안에서 고유해야 합니다." });
+      }
+      groupIds.add(group.id);
+
+      const indexes = group.spotIds.map((spotId, spotIndex) => {
+        if (!spotIds.has(spotId)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds", spotIndex], message: "그룹의 스팟은 같은 날짜 일정에 있어야 합니다." });
+        }
+        if (groupedSpotIds.has(spotId)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds", spotIndex], message: "하나의 스팟은 하나의 그룹에만 속할 수 있습니다." });
+        }
+        groupedSpotIds.add(spotId);
+        return orderedSpots.findIndex((spot) => spot.id === spotId);
+      });
+
+      const uniqueIndexes = [...new Set(indexes)].sort((a, b) => a - b);
+      if (uniqueIndexes.length !== group.spotIds.length) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds"], message: "그룹에는 중복된 스팟을 넣을 수 없습니다." });
+      }
+      if (
+        uniqueIndexes.some(
+          (spotIndex, index) =>
+            spotIndex < 0 ||
+            (index > 0 && spotIndex !== uniqueIndexes[index - 1] + 1),
+        )
+      ) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [...path, "spotIds"], message: "그룹의 스팟은 일정에서 연속되어야 합니다." });
+      }
     });
   });
 
@@ -121,7 +212,11 @@ export const TripImportSchema = z.object({ id: z.string().optional() }).and(Trip
 
 export type Item = z.infer<typeof ItemSchema>;
 export type Spot = z.infer<typeof SpotSchema>;
+export type SpotTimeKind = z.infer<typeof SpotTimeKindSchema>;
+export type ItineraryGroup = z.infer<typeof ItineraryGroupSchema>;
 export type PersistedLegMode = z.infer<typeof PersistedLegModeSchema>;
+export type SelectableLegMode = (typeof SELECTABLE_LEG_MODES)[number];
+export type LegTiming = z.infer<typeof LegTimingSchema>;
 export type LegPreference = z.infer<typeof LegPreferenceSchema>;
 export type Day = z.infer<typeof DaySchema>;
 export type TripData = z.infer<typeof TripDataSchema>;

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { Trip, Spot } from "../types";
 import { MAX_COVER_IMAGE_BYTES } from "../types";
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
@@ -69,19 +71,19 @@ export function TripCoverEditor({
     <div className="trip-cover-editor">
       <label className="trip-cover-field">
         대표 장소
-        <select value={spotId} onChange={(event) => setSpotId(event.target.value)}>
-          <option value="">선택하지 않음</option>
+        <NativeSelect className="w-full [&>select]:min-h-11" value={spotId} onChange={(event) => setSpotId(event.target.value)}>
+          <NativeSelectOption value="">선택하지 않음</NativeSelectOption>
           {spots.map(({ date, spot }) => (
-            <option key={spot.id} value={spot.id}>
+            <NativeSelectOption key={spot.id} value={spot.id}>
               {date} - {spot.name}
-            </option>
+            </NativeSelectOption>
           ))}
-        </select>
+        </NativeSelect>
       </label>
 
       <label className="trip-cover-field">
         대표 이미지
-        <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void chooseImage(event.target.files?.[0])} />
+        <Input className="min-h-11" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void chooseImage(event.target.files?.[0])} />
       </label>
       <p className="trip-cover-file-hint">JPEG, PNG 또는 WebP 파일을 선택할 수 있습니다. 최대 2 MiB.</p>
       {imageError && <p className="error">{imageError}</p>}
@@ -94,13 +96,14 @@ export function TripCoverEditor({
       )}
 
       <div className="trip-cover-actions">
-        <Button type="button" onClick={saveCover} disabled={saving}>
+        <Button type="button" className="min-h-11" onClick={saveCover} disabled={saving}>
           {saving ? "저장 중..." : "대표 화면 저장"}
         </Button>
         {(spotId || imageDataUrl) && (
           <Button
             type="button"
             variant="ghost"
+            className="min-h-11"
             disabled={saving}
             onClick={() => {
               setSpotId("");

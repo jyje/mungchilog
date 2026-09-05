@@ -2,6 +2,9 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { saveTrip } from "../api";
 import { parseTripExchange } from "../tripExchange";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
 
 const PLACEHOLDER = `{
   "title": "...",
@@ -82,11 +85,12 @@ export function ImportPage({ navigate }: { navigate: (path: string) => void }) {
       <form onSubmit={handleSubmit}>
         <label className="field">
           <span className="field-label">여행 파일</span>
-          <input type="file" accept="application/json,.json" onChange={(event) => void handleFile(event.target.files?.[0])} />
+          <Input className="min-h-11" type="file" accept="application/json,.json" onChange={(event) => void handleFile(event.target.files?.[0])} />
         </label>
         <details>
           <summary>고급: JSON 직접 붙여넣기</summary>
-        <textarea
+        <Textarea
+          className="min-h-72 font-mono"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={PLACEHOLDER}
@@ -95,9 +99,9 @@ export function ImportPage({ navigate }: { navigate: (path: string) => void }) {
         />
         </details>
         {error && <pre className="error">{error}</pre>}
-        <button type="submit" disabled={submitting || !text.trim()}>
+        <Button type="submit" className="min-h-11" disabled={submitting || !text.trim()}>
           {submitting ? "저장 중..." : "가져오기"}
-        </button>
+        </Button>
       </form>
     </div>
   );

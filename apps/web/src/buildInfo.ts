@@ -1,50 +1,78 @@
+export type BuildEnvironment = "dev" | "stg" | "prd" | "local";
+
 export type BuildInfo = {
-  environment: string;
+  environment: BuildEnvironment;
   environmentLabel: string;
+  primaryLabel: string;
   buildNumber: string;
   imageTag: string;
   commitSha: string;
   branch: string;
   builtAt: string;
+  releaseVersion: string | null;
 };
 
-type BuildEnv = Record<string, unknown>;
+export type PublicBuildConfig = Partial<{
+  environment: string;
+  buildNumber: string;
+  imageTag: string;
+  commitSha: string;
+  branch: string;
+  builtAt: string;
+  releaseVersion: string;
+}>;
 
-const ENVIRONMENT_LABELS: Record<string, string> = {
-  development: "DEV",
+declare global {
+  interface Window {
+    __MUNGCHILOG_BUILD_INFO__?: PublicBuildConfig;
+  }
+}
+
+const ENVIRONMENT_LABELS: Record<BuildEnvironment, string> = {
   dev: "DEV",
-  staging: "STG",
   stg: "STG",
-  production: "Production",
-  prod: "Production",
-  prd: "Production",
+  prd: "PRD",
   local: "Local",
 };
 
-export function buildInfoFromEnv(env: BuildEnv): BuildInfo {
-  const environment = String(env.VITE_BUILD_ENV ?? "local").trim().toLowerCase() || "local";
-  const buildNumber = String(env.VITE_BUILD_NUMBER ?? "").trim() || "Unbuilt";
-  const imageTag = String(env.VITE_IMAGE_TAG ?? "").trim() || "Unbuilt";
-  const commitSha = String(env.VITE_COMMIT_SHA ?? "").trim() || "Unavailable";
-  const branch = String(env.VITE_BUILD_BRANCH ?? "").trim() || "local";
-  const builtAt = String(env.VITE_BUILD_TIME ?? "").trim() || "Unavailable";
+const SEMANTIC_VERSION = /^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
+
+function text(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value.trim() : fallback;
+}
+
+function environmentFrom(value: unknown): BuildEnvironment {
+  const environment = text(value, "local").toLowerCase();
+  return environment === "dev" || environment === "stg" || environment === "prd" ? environment : "local";
+}
+
+// This is the sole environment-specific presentation rule. The app shell and
+// BuildIdentity component always render the same BuildInfo contract.
+export function buildInfoFromRuntimeConfig(config: PublicBuildConfig = {}): BuildInfo {
+  const environment = environmentFrom(config.environment);
+  const candidateReleaseVersion = text(config.releaseVersion, "");
+  const releaseVersion = SEMANTIC_VERSION.test(candidateReleaseVersion) ? candidateReleaseVersion : null;
+  const environmentLabel = ENVIRONMENT_LABELS[environment];
+  const buildNumber = text(config.buildNumber, "Unbuilt");
+  const primaryLabel = environment === "prd"
+    ? releaseVersion ?? "PRD"
+    : environment === "local"
+      ? environmentLabel
+      : `${environmentLabel} · Build ${buildNumber}`;
 
   return {
     environment,
-    environmentLabel: ENVIRONMENT_LABELS[environment] ?? environment,
+    environmentLabel,
+    primaryLabel,
     buildNumber,
-    imageTag,
-    commitSha,
-    branch,
-    builtAt,
+    imageTag: text(config.imageTag, "Unbuilt"),
+    commitSha: text(config.commitSha, "Unavailable"),
+    branch: text(config.branch, environment),
+    builtAt: text(config.builtAt, "Unavailable"),
+    releaseVersion,
   };
 }
 
-export const BUILD_INFO = buildInfoFromEnv({
-  VITE_BUILD_ENV: import.meta.env.VITE_BUILD_ENV,
-  VITE_BUILD_NUMBER: import.meta.env.VITE_BUILD_NUMBER,
-  VITE_IMAGE_TAG: import.meta.env.VITE_IMAGE_TAG,
-  VITE_COMMIT_SHA: import.meta.env.VITE_COMMIT_SHA,
-  VITE_BUILD_BRANCH: import.meta.env.VITE_BUILD_BRANCH,
-  VITE_BUILD_TIME: import.meta.env.VITE_BUILD_TIME,
-});
+export const BUILD_INFO = buildInfoFromRuntimeConfig(
+  typeof window === "undefined" ? {} : window.__MUNGCHILOG_BUILD_INFO__,
+);

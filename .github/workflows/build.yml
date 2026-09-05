@@ -35,6 +35,7 @@ jobs:
       commit_sha: ${{ steps.build_info.outputs.commit_sha }}
       build_branch: ${{ github.ref_name }}
       build_time: ${{ steps.build_info.outputs.build_time }}
+      release_version: ${{ steps.build_info.outputs.release_version }}
       publish: ${{ steps.publish.outputs.value }}
     steps:
       - uses: actions/checkout@v4
@@ -57,13 +58,25 @@ jobs:
             *) environment=local ;;
           esac
           short_sha="$(git rev-parse --short=7 "$GITHUB_SHA")"
-          echo "environment=$environment" >> "$GITHUB_OUTPUT"
-          echo "commit_sha=$short_sha" >> "$GITHUB_OUTPUT"
-          echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+          # Production versions are supplied only by the promotion workflow.
+          # This synthetic value lets a pull-request build validate the final
+          # metadata-file layer without publishing a production image.
+          if [[ "$environment" == "prd" ]]; then
+            release_version=v0.0.0
+          else
+            release_version=""
+          fi
+          {
+            echo "environment=$environment"
+            echo "commit_sha=$short_sha"
+            echo "build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "release_version=$release_version"
+          } >> "$GITHUB_OUTPUT"
 
       # Pull requests and manual dispatches only validate. New deployable
       # images originate exclusively from the development package. Promotion
-      # copies the same OCI manifest to staging and production without rebuilding it.
+      # promotes the verified source image by adding only a deployment metadata
+      # layer. It never recompiles the frontend application bundle.
       - name: Decide whether this run may publish
         id: publish
         run: echo "value=${{ github.ref == 'refs/heads/dev' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}" >> "$GITHUB_OUTPUT"
@@ -102,12 +115,34 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
           build-args: |
             VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
-            VITE_BUILD_ENV=${{ needs.metadata.outputs.build_env }}
-            VITE_BUILD_NUMBER=${{ needs.metadata.outputs.build_number }}
-            VITE_IMAGE_TAG=${{ needs.metadata.outputs.image_tag }}
-            VITE_COMMIT_SHA=${{ needs.metadata.outputs.commit_sha }}
-            VITE_BUILD_BRANCH=${{ needs.metadata.outputs.build_branch }}
-            VITE_BUILD_TIME=${{ needs.metadata.outputs.build_time }}
+            BUILD_ENV=${{ needs.metadata.outputs.build_env }}
+            BUILD_NUMBER=${{ needs.metadata.outputs.build_number }}
+            IMAGE_TAG=${{ needs.metadata.outputs.image_tag }}
+            COMMIT_SHA=${{ needs.metadata.outputs.commit_sha }}
+            BUILD_BRANCH=${{ needs.metadata.outputs.build_branch }}
+            BUILD_TIME=${{ needs.metadata.outputs.build_time }}
+            RELEASE_VERSION=${{ needs.metadata.outputs.release_version }}
+
+      - name: Validate thin promotion identity layer
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/server/Dockerfile.release
+          platforms: ${{ matrix.platform }}
+          # A public base exercises the release Dockerfile without requiring
+          # package-read permission or creating an environment image in a PR.
+          build-args: |
+            BASE_IMAGE=node:22-alpine
+            BUILD_ENV=stg
+            BUILD_NUMBER=${{ needs.metadata.outputs.build_number }}
+            IMAGE_TAG=r${{ needs.metadata.outputs.build_number }}-${{ needs.metadata.outputs.commit_sha }}
+            COMMIT_SHA=${{ needs.metadata.outputs.commit_sha }}
+            BUILD_BRANCH=stg
+            BUILD_TIME=${{ needs.metadata.outputs.build_time }}
+            RELEASE_VERSION=
+            SOURCE_IMAGE=ghcr.io/${{ github.repository }}-dev
+            SOURCE_TAG=r${{ needs.metadata.outputs.build_number }}-${{ needs.metadata.outputs.commit_sha }}
+            SOURCE_REVISION=${{ needs.metadata.outputs.commit_sha }}
 
   build:
     needs: metadata
@@ -155,12 +190,13 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
           build-args: |
             VITE_GOOGLE_MAPS_API_KEY=${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
-            VITE_BUILD_ENV=${{ needs.metadata.outputs.build_env }}
-            VITE_BUILD_NUMBER=${{ needs.metadata.outputs.build_number }}
-            VITE_IMAGE_TAG=${{ needs.metadata.outputs.image_tag }}
-            VITE_COMMIT_SHA=${{ needs.metadata.outputs.commit_sha }}
-            VITE_BUILD_BRANCH=${{ needs.metadata.outputs.build_branch }}
-            VITE_BUILD_TIME=${{ needs.metadata.outputs.build_time }}
+            BUILD_ENV=${{ needs.metadata.outputs.build_env }}
+            BUILD_NUMBER=${{ needs.metadata.outputs.build_number }}
+            IMAGE_TAG=${{ needs.metadata.outputs.image_tag }}
+            COMMIT_SHA=${{ needs.metadata.outputs.commit_sha }}
+            BUILD_BRANCH=${{ needs.metadata.outputs.build_branch }}
+            BUILD_TIME=${{ needs.metadata.outputs.build_time }}
+            RELEASE_VERSION=${{ needs.metadata.outputs.release_version }}
 
       - name: Export platform digest
         run: |

@@ -50,12 +50,13 @@
 - [x] **대표 장소와 대표 이미지**: 여행 상세에서 일정의 스팟을 대표 장소로 선택하고 JPEG, PNG, WebP 이미지를 2 MiB까지 업로드할 수 있음. 목록은 사진을 우선 표시하고 없으면 대표 장소의 지도를 표시. 이미지 data URL은 일시적으로 `trips.data`에 저장하며, 객체 저장소 이전과 마이그레이션은 [#9](https://github.com/jyje/mungchilog/issues/9)에서 진행
 
 ## M3 — Routes 프록시 + 캐시 ✅ 완료, 라이브 동작 확인
-- [x] `POST /api/legs/compute` — 501(키 없음)/캐시/Routes API 호출, 30일 TTL, `(fromPlaceId, toPlaceId, mode, 요일·시간대 버킷)` 캐시 키
+- [x] `POST /api/legs/compute` — 501(키 없음)/캐시/Routes API 호출, 30일 TTL. 캐시 키는 이슈 48에서 `(출발·도착 엔드포인트 ref, mode, 요일·시간대 버킷, 시간 기준, 대안 요청 여부, 실시간 교통 여부, geometry 버전)`으로 확장
 - [x] **버그 발견·수정 (인프라)**: 서버의 모든 외부 HTTPS 호출이 `fetch failed`로 실패하고 있었음. 원인은 r4spi 클러스터 CoreDNS가 AAAA 쿼리를 전부 NXDOMAIN으로 응답하도록 설정돼 있는데(의도된 IPv4 전용 정책), Alpine의 musl libc `getaddrinfo()`가 AAAA NXDOMAIN을 "호스트 자체가 없음"으로 해석해서 A 레코드 폴백 없이 전체 조회를 실패시킴 — Google뿐 아니라 `www.google.com` 같은 아무 외부 호스트나 다 실패했었음. 클러스터 공용 CoreDNS 설정(다른 프로덕션 서비스들이 의존)은 건드리지 않고, 이 앱의 아웃바운드 호출에만 `dns.resolve4()` 기반 IPv4 전용 조회를 붙여서 해결 (`apps/server/src/dns-fix.ts`). 실제 Alpine 컨테이너에서 Google API 응답(진짜 400/404) 받는 것까지 확인
 - [x] **버그 발견·수정 (코드)**: `LegInfo`가 여행 당일 시각 대신 요청 시점("지금")을 Routes API에 넘기고 있어서 미래 날짜 조회가 틀어질 뻔함 — codex가 잡음, IANA 타임존 기반 정확한 변환으로 수정 (뉴욕 서머타임까지 검증)
 - [x] **라이브 검증**: 서버 키로 Routes API 실제 호출 성공 확인 (가짜 placeId로 404는 정상 — 진짜 장소 데이터가 아직 없어서)
 - [x] **지도 위 경로 시각화 (신규 요청 반영)**: 하루 동선을 지도에 화살표 폴리라인으로 표시. Routes API가 실제로 준 도로/철도 경로(`encodedPath`)를 그리고, 아직 안 풀렸으면 좌표 간 직선으로 우아하게 대체 (`RouteOverlay.tsx`) — 키/placeId 갖춰지면 코드 변경 없이 자동으로 실제 경로로 업그레이드
-- [x] **구간별 동선 선택**: 연속 스팟마다 직선·대중교통·운전·도보를 저장하고, Routes API의 최대 3개 대안 경로 중 하나를 선택. 운전일 때만 실시간 교통을 선택할 수 있으며 5분 캐시로 호출량을 제한.
+- [x] **구간별 동선 선택**: 연속 스팟마다 이동 수단을 저장하고, Routes API의 최대 3개 대안 경로 중 하나를 선택. 운전일 때만 실시간 교통을 선택할 수 있으며 5분 캐시로 호출량을 제한.
+- [x] **실제 경로 3종 + 시간 기준 (이슈 48)**: 사용자가 고를 수 있는 이동 수단을 도보·대중교통·운전 3종으로 정리하고 직선(`DIRECT`)은 신규 선택에서 제외(기존 데이터는 계속 읽히되 "사용 중지됨"으로 표시). `placeId`가 없는 지도 좌표 스팟도 좌표 엔드포인트로 경로 계산 가능. 대중교통은 자동·출발 시각·도착 시각을 여행 현지 시간으로 저장하며, 선택한 대안 경로는 배열 인덱스가 아니라 서버가 준 지문(`routeKey`)으로 저장해서 캐시 갱신으로 순서가 바뀌어도 다른 경로가 선택되지 않음.
 - [ ] Cloud Console Routes 일일 쿼터 상한 + 예산 알림 — 사용자가 스크린샷으로 이미 일부 설정 확인해주심
 - [x] **조사 완료 (인프라, 알려진 제약으로 남김)**: 잘못된 입력을 보내면 `POST/PUT/DELETE`가 진짜 이유(400 등) 대신 `405 Method Not Allowed`로 보임 — 앱이 막힌 게 아니라, 클러스터 전역 ingress-nginx ConfigMap의 `custom-http-errors`(400,401,403,404,405,408,409,410,429,500,502,503,504) 설정이 `proxy_intercept_errors on`을 트리거해서, 앱이 낸 4xx/5xx 응답을 nginx가 가로채 GET/HEAD 전용인 `error-pages` 서비스로 내부 리다이렉트하고 거기서 다시 405가 나는 것. **정상 입력에는 영향 없음** (`/api/trips/import` 유효 payload는 계속 201). 인그레스 단위로만 우회 가능한지 라이브로 확인해봤는데: (1) `nginx.ingress.kubernetes.io/custom-http-errors` 어노테이션은 전역 목록에서 코드를 빼는 게 아니라 더하는 것만 됨(빈 값·`599` 테스트로 확인) — mungchilog Ingress만 예외 처리하는 용도로 못 씀. (2) `configuration-snippet`으로 `proxy_intercept_errors off`를 강제하는 방법은 문법상 가능하나(`allow-snippet-annotations: true`), 다른 프로덕션 앱도 걸려있는 공유 인그레스 컨트롤러에 라이브로 임의 nginx 설정을 주입하는 변경이라 사용자 확인 없이 실행하지 않음. 전역 ConfigMap 변경(다른 앱들도 영향)은 이 프로젝트 범위 밖이라 보류 — 실사용(웹 UI 정상 입력) 흐름엔 영향 없으므로 v1은 이대로 둠
 

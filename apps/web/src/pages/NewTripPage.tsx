@@ -4,6 +4,9 @@ import { lookupTimezone, saveTrip } from "../api";
 import { MapsScope } from "../components/MapsScope";
 import { PlaceAutocompleteInput, type PlaceSelection } from "../components/PlaceAutocompleteInput";
 import { DEFAULT_TIMEZONE } from "../types";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { NativeSelect, NativeSelectOption } from "../components/ui/native-select";
 
 // Full IANA list where the browser supports it (Chrome/Safari 15.4+);
 // a short curated fallback everywhere else. Not locked to any one
@@ -92,7 +95,7 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
         currency: currency.trim() || "JPY",
         startDate,
         endDate,
-        days: representativeSpot ? [{ date: startDate, spots: [representativeSpot], legPreferences: [] }] : [],
+        days: representativeSpot ? [{ date: startDate, spots: [representativeSpot], legPreferences: [], groups: [] }] : [],
         ...(representativeSpot ? { cover: { spotId: representativeSpot.id } } : {}),
       });
       await qc.invalidateQueries({ queryKey: ["trips"] });
@@ -123,30 +126,31 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
       <form onSubmit={handleSubmit}>
         <label className="field">
           <span className="field-label">제목</span>
-          <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="도쿄·오사카 5박6일" />
+          <Input className="min-h-11" type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="도쿄·오사카 5박6일" />
         </label>
         <label className="field">
           <span className="field-label">시작일</span>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+          <Input className="min-h-11" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
         </label>
         <label className="field">
           <span className="field-label">종료일</span>
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          <Input className="min-h-11" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </label>
         <label className="field">
           <span className="field-label">목적지 시간대</span>
-          <select value={timezone} onChange={(e) => { timezoneLookupVersion.current += 1; setTimezone(e.target.value); setTimezoneManuallySelected(true); setTimezoneMessage(null); }}>
+          <NativeSelect className="w-full [&>select]:min-h-11" value={timezone} onChange={(e) => { timezoneLookupVersion.current += 1; setTimezone(e.target.value); setTimezoneManuallySelected(true); setTimezoneMessage(null); }}>
             {timezoneOptions().map((tz) => (
-              <option key={tz} value={tz}>
+              <NativeSelectOption key={tz} value={tz}>
                 {tz}
-              </option>
+              </NativeSelectOption>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         {timezoneMessage && <p className="meta" role="status">{timezoneMessage}</p>}
         <label className="field">
           <span className="field-label">통화</span>
-          <input
+          <Input
+            className="min-h-11"
             type="text"
             value={currency}
             onChange={(e) => setCurrency(e.target.value.toUpperCase())}
@@ -191,9 +195,9 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
           />
         </label>
         {error && <p className="error">{error}</p>}
-        <button type="submit" disabled={submitting}>
+        <Button type="submit" className="min-h-11" disabled={submitting}>
           {submitting ? "만드는 중..." : "만들기"}
-        </button>
+        </Button>
       </form>
       </div>
     </MapsScope>
