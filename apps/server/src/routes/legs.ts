@@ -15,6 +15,7 @@ import {
   waypointRef,
 } from "../route-planning.js";
 import { resolveProvider } from "../route-providers/registry.js";
+import { googleRouteProvider } from "../route-providers/google.js";
 
 export const legs = new Hono<AuthEnv>();
 // Not trip-scoped (keyed by endpoint pairs, cached across all trips), so
@@ -87,17 +88,17 @@ legs.post("/compute", async (c) => {
     throw e;
   }
 
-  const provider = resolveProvider(mode, timezone, { from, to });
+  let provider = resolveProvider(mode, timezone, { from, to });
   const fromRef = waypointRef(from);
   const toRef = waypointRef(to);
   const bucket = bucketFor(when, timezone);
-  const id = cacheKey({ fromRef, toRef, mode, bucket, timingKind, alternatives, trafficAware, provider: provider.id });
+  let id = cacheKey({ fromRef, toRef, mode, bucket, timingKind, alternatives, trafficAware, provider: provider.id });
   // Traffic-aware driving is the only route whose answer goes stale in
   // minutes. Everything else keeps the long TTL, so a cached entry is never
   // presented as live traffic after its short window has passed.
   const ttl = trafficAware ? TRAFFIC_TTL_MS : TTL_MS;
 
-  const cached = await db.get<LegRow>("SELECT * FROM legs WHERE id = ?", [id]);
+  let cached = await db.get<LegRow>("SELECT * FROM legs WHERE id = ?", [id]);
   if (cached && Date.now() - Date.parse(cached.fetched_at) < ttl) {
     return c.json(toLegResponse(cached), 200, { "X-Cache": "hit" });
   }
@@ -116,9 +117,30 @@ legs.post("/compute", async (c) => {
   try {
     fetched = await provider.fetchRoutes({ from, to, mode, timing, alternatives, trafficAware });
   } catch (e) {
-    // Serve a stale cache entry rather than nothing, if one exists.
-    if (cached) return c.json(toLegResponse(cached), 200, { "X-Cache": "stale" });
-    return c.json({ error: String((e as Error).message ?? e) }, 502);
+    // resolveProvider guesses Japan from the trip's overall timezone, which
+    // can still pick NAVITIME for a leg entirely outside Japan (a domestic
+    // Korea hop before an international flight, say - see registry.ts).
+    // NAVITIME's own failure is the authoritative signal that this leg
+    // isn't in its coverage, so retry once with Google rather than
+    // surfacing an error for a route Google can very likely answer.
+    if (provider.id === "navitime" && googleRouteProvider.isConfigured()) {
+      provider = googleRouteProvider;
+      id = cacheKey({ fromRef, toRef, mode, bucket, timingKind, alternatives, trafficAware, provider: provider.id });
+      cached = await db.get<LegRow>("SELECT * FROM legs WHERE id = ?", [id]);
+      if (cached && Date.now() - Date.parse(cached.fetched_at) < ttl) {
+        return c.json(toLegResponse(cached), 200, { "X-Cache": "hit" });
+      }
+      try {
+        fetched = await provider.fetchRoutes({ from, to, mode, timing, alternatives, trafficAware });
+      } catch (fallbackError) {
+        if (cached) return c.json(toLegResponse(cached), 200, { "X-Cache": "stale" });
+        return c.json({ error: String((fallbackError as Error).message ?? fallbackError) }, 502);
+      }
+    } else {
+      // Serve a stale cache entry rather than nothing, if one exists.
+      if (cached) return c.json(toLegResponse(cached), 200, { "X-Cache": "stale" });
+      return c.json({ error: String((e as Error).message ?? e) }, 502);
+    }
   }
 
   const now = new Date().toISOString();
