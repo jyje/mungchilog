@@ -74,6 +74,76 @@ export function routeSegmentKind(mode: PersistedLegMode, stepTravelMode?: string
   return mode === "WALK" ? "WALK" : "RIDE";
 }
 
+/** Where a mode-icon badge belongs: the first segment of a walk-or-ride run. */
+export type RouteSegmentMarker = {
+  /** Index into the `segments` array whose first coordinate the marker sits on. */
+  segmentIndex: number;
+  kind: RouteSegmentKind;
+  /** Only set for a RIDE run - which vehicle was boarded, if the provider said. */
+  vehicle: string | null;
+};
+
+/**
+ * One marker per walk-or-ride run, at the run's first segment - a run being a
+ * stretch of consecutive same-kind segments, so a transfer (ride -> walk ->
+ * ride) gets three markers, not one per raw segment. `segments` is provider
+ * step/feature granularity, always finer than or equal to run granularity.
+ *
+ * A RIDE run's vehicle comes from `transit`, matched by position: both lists
+ * are already in the order the journey is travelled, so the Nth RIDE run
+ * boards the Nth vehicle in `transit`. Neither provider tags an individual
+ * segment with its own vehicle, so this positional correlation is the only
+ * link between the two lists.
+ */
+export function routeSegmentMarkers(
+  mode: PersistedLegMode,
+  segments: Array<{ travelMode: string }>,
+  transit: Array<{ vehicle: string | null }> | null,
+): RouteSegmentMarker[] {
+  const markers: RouteSegmentMarker[] = [];
+  let previousKind: RouteSegmentKind | null = null;
+  let rideRunIndex = 0;
+  segments.forEach((segment, segmentIndex) => {
+    const kind = routeSegmentKind(mode, segment.travelMode);
+    if (kind === previousKind) return; // still inside the same run
+    previousKind = kind;
+    if (kind === "WALK") {
+      markers.push({ segmentIndex, kind, vehicle: null });
+      return;
+    }
+    markers.push({ segmentIndex, kind, vehicle: transit?.[rideRunIndex]?.vehicle ?? null });
+    rideRunIndex += 1;
+  });
+  return markers;
+}
+
+/**
+ * Which segments belong to the Nth ride run (0-based among RIDE runs only,
+ * same order as `transit`/transitSummary() and routeSegmentMarkers()'s own
+ * ride-run counter) - what lets clicking one boarded vehicle in the leg
+ * summary highlight just that vehicle's stretch of the polyline instead of
+ * the whole leg. Walking segments never match; there is nothing "the Nth
+ * walk" would mean to a rider clicking a vehicle name.
+ */
+export function routeSegmentsInRideRun(
+  mode: PersistedLegMode,
+  segments: Array<{ travelMode: string }>,
+  rideRunIndex: number,
+): boolean[] {
+  const inRun: boolean[] = new Array(segments.length).fill(false);
+  let previousKind: RouteSegmentKind | null = null;
+  let currentRideRun = -1;
+  segments.forEach((segment, index) => {
+    const kind = routeSegmentKind(mode, segment.travelMode);
+    if (kind !== previousKind) {
+      previousKind = kind;
+      if (kind === "RIDE") currentRideRun += 1;
+    }
+    inRun[index] = kind === "RIDE" && currentRideRun === rideRunIndex;
+  });
+  return inRun;
+}
+
 export function routeEmphasis(selected: boolean, hasSelection: boolean): RouteEmphasis {
   if (selected) return "selected";
   return hasSelection ? "dimmed" : "default";
@@ -195,16 +265,44 @@ export function connectorStroke(
   };
 }
 
+// A sentinel, not a raw SVG path string: two hand-drawn attempts (a
+// symmetric tick, then a custom filled-triangle path) both failed to render
+// as a recognizable arrow in the live app - confirmed on a real device, not
+// just guessed at from code. Google's own FORWARD_CLOSED_ARROW is a built-in
+// SymbolPath built for exactly this "arrow repeated along a line" case, so
+// this hands the caller a name to resolve instead of a path. `routeStyles.ts`
+// still never touches `google.*` itself - RouteOverlay.tsx (browser-only,
+// already using `google.maps.SymbolPath.CIRCLE` for access connectors)
+// resolves this sentinel to the real constant right before handing the
+// options to <Polyline icons=...>.
+export const FORWARD_ARROW_ICON = "FORWARD_CLOSED_ARROW" as const;
+
 export type RouteDirectionIcon = {
-  icon: { path: string; strokeColor?: string; strokeOpacity: number; scale: number };
+  icon: {
+    path: typeof FORWARD_ARROW_ICON;
+    fillColor: string;
+    fillOpacity: number;
+    strokeColor: string;
+    strokeOpacity: number;
+    scale: number;
+  };
   offset: string;
   repeat: string;
 };
 
 /**
- * The repeated perpendicular ticks that show direction of travel along a line.
- * A selected leg gets none: it is already thick and amber-cased, and ticks on
- * top of that read as noise.
+ * The repeated arrowheads that show direction of travel along a line, like a
+ * transit map's ">>>" marks. A selected leg gets none: it is already thick
+ * and amber-cased, and arrowheads on top of that read as noise.
+ *
+ * Scale is kept small on purpose: the route line itself is only 3-4px wide
+ * (ROUTE_LINE_WIDTH_PX), and an arrow scaled to read clearly on its own
+ * poked out past both edges of the line - confirmed live, it looked like the
+ * line was tearing rather than carrying a direction marker. The arrow has to
+ * nest inside the line's own width, not compete with it. Repeat is wide for
+ * the same live-verified reason: at the tighter rhythm this replaced, a
+ * multi-kilometre route rendered dozens of arrows close enough to blur into
+ * a dashed texture instead of a few legible, well-spaced direction cues.
  */
 export function routeDirectionIcons(input: { kind: RouteSegmentKind; emphasis: RouteEmphasis }): RouteDirectionIcon[] {
   if (input.emphasis === "selected") return [];
@@ -212,15 +310,15 @@ export function routeDirectionIcons(input: { kind: RouteSegmentKind; emphasis: R
   return [
     {
       icon: {
-        path: "M 0,-1 0,1",
+        path: FORWARD_ARROW_ICON,
+        fillColor: ROUTE_LINE_COLORS.casing,
+        fillOpacity: input.emphasis === "dimmed" ? 0.5 : 0.95,
         strokeColor: ROUTE_LINE_COLORS.casing,
-        strokeOpacity: input.emphasis === "dimmed" ? 0.5 : 0.9,
-        scale: dense ? 2 : 3,
+        strokeOpacity: input.emphasis === "dimmed" ? 0.5 : 0.95,
+        scale: dense ? 1.3 : 1.5,
       },
       offset: "0",
-      // A tighter rhythm on foot segments so they read as a dotted path even
-      // before the colour registers.
-      repeat: dense ? "8px" : "12px",
+      repeat: dense ? "50px" : "70px",
     },
   ];
 }

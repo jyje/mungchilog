@@ -119,7 +119,7 @@ describe("spot schedule editor", () => {
     }));
   });
 
-  it("saves a reservation start and optional end time as a visit duration", () => {
+  it("saves a reservation start and an independent end time", () => {
     const onSubmit = vi.fn();
     render(<SpotForm initial={{ name: "저녁 예약" }} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
@@ -130,22 +130,39 @@ describe("spot schedule editor", () => {
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
       plannedArrival: "19:00",
+      plannedDeparture: "20:30",
       timeKind: "RESERVATION",
-      dwellMinutes: 90,
     }));
   });
 
-  it("keeps the form open and explains a missing required start time", () => {
+  it("saves with no start time at all - reordering happens before times are filled in", () => {
     const onSubmit = vi.fn();
     render(<SpotForm initial={{ name: "열차" }} onSubmit={onSubmit} onCancel={vi.fn()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
 
-    expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent("시작 시각을 24시간제로 입력해주세요.");
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      plannedArrival: undefined,
+      plannedDeparture: undefined,
+      timeKind: undefined,
+    }));
   });
 
-  it("rejects a local time that does not exist during daylight-saving transition", () => {
+  it("saves an end time with no known start - the departure is fixed, the start isn't", () => {
+    const onSubmit = vi.fn();
+    render(<SpotForm initial={{ name: "공항 체크인" }} onSubmit={onSubmit} onCancel={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("종료 시각 입력"), { target: { value: "18:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+      plannedArrival: undefined,
+      plannedDeparture: "18:00",
+      timeKind: "APPROXIMATE",
+    }));
+  });
+
+  it("warns, but still saves, a local time that does not exist during a daylight-saving transition", () => {
     const onSubmit = vi.fn();
     render(
       <SpotForm
@@ -158,9 +175,9 @@ describe("spot schedule editor", () => {
     );
 
     fireEvent.change(screen.getByLabelText("시작 시각 입력"), { target: { value: "02:30" } });
+    expect(screen.getByRole("status")).toHaveTextContent("일광 절약 시간 전환으로 존재하지 않습니다");
     fireEvent.click(screen.getByRole("button", { name: "스팟 추가" }));
 
-    expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent("일광 절약 시간 전환으로 존재하지 않습니다");
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ plannedArrival: "02:30" }));
   });
 });

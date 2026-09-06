@@ -55,9 +55,14 @@ function legOf(routes: Array<Partial<Leg["routes"][number]>>): Leg {
   };
 }
 
-function renderLeg(overrides: Partial<React.ComponentProps<typeof LegInfo>> = {}) {
+// Everything below "수정" (mode toggle, timing, traffic switch, route
+// picker) renders collapsed by default (see "editing the leg" below for that
+// behaviour itself); every other describe block here is about what's inside
+// once open, so the helper opens it unless a test asks not to.
+function renderLeg(overrides: Partial<React.ComponentProps<typeof LegInfo>> = {}, options: { edit?: boolean } = {}) {
   const onChange = vi.fn();
-  render(
+  const onSelect = vi.fn();
+  const { container } = render(
     <LegInfo
       from={from}
       to={to}
@@ -65,12 +70,13 @@ function renderLeg(overrides: Partial<React.ComponentProps<typeof LegInfo>> = {}
       timezone="Asia/Tokyo"
       preference={preferenceOf()}
       selected={false}
-      onSelect={vi.fn()}
+      onSelect={onSelect}
       onChange={onChange}
       {...overrides}
     />,
   );
-  return { onChange };
+  if (options.edit ?? true) fireEvent.click(screen.getByRole("button", { name: /경로 수정/ }));
+  return { onChange, onSelect, container };
 }
 
 beforeEach(() => {
@@ -79,10 +85,10 @@ beforeEach(() => {
 });
 
 describe("choosing how to travel a leg", () => {
-  it("offers only walking, transit, and driving", () => {
+  it("offers walking, transit, driving, and a manual flight", () => {
     renderLeg();
     const group = screen.getByRole("radiogroup", { name: /이동 수단/ });
-    expect(within(group).getAllByRole("radio").map((item) => item.textContent)).toEqual(["도보", "대중교통", "운전"]);
+    expect(within(group).getAllByRole("radio").map((item) => item.textContent)).toEqual(["도보", "대중교통", "운전", "항공편"]);
     expect(within(group).queryByText("직선")).toBeNull();
   });
 
@@ -99,6 +105,61 @@ describe("choosing how to travel a leg", () => {
     expect(useLegMock).toHaveBeenCalled();
     expect(useLegMock.mock.calls[0][1]).toBe(to);
     expect(screen.getByRole("radiogroup", { name: /이동 수단/ })).toBeInTheDocument();
+  });
+});
+
+describe("flying a leg by hand", () => {
+  it("gives the flight an immediately valid departure and arrival when first selected", () => {
+    const { onChange } = renderLeg();
+    fireEvent.click(screen.getByRole("radio", { name: /항공편/ }));
+    expect(onChange).toHaveBeenCalledWith({
+      mode: "FLIGHT",
+      timing: { kind: "DEPART_AT", time: "09:00" },
+      flight: { arrivalTime: "11:00" },
+    });
+  });
+
+  it("summarises the flight number and both clock times without fetching a route", () => {
+    renderLeg({
+      preference: preferenceOf({
+        mode: "FLIGHT",
+        timing: { kind: "DEPART_AT", time: "10:00" },
+        flight: { flightNumber: "OZ102", arrivalTime: "11:35" },
+      }),
+    }, { edit: false });
+    const summary = screen.getByRole("button", { name: /OZ102/ });
+    expect(summary).toHaveTextContent("OZ102");
+    expect(summary).toHaveTextContent("10:00 → 11:35");
+    expect(summary).toHaveTextContent("1시간 35분");
+    // No provider route ever backs a flight, so nothing here should read as
+    // a loading or failed fetch - unlike useLeg.test.ts's own coverage of
+    // isRoutedLegMode (the actual gate), this only checks the UI doesn't
+    // misrepresent the (here mocked) "no data" state as an error.
+    expect(screen.queryByText(/불러오는 중|불러오지 못했습니다/)).toBeNull();
+  });
+
+  it("saves an edited flight number and both times", () => {
+    const { onChange } = renderLeg({
+      preference: preferenceOf({
+        mode: "FLIGHT",
+        timing: { kind: "DEPART_AT", time: "10:00" },
+        flight: { flightNumber: "OZ102", arrivalTime: "11:35" },
+      }),
+    });
+    fireEvent.click(screen.getByRole("button", { name: /항공편 시각/ }));
+    fireEvent.change(screen.getByLabelText("편명 (선택)"), { target: { value: "OZ103" } });
+    fireEvent.change(screen.getByLabelText("출발 시각"), { target: { value: "12:00" } });
+    fireEvent.change(screen.getByLabelText("도착 시각"), { target: { value: "13:35" } });
+    fireEvent.click(screen.getByRole("button", { name: "적용" }));
+    expect(onChange).toHaveBeenCalledWith({
+      timing: { kind: "DEPART_AT", time: "12:00" },
+      flight: { flightNumber: "OZ103", arrivalTime: "13:35" },
+    });
+  });
+
+  it("does not offer a route-alternatives picker for a flight", () => {
+    renderLeg({ preference: preferenceOf({ mode: "FLIGHT", timing: { kind: "DEPART_AT", time: "10:00" }, flight: { arrivalTime: "11:35" } }) });
+    expect(screen.queryByRole("group", { name: "경로 선택" })).toBeNull();
   });
 });
 
@@ -172,18 +233,42 @@ describe("route alternatives", () => {
       isError: false,
       isLoading: false,
     });
-    renderLeg();
+    const { container } = renderLeg();
 
-    const summary = screen.getByRole("button", { name: /Sakaisuji Line.*Tenjinbashisuji 6-chome/ });
+    // Not a single button: each boarded vehicle is its own click target (see
+    // "selecting one boarded vehicle" below), so the summary is a plain
+    // container now rather than one <button role>.
+    const summary = container.querySelector(".leg-summary");
     expect(summary).toHaveTextContent("Sakaisuji Line · Tenjinbashisuji 6-chome");
     expect(summary).not.toHaveTextContent("대중교통");
+  });
+
+  it("shows a matching icon for each vehicle when the trip transfers between them", () => {
+    useLegMock.mockReturnValue({
+      data: legOf([{
+        transit: [
+          { vehicle: "SUBWAY", line: "Sakaisuji Line", headsign: "Tenjinbashisuji 6-chome" },
+          { vehicle: "BUS", line: "Osaka City Bus 62", headsign: "Osaka Station" },
+        ],
+      }]),
+      isError: false,
+      isLoading: false,
+    });
+    const { container } = renderLeg();
+
+    const summary = container.querySelector(".leg-summary");
+    expect(summary).toHaveTextContent("Sakaisuji Line · Tenjinbashisuji 6-chome 방면 → Osaka City Bus 62 · Osaka Station 방면");
+    // The icon changes at the transfer - not a subway icon carried through
+    // the whole line, and not just a train icon for a bus leg.
+    expect(container.querySelectorAll(".lucide-train-front")).toHaveLength(1);
+    expect(container.querySelectorAll(".lucide-bus-front")).toHaveLength(1);
   });
 
   it("shows duration, distance, and estimated departure and arrival", () => {
     useLegMock.mockReturnValue({ data: legOf([{ durationS: 600 }, { durationS: 1500 }]), isError: false, isLoading: false });
     renderLeg();
     // AUTO timing: 09:00 arrival + 30m dwell = 09:30 departure, +10m = 09:40.
-    expect(screen.getByLabelText(/추천 경로/).closest("label")).toHaveTextContent("10분 · 1.0km · 09:30→09:40");
+    expect(screen.getByLabelText(/추천/).closest("label")).toHaveTextContent("10분 · 1.0km · 09:30→09:40");
     expect(screen.getByLabelText(/대안 1/).closest("label")).toHaveTextContent("25분 · 1.0km · 09:30→09:55");
   });
 
@@ -202,7 +287,24 @@ describe("route alternatives", () => {
       isLoading: false,
     });
     renderLeg({ preference: preferenceOf({ routeIndex: 1, routeKey: "key-1" }) });
-    expect(screen.getByLabelText(/추천 경로/)).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByLabelText(/추천/)).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("labels alternatives by what actually makes them different, not just position", () => {
+    useLegMock.mockReturnValue({
+      data: legOf([
+        { label: "DEFAULT_ROUTE_ALTERNATE", durationS: 900, distanceM: 4000, fareAmount: 1500 },
+        { label: "DEFAULT_ROUTE", durationS: 600, distanceM: 5000, fareAmount: 1200 },
+      ]),
+      isError: false,
+      isLoading: false,
+    });
+    renderLeg();
+    // The faster, cheaper, but longer route is the recommended one - and
+    // "fastest"/"cheapest" follow it, while "shortest" stays on the other.
+    expect(screen.getByLabelText(/최소 시간/).closest("label")).toHaveTextContent("추천");
+    expect(screen.getByLabelText(/최소 시간/).closest("label")).toHaveTextContent("최저 요금");
+    expect(screen.getByLabelText(/최단 거리/).closest("label")).not.toHaveTextContent("추천");
   });
 
   it("hides the picker when there is nothing to choose between", () => {
@@ -238,5 +340,58 @@ describe("when the provider cannot answer", () => {
     expect(screen.getByRole("status")).toHaveTextContent("임시로 직선 미리보기");
     // The picker still reports transit, so the failure did not rewrite the save.
     expect(screen.getByRole("radio", { name: /대중교통 시간표 경로/ })).toHaveAttribute("aria-checked", "true");
+  });
+});
+
+describe("editing the leg", () => {
+  it("keeps the mode toggle and route picker collapsed until 수정 is opened", () => {
+    renderLeg({}, { edit: false });
+    expect(screen.queryByRole("radiogroup", { name: /이동 수단/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /경로 수정/ }));
+    expect(screen.getByRole("radiogroup", { name: /이동 수단/ })).toBeInTheDocument();
+  });
+
+  it("closes again on a second click", () => {
+    renderLeg({}, { edit: false });
+    const toggle = screen.getByRole("button", { name: /경로 수정/ });
+    fireEvent.click(toggle);
+    expect(screen.getByRole("radiogroup", { name: /이동 수단/ })).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.queryByRole("radiogroup", { name: /이동 수단/ })).toBeNull();
+  });
+});
+
+describe("selecting one boarded vehicle from the summary", () => {
+  function transitLeg(overrides: Partial<React.ComponentProps<typeof LegInfo>> = {}) {
+    useLegMock.mockReturnValue({
+      data: legOf([{
+        transit: [
+          { vehicle: "SUBWAY", line: "Sakaisuji Line", headsign: "Tenjinbashisuji 6-chome" },
+          { vehicle: "BUS", line: "Osaka City Bus 62", headsign: "Osaka Station" },
+        ],
+      }]),
+      isError: false,
+      isLoading: false,
+    });
+    return renderLeg({ selected: true, ...overrides }, { edit: false });
+  }
+
+  it("passes the vehicle's own index, not the whole-leg selection", () => {
+    const { onSelect } = transitLeg();
+    fireEvent.click(screen.getByRole("button", { name: /Osaka City Bus 62.*강조/ }));
+    expect(onSelect).toHaveBeenCalledWith(1);
+  });
+
+  it("selects the whole leg (no index) from the duration/fare summary instead", () => {
+    useLegMock.mockReturnValue({ data: legOf([{ durationS: 600, distanceM: 1000 }]), isError: false, isLoading: false });
+    const { onSelect } = renderLeg({ selected: true }, { edit: false });
+    fireEvent.click(screen.getByText(/10분/));
+    expect(onSelect).toHaveBeenCalledWith();
+  });
+
+  it("marks only the boarded vehicle matching selectedRideRunIndex as pressed", () => {
+    transitLeg({ selectedRideRunIndex: 1 });
+    expect(screen.getByRole("button", { name: /Sakaisuji Line.*강조/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /Osaka City Bus 62.*강조/ })).toHaveAttribute("aria-pressed", "true");
   });
 });

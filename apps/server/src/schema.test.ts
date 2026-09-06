@@ -142,6 +142,45 @@ test("a chosen departure or arrival must carry a valid trip-local time", () => {
   );
 });
 
+test("a flight needs a departure time and an arrival time - it has no provider to derive either", () => {
+  // Neither the departure (timing) nor the arrival (flight) half alone is enough.
+  assert.equal(
+    TripImportSchema.safeParse(tripWithLegPreference({ mode: "FLIGHT", timing: { kind: "DEPART_AT", time: "10:00" } })).success,
+    false,
+  );
+  assert.equal(
+    TripImportSchema.safeParse(tripWithLegPreference({ mode: "FLIGHT", flight: { arrivalTime: "11:35" } })).success,
+    false,
+  );
+  // AUTO (no provider to derive it from) or arrive-by (the wrong end) don't work either.
+  assert.equal(
+    TripImportSchema.safeParse(
+      tripWithLegPreference({ mode: "FLIGHT", timing: { kind: "ARRIVE_BY", time: "10:00" }, flight: { arrivalTime: "11:35" } }),
+    ).success,
+    false,
+  );
+
+  const parsed = TripImportSchema.safeParse(
+    tripWithLegPreference({
+      mode: "FLIGHT",
+      timing: { kind: "DEPART_AT", time: "10:00" },
+      flight: { flightNumber: "OZ102", arrivalTime: "11:35" },
+    }),
+  );
+  assert.equal(parsed.success, true);
+  if (parsed.success) assert.deepEqual(parsed.data.days[0].legPreferences[0].flight, { flightNumber: "OZ102", arrivalTime: "11:35" });
+});
+
+test("flight details are rejected on any other mode", () => {
+  for (const mode of ["WALK", "TRANSIT", "DRIVE", "DIRECT"]) {
+    assert.equal(
+      TripImportSchema.safeParse(tripWithLegPreference({ mode, flight: { arrivalTime: "11:35" } })).success,
+      false,
+      `${mode} must not accept flight details`,
+    );
+  }
+});
+
 test("arrive-by timing is limited to transit legs", () => {
   for (const mode of ["WALK", "DRIVE"]) {
     assert.equal(
@@ -201,8 +240,24 @@ test("spot schedules preserve legacy times and validate explicit semantics", () 
 
   assert.equal(withSpot({ plannedArrival: "19:00", timeKind: "RESERVATION", dwellMinutes: 90 }).success, true);
   assert.equal(withSpot({ plannedArrival: "9:00", timeKind: "APPROXIMATE" }).success, false);
-  assert.equal(withSpot({ timeKind: "RESERVATION" }).success, false);
   assert.equal(withSpot({ plannedArrival: "24:00" }).success, false);
+});
+
+test("a spot's start and end times are each independently optional", () => {
+  const withSpot = (spot: Record<string, unknown>) => TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{ date: "2026-09-07", spots: [{ id: "point", order: 0, name: "예약 장소", items: [], ...spot }] }],
+  });
+
+  // A time kind with no time of its own is no longer an error - reordering
+  // an itinerary happens before its times are filled in, so this state
+  // must be representable, not rejected.
+  assert.equal(withSpot({ timeKind: "RESERVATION" }).success, true);
+  assert.equal(withSpot({}).success, true);
+  // The departure is fixed, the start isn't.
+  assert.equal(withSpot({ plannedDeparture: "18:00" }).success, true);
+  assert.equal(withSpot({ plannedArrival: "19:00", plannedDeparture: "20:30" }).success, true);
+  assert.equal(withSpot({ plannedDeparture: "9:00" }).success, false);
 });
 
 test("groups are optional for existing trips and form non-overlapping itinerary ranges", () => {

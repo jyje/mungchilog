@@ -1,22 +1,33 @@
-import { Polyline } from "@vis.gl/react-google-maps";
+import { AdvancedMarker, Polyline } from "@vis.gl/react-google-maps";
+import { CarFront, Footprints } from "lucide-react";
 import { useLeg } from "../hooks/useLeg";
+import { useMapZoom } from "../hooks/useMapZoom";
 import { isLegacyLegMode, legPreferenceFor, selectedRouteIndex } from "../legPreferences";
 import {
   connectorStroke,
   routeDirectionIcons,
   routeEmphasis,
   routeSegmentKind,
+  routeSegmentMarkers,
+  routeSegmentsInRideRun,
   routeStrokeLayers,
   type RouteEmphasis,
   type RouteSegmentKind,
 } from "../routeStyles";
-import type { LegPreference, Spot } from "../types";
+import type { LegPreference, PersistedLegMode, Spot } from "../types";
+import { Button } from "./ui/button";
+import { TransitVehicleIcon } from "./system/TransitVehicleIcon";
 import type { ItinerarySelection } from "./TripMap";
 
 type Coordinate = { lat: number; lng: number };
 
 const ACCESS_CONNECTOR_MIN_METERS = 8;
 const ACCESS_CONNECTOR_MAX_METERS = 120;
+// Below this, a day with several legs would show every walk/ride badge at
+// once across a whole-city view - more clutter than the icons are worth
+// before there's room to actually tell them apart. Roughly "streets are
+// individually visible" on Google's zoom scale.
+const MODE_MARKER_MIN_ZOOM = 15;
 
 function decodeEncodedPolyline(encodedPath: string): Coordinate[] {
   const coordinates: Coordinate[] = [];
@@ -136,6 +147,19 @@ function RouteAccessConnectors({
 }
 
 /**
+ * routeStyles.ts hands back a sentinel path name instead of a `google.maps`
+ * constant, so it can stay jsdom-safe (see FORWARD_ARROW_ICON's own comment).
+ * This is the one place that resolves it - right before the options reach a
+ * real `<Polyline>`, which only ever mounts in the browser.
+ */
+function resolveDirectionIcons(icons: ReturnType<typeof routeDirectionIcons>): google.maps.IconSequence[] {
+  return icons.map(({ icon, ...rest }) => ({
+    ...rest,
+    icon: { ...icon, path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW },
+  }));
+}
+
+/**
  * One route line, drawn as a white casing beneath a coloured core. Google
  * Maps has no native casing, so it has to be two stacked polylines; the
  * casing is what separates the line from water and parks on the basemap.
@@ -164,8 +188,88 @@ function CasedRoute({
   return (
     <>
       {casing && <Polyline {...geometry} {...casing} clickable={false} />}
-      <Polyline {...geometry} {...core} icons={routeDirectionIcons({ kind, emphasis })} onClick={onSelect} />
+      <Polyline {...geometry} {...core} icons={resolveDirectionIcons(routeDirectionIcons({ kind, emphasis }))} onClick={onSelect} />
     </>
+  );
+}
+
+/**
+ * A mode-icon badge at the start of one walk-or-ride run - the T-map-style
+ * "you start walking here" / "board here" cue. Skipped for a dimmed leg (see
+ * RouteLeg): with several legs on a day, lighting every one of these up at
+ * once while another leg is selected reads as clutter, not information.
+ */
+function RouteModeMarker({
+  position,
+  kind,
+  vehicle,
+  mode,
+}: {
+  position: Coordinate;
+  kind: RouteSegmentKind;
+  vehicle: string | null;
+  mode: PersistedLegMode;
+}) {
+  return (
+    <AdvancedMarker position={position}>
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon-sm"
+        className={`route-mode-marker route-mode-marker--${kind.toLowerCase()}`}
+      >
+        {kind === "WALK" ? (
+          <Footprints aria-hidden="true" />
+        ) : mode === "DRIVE" ? (
+          <CarFront aria-hidden="true" />
+        ) : (
+          <TransitVehicleIcon vehicle={vehicle} />
+        )}
+      </Button>
+    </AdvancedMarker>
+  );
+}
+
+/**
+ * One marker per walk-or-ride run (see routeSegmentMarkers), plus - when the
+ * route has no per-step segments at all (a walk/drive leg, or an old cache
+ * row) - a single marker at the whole line's start standing in for the one
+ * run the leg is entirely made of.
+ */
+function RouteModeMarkers({
+  mode,
+  polyline,
+  segments,
+  transit,
+}: {
+  mode: PersistedLegMode;
+  polyline: string;
+  segments: Array<{ travelMode: string; polyline: string }> | null | undefined;
+  transit: Array<{ vehicle: string | null }> | null;
+}) {
+  if (segments?.length) {
+    return (
+      <>
+        {routeSegmentMarkers(mode, segments, transit).map((marker) => {
+          const [position] = decodeEncodedPolyline(segments[marker.segmentIndex].polyline);
+          if (!position) return null;
+          return (
+            <RouteModeMarker
+              key={marker.segmentIndex}
+              position={position}
+              kind={marker.kind}
+              vehicle={marker.vehicle}
+              mode={mode}
+            />
+          );
+        })}
+      </>
+    );
+  }
+  const [position] = decodeEncodedPolyline(polyline);
+  if (!position) return null;
+  return (
+    <RouteModeMarker position={position} kind={routeSegmentKind(mode)} vehicle={transit?.[0]?.vehicle ?? null} mode={mode} />
   );
 }
 
@@ -176,6 +280,7 @@ function RouteLeg({
   timezone,
   preference,
   selected,
+  rideRunIndex,
   hasSelection,
   onSelect,
 }: {
@@ -185,6 +290,9 @@ function RouteLeg({
   timezone: string;
   preference: LegPreference;
   selected: boolean;
+  // Set only when a specific boarded vehicle (not the whole leg) was
+  // clicked in LegInfo's summary - see routeSegmentsInRideRun().
+  rideRunIndex?: number;
   hasSelection: boolean;
   onSelect: () => void;
 }) {
@@ -194,6 +302,12 @@ function RouteLeg({
   // alternatives between cache refreshes.
   const selectedRoute = leg?.routes[selectedRouteIndex(leg?.routes, preference)];
   const emphasis = routeEmphasis(selected, hasSelection);
+  const zoom = useMapZoom();
+  // A full day's itinerary can have several legs, each with several
+  // walk/ride runs - showing every mode badge at a zoomed-out, whole-city
+  // view buries the map in icons before there's room to tell them apart.
+  // null (zoom not known yet) shows them rather than hiding by default.
+  const showModeMarkers = zoom == null || zoom >= MODE_MARKER_MIN_ZOOM;
 
   if (!isLegacyLegMode(mode) && selectedRoute?.polyline) {
     // Real road/rail-following route from the Routes API - what "the
@@ -204,6 +318,12 @@ function RouteLeg({
     // - a walk or drive leg, or an entry cached before step geometry was
     // requested - is one uniform line.
     const segments = selectedRoute.segments;
+    // A ride-run selection narrows "selected" down to just that run's
+    // segments; every other segment of this same leg (including its own
+    // walk portions) falls back to "default", not dimmed - it's still the
+    // selected leg, just not the part being pointed at.
+    const inTargetRun =
+      selected && rideRunIndex != null && segments?.length ? routeSegmentsInRideRun(mode, segments, rideRunIndex) : null;
     return (
       <>
         {segments?.length ? (
@@ -212,7 +332,7 @@ function RouteLeg({
               key={`${index}:${segment.polyline.slice(0, 16)}`}
               encodedPath={segment.polyline}
               kind={routeSegmentKind(mode, segment.travelMode)}
-              emphasis={emphasis}
+              emphasis={inTargetRun ? (inTargetRun[index] ? "selected" : "default") : emphasis}
               onSelect={onSelect}
             />
           ))
@@ -223,6 +343,9 @@ function RouteLeg({
             emphasis={emphasis}
             onSelect={onSelect}
           />
+        )}
+        {emphasis !== "dimmed" && showModeMarkers && (
+          <RouteModeMarkers mode={mode} polyline={selectedRoute.polyline} segments={segments} transit={selectedRoute.transit ?? null} />
         )}
         <RouteAccessConnectors
           // Deliberately the whole-journey line, not a segment: the connectors
@@ -289,6 +412,11 @@ export function RouteOverlay({
           timezone={timezone}
           preference={legPreferenceFor(legPreferences, spot.id, sorted[i + 1].id)}
           selected={selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id}
+          rideRunIndex={
+            selection?.kind === "leg" && selection.fromId === spot.id && selection.toId === sorted[i + 1].id
+              ? selection.rideRunIndex
+              : undefined
+          }
           hasSelection={selection !== null}
           onSelect={() => onSelect({ kind: "leg", fromId: spot.id, toId: sorted[i + 1].id })}
         />

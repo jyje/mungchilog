@@ -38,6 +38,11 @@
 - Treat identity and session changes as database migrations. Preserve compatible existing records where safe, make any forced sign-out explicit, and cover the migration behavior with focused tests.
 - Report security limitations and unverified infrastructure controls separately from application-level protections. Do not imply that storage encryption, backup encryption, network policy, or ingress headers are configured unless they have been verified.
 
+# Documentation language
+
+- Write GitHub issues and pull request titles and descriptions in English, regardless of the language used in the conversation that produced them. This is a repository documentation convention, separate from the app's own user interface, which is Korean.
+- Commit messages follow the existing gitmoji-style log (an emoji plus a short summary) and may stay in whichever language matches the surrounding commit history.
+
 # Component system ownership
 
 - Treat `apps/web/src/components/ui/` as read-only shadcn CLI output. Do not make product-specific changes in generated files.

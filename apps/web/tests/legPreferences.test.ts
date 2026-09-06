@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_FLIGHT_DETAILS,
+  DEFAULT_FLIGHT_TIMING,
   DEFAULT_LEG_TIMING,
   isLegacyLegMode,
+  isRoutedLegMode,
   LEG_MODE_OPTIONS,
   legPreferenceFor,
   replaceLegPreference,
@@ -11,15 +14,23 @@ import {
 import { LegPreferenceSchema } from "../src/types";
 
 describe("selectable leg modes", () => {
-  it("offers only real provider routes for new choices", () => {
-    expect(LEG_MODE_OPTIONS.map((option) => option.mode)).toEqual(["WALK", "TRANSIT", "DRIVE"]);
+  it("offers walking, transit, driving, and a manual flight", () => {
+    expect(LEG_MODE_OPTIONS.map((option) => option.mode)).toEqual(["WALK", "TRANSIT", "DRIVE", "FLIGHT"]);
   });
 
   it("marks a straight line as legacy without breaking existing itineraries", () => {
     expect(isLegacyLegMode("DIRECT")).toBe(true);
-    for (const mode of ["WALK", "TRANSIT", "DRIVE"] as const) {
+    for (const mode of ["WALK", "TRANSIT", "DRIVE", "FLIGHT"] as const) {
       expect(isLegacyLegMode(mode)).toBe(false);
     }
+  });
+
+  it("only fetches a provider route for walking, transit, or driving - never a flight, which has none", () => {
+    for (const mode of ["WALK", "TRANSIT", "DRIVE"] as const) {
+      expect(isRoutedLegMode(mode)).toBe(true);
+    }
+    expect(isRoutedLegMode("FLIGHT")).toBe(false);
+    expect(isRoutedLegMode("DIRECT")).toBe(false);
   });
 });
 
@@ -44,6 +55,34 @@ describe("persisting a leg choice", () => {
       timing: { kind: "ARRIVE_BY", time: "09:30" },
     });
     expect(preference.timing).toEqual(DEFAULT_LEG_TIMING);
+    expect(LegPreferenceSchema.safeParse(preference).success).toBe(true);
+  });
+
+  it("gives a flight an immediately valid departure and arrival when none is supplied", () => {
+    const [preference] = replaceLegPreference([], "a", "b", "FLIGHT");
+    expect(preference.timing).toEqual(DEFAULT_FLIGHT_TIMING);
+    expect(preference.flight).toEqual(DEFAULT_FLIGHT_DETAILS);
+    expect(LegPreferenceSchema.safeParse(preference).success).toBe(true);
+  });
+
+  it("keeps a flight's chosen number and times", () => {
+    const [preference] = replaceLegPreference([], "a", "b", "FLIGHT", {
+      timing: { kind: "DEPART_AT", time: "10:00" },
+      flight: { flightNumber: "OZ102", arrivalTime: "11:35" },
+    });
+    expect(preference).toMatchObject({
+      mode: "FLIGHT",
+      timing: { kind: "DEPART_AT", time: "10:00" },
+      flight: { flightNumber: "OZ102", arrivalTime: "11:35" },
+    });
+    expect(LegPreferenceSchema.safeParse(preference).success).toBe(true);
+  });
+
+  it("drops flight details when the leg stops being a flight", () => {
+    const [preference] = replaceLegPreference([], "a", "b", "WALK", {
+      flight: { arrivalTime: "11:35" },
+    });
+    expect(preference.flight).toBeUndefined();
     expect(LegPreferenceSchema.safeParse(preference).success).toBe(true);
   });
 

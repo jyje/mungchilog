@@ -92,6 +92,17 @@ persistence:
   size: 1Gi
   mountPath: /app/data
 
+# One-off data migration Jobs, rendered as ArgoCD PreSync hooks. Disabled
+# by default - each one is an explicit operational action, not something a
+# routine sync should trigger. See
+# docs/migrations/2026-spot-planned-departure.md for how and when to run
+# spotTimeFields in a given environment.
+migration:
+  spotTimeFields:
+    enabled: false
+    # Report what would change without writing anything.
+    dryRun: false
+
 # Use these for application settings outside the database block, for example
 # OIDC variables or values from an existing sealed secret.
 extraEnv: []

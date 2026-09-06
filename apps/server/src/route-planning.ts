@@ -12,23 +12,44 @@ import { z } from "zod";
 export const TRAVEL_MODES = ["DRIVE", "WALK", "BICYCLE", "TRANSIT", "TWO_WHEELER"] as const;
 export type TravelMode = (typeof TRAVEL_MODES)[number];
 
+// Which backend actually answers a route request (see route-providers/). Owned
+// here, not in route-providers/types.ts, so cacheKey can reference it without
+// a route-planning <-> route-providers import cycle.
+export const ROUTE_PROVIDER_IDS = ["google", "navitime"] as const;
+export type RouteProviderId = (typeof ROUTE_PROVIDER_IDS)[number];
+
 // A route shape is cached alongside its journey summary. Bump this whenever
 // the requested geometry, the endpoint encoding, or the timing semantics
 // change, so an old cache entry cannot conceal a newly correct route for the
 // entire 30-day TTL. Keep in sync with apps/web/src/hooks/useLeg.ts.
-export const ROUTE_GEOMETRY_VERSION = "route-segments-v5";
+//
+// v6: cacheKey() now includes the provider id. Once a second provider
+// (NAVITIME) can answer the same (from, to, mode), a Google-served cache row
+// and a NAVITIME-served one must never share a slot - they are genuinely
+// different answers, not interchangeable cache hits.
+export const ROUTE_GEOMETRY_VERSION = "route-segments-v6";
 
-// An endpoint is either a Place ID or a bare coordinate. Coordinates are what
-// make map-picked stops (issue 46) routable at all - they have no placeId.
-export const WaypointSchema = z.union([
-  z.object({ placeId: z.string().min(1) }),
-  z.object({
-    latLng: z.object({
-      latitude: z.number().min(-90).max(90),
-      longitude: z.number().min(-180).max(180),
-    }),
-  }),
-]);
+// An endpoint carries a Place ID, a bare coordinate, or both. Coordinates
+// alone are what make map-picked stops (issue 46) routable - they have no
+// placeId. Both together is what a search-picked spot actually has (Places
+// resolves and stores lat/lng regardless of whether the caller later asks by
+// placeId), and it matters: Google is precise from a placeId alone, but
+// NAVITIME is coordinate-only (see toRequestCoordinate in navitime.ts) and
+// used to be starved of every placeId-based leg even when the spot's
+// coordinates were sitting right there in the same request.
+export const WaypointSchema = z
+  .object({
+    placeId: z.string().min(1).optional(),
+    latLng: z
+      .object({
+        latitude: z.number().min(-90).max(90),
+        longitude: z.number().min(-180).max(180),
+      })
+      .optional(),
+  })
+  .refine((value) => value.placeId != null || value.latLng != null, {
+    message: "a waypoint needs a placeId, coordinates, or both",
+  });
 export type Waypoint = z.infer<typeof WaypointSchema>;
 
 // AUTO and DEPART_AT both resolve to a departure instant; they differ only in
@@ -37,18 +58,24 @@ export type Waypoint = z.infer<typeof WaypointSchema>;
 export const TIMING_KINDS = ["AUTO", "DEPART_AT", "ARRIVE_BY"] as const;
 export type TimingKind = (typeof TIMING_KINDS)[number];
 
+// Identity comes from the placeId when there is one, even if coordinates also
+// ride along: a venue's placeId survives it moving a few metres, so keying on
+// that (rather than on coordinates that might now differ slightly per
+// provider) is what makes the cache slot stable.
 export function waypointRef(waypoint: Waypoint): string {
-  if ("placeId" in waypoint) return `place:${waypoint.placeId}`;
+  if (waypoint.placeId) return `place:${waypoint.placeId}`;
   // ~1e-6 deg is a few centimetres: far finer than any stop a person places by
   // hand, and fixed precision keeps 35.1 and 35.100000 in the same cache slot.
-  const { latitude, longitude } = waypoint.latLng;
+  const { latitude, longitude } = waypoint.latLng!; // the schema's refine guarantees one of the two
   return `ll:${latitude.toFixed(6)},${longitude.toFixed(6)}`;
 }
 
 // Routes API v2 spells a coordinate endpoint `location.latLng`, but a Place ID
-// endpoint is `placeId` at the top level, not nested under `location`.
+// endpoint is `placeId` at the top level, not nested under `location`. Google
+// gets the placeId when there is one - it geocodes more precisely from that
+// than from the coordinate Places already resolved it to.
 export function toRoutesApiWaypoint(waypoint: Waypoint): Record<string, unknown> {
-  return "placeId" in waypoint ? { placeId: waypoint.placeId } : { location: { latLng: waypoint.latLng } };
+  return waypoint.placeId ? { placeId: waypoint.placeId } : { location: { latLng: waypoint.latLng } };
 }
 
 // (day-of-week, 4-hour-of-day block) in the trip's own timezone: coarse
@@ -74,6 +101,7 @@ export function cacheKey(input: {
   timingKind: TimingKind;
   alternatives: boolean;
   trafficAware: boolean;
+  provider: RouteProviderId;
 }): string {
   return [
     input.fromRef,
@@ -83,6 +111,7 @@ export function cacheKey(input: {
     input.timingKind,
     input.alternatives ? "alternatives" : "primary",
     input.trafficAware ? "traffic" : "standard",
+    input.provider,
     ROUTE_GEOMETRY_VERSION,
   ].join("|");
 }

@@ -6,19 +6,39 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Switch } from "./ui/switch";
 import { resolveTripWallClock, spotScheduleDisplay, wallClockMinutes } from "../schedule";
+
+// `category` is Places' own localized display name (e.g. "호텔", "Hotel"),
+// not a stable machine type, so this is a keyword sniff across the
+// languages this app actually sees - good enough to pre-check the toggle
+// below on first pick, never to force it. A picked place with no category,
+// or wording outside this list (an Airbnb, most ryokan listings), still
+// leaves the toggle in the user's hands.
+const ACCOMMODATION_KEYWORDS = [
+  "lodging", "hotel", "hostel", "motel", "inn", "resort", "guest house", "guesthouse",
+  "호텔", "게스트하우스", "모텔", "여관", "펜션", "리조트",
+  "ホテル", "旅館", "民宿", "ゲストハウス",
+];
+
+function looksLikeAccommodation(category?: string): boolean {
+  if (!category) return false;
+  const normalized = category.toLowerCase();
+  return ACCOMMODATION_KEYWORDS.some((keyword) => normalized.includes(keyword.toLowerCase()));
+}
 
 export type SpotFormValues = {
   name: string;
   nameLocal?: string;
   plannedArrival?: string;
+  plannedDeparture?: string;
   timeKind?: SpotTimeKind;
-  dwellMinutes?: number;
   note?: string;
   placeId?: string;
   lat?: number;
   lng?: number;
   category?: string;
+  isAccommodation: boolean;
 };
 
 export type CoordinateSelection = { lat: number; lng: number };
@@ -42,7 +62,7 @@ export function SpotForm({
   onSubmit,
   onCancel,
 }: {
-  initial?: Pick<Spot, "name" | "nameLocal" | "plannedArrival" | "timeKind" | "dwellMinutes" | "note" | "placeId" | "lat" | "lng" | "category">;
+  initial?: Pick<Spot, "name" | "nameLocal" | "plannedArrival" | "plannedDeparture" | "timeKind" | "dwellMinutes" | "note" | "placeId" | "lat" | "lng" | "category" | "isAccommodation">;
   initialLocation?: CoordinateSelection;
   initialPlace?: PlaceSelection;
   date?: string;
@@ -55,9 +75,19 @@ export function SpotForm({
   const [nameLocal, setNameLocal] = useState(initial?.nameLocal ?? "");
   const [plannedArrival, setPlannedArrival] = useState(initial?.plannedArrival ?? "");
   const [timeKind, setTimeKind] = useState<SpotTimeKind>(initial?.timeKind ?? "APPROXIMATE");
-  const [plannedDeparture, setPlannedDeparture] = useState(() => spotScheduleDisplay(initial ?? { plannedArrival: undefined })?.end ?? "");
-  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  // Falls back to the legacy dwellMinutes-derived end only for a spot a
+  // migration hasn't rewritten yet - see schedule.ts's spotScheduleDisplay.
+  const [plannedDeparture, setPlannedDeparture] = useState(
+    () => initial?.plannedDeparture ?? spotScheduleDisplay(initial ?? {})?.end ?? "",
+  );
   const [note, setNote] = useState(initial?.note ?? "");
+  const [isAccommodation, setIsAccommodation] = useState(
+    initial?.isAccommodation ?? looksLikeAccommodation(initial?.category ?? initialPlace?.category),
+  );
+  // Once the person has touched the toggle themselves, a later place pick
+  // stops overwriting their choice - the keyword guess only gets to speak
+  // once, before they've said anything of their own.
+  const [accommodationTouched, setAccommodationTouched] = useState(false);
   const [picked, setPicked] = useState<SelectedLocation | null>(
     initial?.placeId
       ? {
@@ -88,48 +118,54 @@ export function SpotForm({
   function handleSelect(place: PlaceSelection) {
     setPicked({ kind: "place", ...place });
     setName(place.name);
+    if (!accommodationTouched) setIsAccommodation(looksLikeAccommodation(place.category));
   }
+
+  // Advisory only, never a submit gate: reordering an itinerary before its
+  // times are filled in is a normal workflow, and a spot mid-reorder can
+  // legitimately have no start, no end, or a time that conflicts with its
+  // neighbor. Blocking save on any of that would fight the workflow instead
+  // of supporting it - the day view's non-blocking scheduleWarnings (see
+  // SpotCard's scheduleWarning prop) already surfaces a real conflict with
+  // the *previous* stop; this only covers a DST-nonexistent time, which
+  // needs the still-being-edited value in this form to catch before save.
+  const dstWarning = (() => {
+    if (!date || !timezone) return null;
+    if (plannedArrival && !resolveTripWallClock(date, plannedArrival, timezone).exact) {
+      return "시작 시각이 여행지 표준시의 일광 절약 시간 전환으로 존재하지 않습니다. 그래도 저장은 되지만, 다른 시각으로 바꾸는 걸 권장해요.";
+    }
+    if (plannedDeparture) {
+      const startMinutes = wallClockMinutes(plannedArrival);
+      const endMinutes = wallClockMinutes(plannedDeparture);
+      const crossesMidnight = startMinutes != null && endMinutes != null && endMinutes < startMinutes;
+      if (!resolveTripWallClock(date, plannedDeparture, timezone, crossesMidnight ? 24 * 60 : 0).exact) {
+        return "종료 시각이 여행지 표준시의 일광 절약 시간 전환으로 존재하지 않습니다. 그래도 저장은 되지만, 다른 시각으로 바꾸는 걸 권장해요.";
+      }
+    }
+    return null;
+  })();
 
   function submit() {
     if (!name.trim()) return;
-    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(plannedArrival)) {
-      setScheduleError("시작 시각을 24시간제로 입력해주세요.");
-      return;
-    }
-    if (date && timezone && !resolveTripWallClock(date, plannedArrival, timezone).exact) {
-      setScheduleError("이 시각은 여행지 표준시의 일광 절약 시간 전환으로 존재하지 않습니다. 다른 시각을 선택해주세요.");
-      return;
-    }
-    let dwellMinutes: number | undefined;
-    if (plannedDeparture) {
-      if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(plannedDeparture)) {
-        setScheduleError("종료 시각을 24시간제로 입력해주세요.");
-        return;
-      }
-      const startMinutes = wallClockMinutes(plannedArrival)!;
-      const endMinutes = wallClockMinutes(plannedDeparture)!;
-      const crossesMidnight = endMinutes < startMinutes;
-      if (date && timezone && !resolveTripWallClock(date, plannedDeparture, timezone, crossesMidnight ? 24 * 60 : 0).exact) {
-        setScheduleError("이 시각은 여행지 표준시의 일광 절약 시간 전환으로 존재하지 않습니다. 다른 시각을 선택해주세요.");
-        return;
-      }
-      dwellMinutes = endMinutes - startMinutes + (crossesMidnight ? 24 * 60 : 0);
-    }
-    setScheduleError(null);
     const matchedPlace = picked?.kind === "place" && picked.name === name;
     const coordinates = picked?.kind === "coordinate" || matchedPlace ? picked : null;
     const hasCoordinates = coordinates != null && Number.isFinite(coordinates.lat) && Number.isFinite(coordinates.lng);
+    const arrival = plannedArrival || undefined;
+    const departure = plannedDeparture || undefined;
     onSubmit({
       name: name.trim(),
       nameLocal: nameLocal.trim() || undefined,
-      plannedArrival,
-      timeKind,
-      dwellMinutes,
+      plannedArrival: arrival,
+      plannedDeparture: departure,
+      // A time kind describes confidence in a time that exists; with
+      // neither set it has nothing to describe.
+      timeKind: arrival || departure ? timeKind : undefined,
       note: note.trim() || undefined,
       placeId: matchedPlace ? picked.placeId : undefined,
       lat: hasCoordinates ? coordinates.lat : undefined,
       lng: hasCoordinates ? coordinates.lng : undefined,
       category: matchedPlace ? picked.category : undefined,
+      isAccommodation,
     });
   }
 
@@ -152,15 +188,26 @@ export function SpotForm({
         </div>
       )}
       <Input className="min-h-11" type="text" placeholder="현지어 이름 (선택)" value={nameLocal} onChange={(e) => setNameLocal(e.target.value)} />
+      <label className="spot-accommodation-toggle">
+        <span className="spot-accommodation-copy">
+          <span className="tt">🏨 이 장소는 숙소예요</span>
+          <span className="td">타임라인·지도에서 숙소로 표시되고, 하루의 첫/마지막 순서일 때 자동으로 출발·도착 지점이 돼요</span>
+        </span>
+        <Switch
+          checked={isAccommodation}
+          onCheckedChange={(checked) => {
+            setIsAccommodation(checked === true);
+            setAccommodationTouched(true);
+          }}
+          aria-label="이 장소를 숙소로 표시"
+        />
+      </label>
       <fieldset className="spot-schedule-editor">
         <legend>일정 시각</legend>
         <RadioGroup
           className="spot-time-kind"
           value={timeKind}
-          onValueChange={(value) => {
-            setTimeKind(value as SpotTimeKind);
-            setScheduleError(null);
-          }}
+          onValueChange={(value) => setTimeKind(value as SpotTimeKind)}
           aria-label="일정 시각 유형"
         >
           <label><RadioGroupItem value="APPROXIMATE" /> 대략적인 시각</label>
@@ -168,16 +215,15 @@ export function SpotForm({
         </RadioGroup>
         <div className="spot-schedule-fields">
           <label>
-            <span>시작 시각</span>
+            <span>시작 시각 (선택)</span>
             <Input
               type="time"
               className="spot-time-input"
               value={plannedArrival}
-              onChange={(event) => { setPlannedArrival(event.target.value); setScheduleError(null); }}
+              onChange={(event) => setPlannedArrival(event.target.value)}
               aria-label="시작 시각 입력"
-              aria-invalid={!!scheduleError}
-              aria-describedby={scheduleError ? "spot-schedule-error" : undefined}
-              required
+              aria-invalid={!!dstWarning}
+              aria-describedby={dstWarning ? "spot-schedule-warning" : undefined}
             />
           </label>
           <label>
@@ -186,13 +232,14 @@ export function SpotForm({
               type="time"
               className="spot-time-input"
               value={plannedDeparture}
-              onChange={(event) => { setPlannedDeparture(event.target.value); setScheduleError(null); }}
+              onChange={(event) => setPlannedDeparture(event.target.value)}
               aria-label="종료 시각 입력"
-              aria-invalid={!!scheduleError}
+              aria-invalid={!!dstWarning}
+              aria-describedby={dstWarning ? "spot-schedule-warning" : undefined}
             />
           </label>
         </div>
-        {scheduleError && <p id="spot-schedule-error" className="spot-schedule-error" role="alert">{scheduleError}</p>}
+        {dstWarning && <p id="spot-schedule-warning" className="spot-schedule-error" role="status">{dstWarning}</p>}
       </fieldset>
       <MarkdownEditor value={note} onChange={setNote} rows={3} placeholder="메모 (선택) - 마크다운으로 적을 수 있어요" />
       <div className="add-spot-row">

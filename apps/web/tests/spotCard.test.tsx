@@ -91,8 +91,32 @@ describe("spot card actions", () => {
     expect(screen.getByRole("status")).toHaveTextContent("앞 일정의 예상 종료 19:30와 겹칩니다.");
   });
 
-  it("labels unscheduled stops instead of hiding their state", () => {
+  it("labels unscheduled stops neutrally instead of nudging for a required input", () => {
     renderCard();
-    expect(screen.getByRole("button", { name: "남산 시작 시각 입력" })).toHaveTextContent(/시간 입력\s*필요/);
+    expect(screen.getByRole("button", { name: "남산 시각 입력" })).toHaveTextContent("시간 미정");
+  });
+});
+
+describe("timeline node number", () => {
+  it("shows the same number as the spot's map pin inside the timeline node", () => {
+    const { container } = renderCard({ mapNumber: 3 });
+    const node = container.querySelector(".timeline-node");
+    expect(node).toHaveClass("has-number");
+    expect(node).toHaveTextContent("3");
+  });
+
+  it("renders a plain node with no number for a spot missing coordinates", () => {
+    const { container } = renderCard({ mapNumber: undefined });
+    const node = container.querySelector(".timeline-node");
+    expect(node).not.toHaveClass("has-number");
+    expect(node?.textContent).toBe("");
+  });
+
+  it("marks the spot card so its connector line continues down to the next leg", () => {
+    const { container: withLeg } = renderCard({ hasNextLeg: true });
+    expect(withLeg.querySelector(".spot-card")).toHaveClass("has-next-leg");
+
+    const { container: withoutLeg } = renderCard({ hasNextLeg: false });
+    expect(withoutLeg.querySelector(".spot-card")).not.toHaveClass("has-next-leg");
   });
 });

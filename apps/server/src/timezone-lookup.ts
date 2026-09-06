@@ -21,3 +21,20 @@ export function timezoneFromGoogleResponse(value: unknown): string | null {
   const response = value as { status?: unknown; timeZoneId?: unknown } | null;
   return response?.status === "OK" && isIanaTimeZone(response.timeZoneId) ? response.timeZoneId : null;
 }
+
+/**
+ * A human-readable reason a Google Time Zone API response did not yield a
+ * timezone - for server logs only, never sent to the client. The route's
+ * fallback (Asia/Seoul) stays the same regardless of the reason, but
+ * REQUEST_DENIED (an API-key/permission problem) and OVER_QUERY_LIMIT are
+ * configuration issues that need a person's attention, unlike a genuine
+ * ZERO_RESULTS for coordinates the API just doesn't cover. Returns null
+ * when the response is OK (nothing to report) or too malformed to say
+ * anything more specific than "no timezone".
+ */
+export function describeGoogleTimezoneFailure(value: unknown): string | null {
+  const response = value as { status?: unknown; errorMessage?: unknown } | null;
+  if (!response || typeof response.status !== "string" || response.status === "OK") return null;
+  const detail = typeof response.errorMessage === "string" && response.errorMessage.trim() ? `: ${response.errorMessage}` : "";
+  return `${response.status}${detail}`;
+}

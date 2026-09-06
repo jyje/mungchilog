@@ -22,7 +22,11 @@ type LocatedSpot = Spot & { lat: number; lng: number };
 
 export type ItinerarySelection =
   | { kind: "spot"; spotId: string }
-  | { kind: "leg"; fromId: string; toId: string }
+  // rideRunIndex: which boarded vehicle (0-based, transitSummary()'s order)
+  // to highlight alone on the map - see routeSegmentsInRideRun() in
+  // routeStyles.ts. Omitted (or undefined) selects the whole leg, same as
+  // clicking its line on the map.
+  | { kind: "leg"; fromId: string; toId: string; rideRunIndex?: number }
   | null;
 
 export type SharedMapLocation = {
@@ -332,9 +336,9 @@ function MapContent({
           >
             <Pin
               glyphText={String(i + 1)}
-              background={selected ? "#0284c7" : "#7dd3fc"}
+              background={s.isAccommodation ? (selected ? "#6d28d9" : "#c4b5fd") : (selected ? "#0284c7" : "#7dd3fc")}
               glyphColor={selected ? "#ffffff" : "#111214"}
-              borderColor={selected ? "#ffffff" : "#38bdf8"}
+              borderColor={s.isAccommodation ? (selected ? "#ffffff" : "#a78bfa") : (selected ? "#ffffff" : "#38bdf8")}
               scale={selected ? 1.22 : 1}
             />
           </AdvancedMarker>

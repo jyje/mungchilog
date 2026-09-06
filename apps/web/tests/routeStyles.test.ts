@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   connectorStroke,
+  FORWARD_ARROW_ICON,
   ROUTE_LINE_COLORS,
   ROUTE_LINE_LEGEND,
   ROUTE_LINE_WIDTH_PX,
   routeDirectionIcons,
   routeEmphasis,
   routeSegmentKind,
+  routeSegmentMarkers,
+  routeSegmentsInRideRun,
   routeStrokeLayers,
 } from "../src/routeStyles";
 
@@ -30,6 +33,87 @@ describe("classifying a drawn piece of route", () => {
     // Bicycle and two-wheeler legs are reachable through imports. Drawing them
     // as walking would be a lie; riding is the safe default.
     expect(routeSegmentKind("TRANSIT", "BICYCLE")).toBe("RIDE");
+  });
+});
+
+describe("placing a mode-icon marker at the start of each walk-or-ride run", () => {
+  it("collapses a walk-then-ride-then-walk journey into one marker per run, not one per raw segment", () => {
+    const segments = [
+      { travelMode: "WALK" },
+      { travelMode: "WALK" }, // still walking - same run, no second marker
+      { travelMode: "TRANSIT" },
+      { travelMode: "WALK" },
+    ];
+    const markers = routeSegmentMarkers("TRANSIT", segments, [{ vehicle: "SUBWAY" }]);
+    expect(markers).toEqual([
+      { segmentIndex: 0, kind: "WALK", vehicle: null },
+      { segmentIndex: 2, kind: "RIDE", vehicle: "SUBWAY" },
+      { segmentIndex: 3, kind: "WALK", vehicle: null },
+    ]);
+  });
+
+  it("matches each ride run to the vehicle boarded at that point in the journey, in order", () => {
+    // A transfer: subway, then a walk between platforms, then a bus. Both
+    // lists are already chronological, so the 2nd ride run boards transit[1].
+    const segments = [
+      { travelMode: "TRANSIT" },
+      { travelMode: "WALK" },
+      { travelMode: "TRANSIT" },
+    ];
+    const transit = [{ vehicle: "SUBWAY" }, { vehicle: "BUS" }];
+    const markers = routeSegmentMarkers("TRANSIT", segments, transit);
+    expect(markers.map((marker) => marker.vehicle)).toEqual(["SUBWAY", null, "BUS"]);
+  });
+
+  it("reports no vehicle for a ride run when transit is missing or short", () => {
+    const segments = [{ travelMode: "TRANSIT" }];
+    expect(routeSegmentMarkers("TRANSIT", segments, null)[0].vehicle).toBeNull();
+    expect(routeSegmentMarkers("TRANSIT", segments, [])[0].vehicle).toBeNull();
+  });
+
+  it("a drive or all-walk leg still gets its one marker", () => {
+    expect(routeSegmentMarkers("DRIVE", [{ travelMode: "DRIVE" }], null)).toEqual([
+      { segmentIndex: 0, kind: "RIDE", vehicle: null },
+    ]);
+    expect(routeSegmentMarkers("WALK", [{ travelMode: "WALK" }], null)).toEqual([
+      { segmentIndex: 0, kind: "WALK", vehicle: null },
+    ]);
+  });
+
+  it("an empty segment list places no markers", () => {
+    expect(routeSegmentMarkers("TRANSIT", [], null)).toEqual([]);
+  });
+});
+
+describe("highlighting just the one boarded vehicle a rider clicked", () => {
+  it("marks only the segments belonging to the Nth ride run", () => {
+    // subway, walk (transfer), bus - clicking the bus in the leg summary
+    // must highlight only its own segment, not the subway's.
+    const segments = [
+      { travelMode: "TRANSIT" },
+      { travelMode: "WALK" },
+      { travelMode: "TRANSIT" },
+    ];
+    expect(routeSegmentsInRideRun("TRANSIT", segments, 0)).toEqual([true, false, false]);
+    expect(routeSegmentsInRideRun("TRANSIT", segments, 1)).toEqual([false, false, true]);
+  });
+
+  it("spans every raw segment of a multi-segment ride run", () => {
+    // A single ride can arrive as several provider steps/features - all of
+    // them belong to the same ride run and must all highlight together.
+    const segments = [
+      { travelMode: "WALK" },
+      { travelMode: "TRANSIT" },
+      { travelMode: "TRANSIT" },
+      { travelMode: "TRANSIT" },
+      { travelMode: "WALK" },
+    ];
+    expect(routeSegmentsInRideRun("TRANSIT", segments, 0)).toEqual([false, true, true, true, false]);
+  });
+
+  it("matches nothing for a walk-only leg or an out-of-range run index", () => {
+    expect(routeSegmentsInRideRun("WALK", [{ travelMode: "WALK" }], 0)).toEqual([false]);
+    expect(routeSegmentsInRideRun("TRANSIT", [{ travelMode: "TRANSIT" }], 3)).toEqual([false]);
   });
 });
 
@@ -140,18 +224,31 @@ describe("walking reads differently from riding", () => {
     expect(parseInt(walk.repeat, 10)).toBeLessThan(parseInt(ride.repeat, 10));
   });
 
-  it("never references a google.maps symbol constant", () => {
+  it("never references a google.maps symbol constant directly", () => {
     // The module must stay importable under jsdom, where no Maps API exists.
-    // A SymbolPath constant here would break every test that loads it.
+    // A live SymbolPath constant here would break every test that loads it -
+    // the sentinel string is resolved to the real constant only in
+    // RouteOverlay.tsx, which runs in the browser.
     for (const kind of ["RIDE", "WALK"] as const) {
       const [icon] = routeDirectionIcons({ kind, emphasis: "default" });
       expect(typeof icon.icon.path).toBe("string");
-      expect(icon.icon.path).toMatch(/^[Mm]/);
+      expect(icon.icon.path).toBe(FORWARD_ARROW_ICON);
     }
   });
 
   it("drops the ticks on the selected leg", () => {
     expect(routeDirectionIcons({ kind: "RIDE", emphasis: "selected" })).toEqual([]);
+  });
+
+  it("points forward as a filled arrowhead, not a symmetric tick", () => {
+    // Two hand-drawn attempts (a symmetric tick, then a custom filled
+    // triangle) both failed to read as a directional arrow once drawn on a
+    // real curving route - confirmed live, not just reasoned about from the
+    // code. Google's own FORWARD_CLOSED_ARROW replaces both.
+    const [icon] = routeDirectionIcons({ kind: "RIDE", emphasis: "default" });
+    expect(icon.icon.path).toBe(FORWARD_ARROW_ICON);
+    expect(icon.icon.fillOpacity).toBeGreaterThan(0);
+    expect(icon.icon.strokeOpacity).toBeGreaterThan(0);
   });
 });
 

@@ -85,27 +85,42 @@ function TimelineSchedule({
   spot,
   schedule,
   onEdit,
+  mapNumber,
 }: {
   spot: Spot;
   schedule: ReturnType<typeof spotScheduleDisplay>;
   onEdit: () => void;
+  mapNumber?: number;
 }) {
-  const label = schedule
-    ? `${spot.name} ${schedule.start}${schedule.end ? `부터 ${schedule.end}까지` : ""} 일정 시각 수정`
-    : `${spot.name} 시작 시각 입력`;
+  // A spot can have a start with no end, an end with no start (the
+  // departure is fixed, when it begins isn't), both, or - same as
+  // before - neither. None of those is a state to nudge the user out of.
+  const label = !schedule
+    ? `${spot.name} 시각 입력`
+    : schedule.start && schedule.end
+      ? `${spot.name} ${schedule.start}부터 ${schedule.end}까지 일정 시각 수정`
+      : schedule.start
+        ? `${spot.name} ${schedule.start} 일정 시각 수정`
+        : `${spot.name} ${schedule.end}까지 일정 시각 수정`;
   return (
     <div className={`timeline-schedule${schedule ? "" : " unscheduled"}`}>
       <Button type="button" variant="ghost" className="timeline-time" onClick={onEdit} aria-label={label}>
         {schedule ? (
           <>
-            <time dateTime={schedule.start} className="timeline-start">{schedule.start}</time>
-            {schedule.end && <time dateTime={schedule.end} className="timeline-end">{schedule.end}</time>}
+            {schedule.start && <time dateTime={schedule.start} className="timeline-start">{schedule.start}</time>}
+            {schedule.end && (
+              <time dateTime={schedule.end} className="timeline-end">
+                {schedule.start ? schedule.end : `~${schedule.end}`}
+              </time>
+            )}
           </>
         ) : (
-          <span>시간 입력<br />필요</span>
+          <span>시간 미정</span>
         )}
       </Button>
-      <span className="timeline-node" aria-hidden="true" />
+      <span className={`timeline-node${mapNumber != null ? " has-number" : ""}${spot.isAccommodation ? " accommodation" : ""}`} aria-hidden="true">
+        {mapNumber != null && <span className="timeline-node-number">{mapNumber}</span>}
+      </span>
     </div>
   );
 }
@@ -122,6 +137,8 @@ export function SpotCard({
   date,
   timezone = "Asia/Seoul",
   scheduleWarning,
+  mapNumber,
+  hasNextLeg = false,
 }: {
   spot: Spot;
   onToggleItem: (itemId: string) => void;
@@ -134,6 +151,11 @@ export function SpotCard({
   date: string;
   timezone?: string;
   scheduleWarning?: string;
+  mapNumber?: number;
+  /** Whether a .leg-row connects this spot to the next one, so the timeline
+   * line below its node should continue down to meet that leg's own line
+   * instead of stopping short. */
+  hasNextLeg?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: spot.id });
   const [addingItem, setAddingItem] = useState(false);
@@ -150,8 +172,8 @@ export function SpotCard({
 
   if (editing) {
     return (
-      <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}`}>
-        <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => undefined} />
+      <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}${spot.isAccommodation ? " accommodation" : ""}`}>
+        <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => undefined} mapNumber={mapNumber} />
         <div className="spot-card-surface">
           <span className="drag-handle" aria-hidden>
             ⠿
@@ -175,8 +197,8 @@ export function SpotCard({
   }
 
   return (
-    <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}`}>
-      <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => setEditing(true)} />
+    <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}${spot.isAccommodation ? " accommodation" : ""}`}>
+      <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => setEditing(true)} mapNumber={mapNumber} />
       <div className="spot-card-surface">
         <Button type="button" variant="ghost" size="icon-lg" className="drag-handle" aria-label="순서 변경" {...attributes} {...listeners}>
           <GripVertical aria-hidden="true" />
@@ -184,7 +206,10 @@ export function SpotCard({
         <div className="spot-body">
           <div className="spot-header">
             <Button type="button" variant={selected ? "secondary" : "ghost"} className="spot-select" onClick={onSelect} aria-pressed={selected} aria-label={`${spot.name} 지도에서 보기`}>
-              <span className="spot-name">{spot.name}</span>
+              <span className="spot-name-row">
+                <span className="spot-name">{spot.name}</span>
+                {spot.isAccommodation && <span className="spot-accommodation-badge">🏨 숙소</span>}
+              </span>
               {spot.nameLocal && <span className="spot-local">{spot.nameLocal}</span>}
             </Button>
             <div className="spot-actions">

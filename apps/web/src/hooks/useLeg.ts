@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { computeLeg, type LegWaypoint } from "../api";
 import { resolveLegAnchor } from "../legTiming";
-import { isLegacyLegMode } from "../legPreferences";
+import { isRoutedLegMode } from "../legPreferences";
 import type { LegTiming, PersistedLegMode, Spot } from "../types";
 
 // Keep browser-persisted route data aligned with the server cache whenever
@@ -10,13 +10,16 @@ import type { LegTiming, PersistedLegMode, Spot } from "../types";
 // change invalidates both the browser query cache and the server cache.
 const ROUTE_GEOMETRY_VERSION = "route-segments-v5";
 
-// A Place ID is preferred where one exists: it survives a venue moving a few
-// metres and lets Google snap to the right entrance. A map-picked stop has
-// only coordinates, and is still perfectly routable.
+// A Place ID is sent whenever one exists - it survives a venue moving a few
+// metres and lets Google snap to the right entrance - but a search-picked
+// spot's coordinates ride along too rather than being dropped. Google still
+// prefers the Place ID; a Japan-only, coordinate-only provider (NAVITIME)
+// couldn't see this leg at all without them. A map-picked stop has only
+// coordinates to begin with, and is still perfectly routable either way.
 export function waypointForSpot(spot: Spot): LegWaypoint | null {
-  if (spot.placeId) return { placeId: spot.placeId };
-  if (spot.lat != null && spot.lng != null) return { latLng: { latitude: spot.lat, longitude: spot.lng } };
-  return null;
+  const latLng = spot.lat != null && spot.lng != null ? { latitude: spot.lat, longitude: spot.lng } : undefined;
+  if (spot.placeId) return { placeId: spot.placeId, ...(latLng ? { latLng } : {}) };
+  return latLng ? { latLng } : null;
 }
 
 // Shared by LegInfo (text summary) and RouteOverlay (map polyline) so
@@ -33,9 +36,10 @@ export function useLeg(
 ) {
   const fromWaypoint = waypointForSpot(from);
   const toWaypoint = waypointForSpot(to);
-  // A legacy DIRECT leg has no provider route to fetch - it stays a straight
-  // line until the user picks a real mode.
-  const enabled = !isLegacyLegMode(mode) && !!fromWaypoint && !!toWaypoint;
+  // A legacy DIRECT leg, or a manually-entered FLIGHT, has no provider route
+  // to fetch - DIRECT stays a straight line until the user picks a real
+  // mode, and FLIGHT never had one to begin with.
+  const enabled = isRoutedLegMode(mode) && !!fromWaypoint && !!toWaypoint;
 
   const anchor = resolveLegAnchor(from, timing, date, timezone);
 
@@ -45,7 +49,7 @@ export function useLeg(
       computeLeg({
         from: fromWaypoint!,
         to: toWaypoint!,
-        mode: mode as Exclude<PersistedLegMode, "DIRECT">,
+        mode: mode as Exclude<PersistedLegMode, "DIRECT" | "FLIGHT">,
         when: anchor.when,
         timingKind: timing.kind,
         timezone,

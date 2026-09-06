@@ -1,8 +1,16 @@
 import { useState } from "react";
-import { BusFront, CarFront, Footprints, Route, TrainFront, TramFront } from "lucide-react";
+import { CarFront, Footprints, Pencil, Plane, Route, TrainFront } from "lucide-react";
 import { useLeg } from "../hooks/useLeg";
-import { formatZonedClock, legEndpoints, resolveLegAnchor } from "../legTiming";
-import { directDistanceMeters, isLegacyLegMode, LEG_MODE_OPTIONS, selectedRouteIndex } from "../legPreferences";
+import { formatZonedClock, legEndpoints, resolveLegAnchor, zonedIso } from "../legTiming";
+import {
+  DEFAULT_FLIGHT_DETAILS,
+  DEFAULT_FLIGHT_TIMING,
+  directDistanceMeters,
+  isLegacyLegMode,
+  LEG_MODE_OPTIONS,
+  selectedRouteIndex,
+} from "../legPreferences";
+import { routeBadges, type RouteBadge } from "../routeChoices";
 import type { LegPreference, LegTiming, PersistedLegMode, Spot } from "../types";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -10,8 +18,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Switch } from "./ui/switch";
 import { PlannerChoiceGroup, PlannerChoiceItem } from "./system/PlannerChoiceGroup";
+import { TransitVehicleIcon } from "./system/TransitVehicleIcon";
 
-type LegPatch = Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware">> & {
+const ROUTE_BADGE_LABELS: Record<RouteBadge, string> = {
+  recommended: "추천",
+  fastest: "최소 시간",
+  shortest: "최단 거리",
+  cheapest: "최저 요금",
+};
+
+type LegPatch = Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware" | "flight">> & {
   mode?: PersistedLegMode;
 };
 
@@ -21,31 +37,34 @@ function formatDuration(seconds: number): string {
   return `${Math.floor(mins / 60)}시간 ${mins % 60}분`;
 }
 
-function TransitVehicleIcon({ vehicle }: { vehicle: string | null | undefined }) {
-  const normalized = vehicle?.toUpperCase() ?? "";
-  const Icon = normalized.includes("BUS") ? BusFront : normalized.includes("TRAM") ? TramFront : TrainFront;
-  return <Icon aria-hidden="true" />;
-}
-
 function modeSummaryIcon(mode: PersistedLegMode) {
   if (mode === "WALK") return <Footprints aria-hidden="true" />;
   if (mode === "DRIVE") return <CarFront aria-hidden="true" />;
   if (mode === "TRANSIT") return <TrainFront aria-hidden="true" />;
+  if (mode === "FLIGHT") return <Plane aria-hidden="true" />;
   return <Route aria-hidden="true" />;
 }
 
-function transitSummary(details: Array<{ vehicle: string | null; line: string | null; headsign: string | null }> | null | undefined): string | null {
+type TransitLeg = { vehicle: string | null; text: string };
+
+// One entry per boarded vehicle, each carrying its own vehicle kind so the
+// summary line can draw a matching icon next to it - a bus-after-subway
+// transfer must not keep showing the subway icon through the whole line.
+function transitSummary(details: Array<{ vehicle: string | null; line: string | null; headsign: string | null }> | null | undefined): TransitLeg[] | null {
   if (!details?.length) return null;
   return details.map((detail) => {
-    if (detail.line && detail.headsign) return `${detail.line} · ${detail.headsign} 방면`;
-    if (detail.line) return detail.line;
-    if (detail.headsign) return detail.headsign;
-    const vehicle = detail.vehicle?.toUpperCase() ?? "";
-    if (vehicle.includes("BUS")) return "버스";
-    if (vehicle.includes("TRAM")) return "트램";
-    if (vehicle) return "철도";
-    return "경로 정보 없음";
-  }).join(" → ");
+    const text = (() => {
+      if (detail.line && detail.headsign) return `${detail.line} · ${detail.headsign} 방면`;
+      if (detail.line) return detail.line;
+      if (detail.headsign) return detail.headsign;
+      const vehicle = detail.vehicle?.toUpperCase() ?? "";
+      if (vehicle.includes("BUS")) return "버스";
+      if (vehicle.includes("TRAM")) return "트램";
+      if (vehicle) return "철도";
+      return "경로 정보 없음";
+    })();
+    return { vehicle: detail.vehicle, text };
+  });
 }
 
 const TIMING_LABELS: Record<LegTiming["kind"], string> = {
@@ -145,6 +164,106 @@ function TransitTimingEditor({
   );
 }
 
+// A flight's two ends are entered directly - there is no provider to derive
+// a duration from a single anchor the way TransitTimingEditor's AUTO/DEPART_AT
+// /ARRIVE_BY does. Kept in its own popover for the same reason: edits apply
+// on submit, so a half-typed time never becomes a saved one.
+function FlightDetailsEditor({
+  timing,
+  flight,
+  dayDate,
+  onApply,
+}: {
+  timing: LegTiming;
+  flight: LegPreference["flight"];
+  dayDate: string;
+  onApply: (patch: { timing: LegTiming; flight: NonNullable<LegPreference["flight"]> }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [departureDate, setDepartureDate] = useState(timing.date ?? dayDate);
+  const [departureTime, setDepartureTime] = useState(timing.time ?? DEFAULT_FLIGHT_TIMING.time!);
+  const [arrivalDate, setArrivalDate] = useState(flight?.arrivalDate ?? timing.date ?? dayDate);
+  const [arrivalTime, setArrivalTime] = useState(flight?.arrivalTime ?? DEFAULT_FLIGHT_DETAILS.arrivalTime);
+  const [flightNumber, setFlightNumber] = useState(flight?.flightNumber ?? "");
+
+  function openChange(next: boolean) {
+    if (next) {
+      // Reopening always starts from what is actually saved, same as
+      // TransitTimingEditor - an abandoned edit never reappears as if it
+      // had been applied.
+      setDepartureDate(timing.date ?? dayDate);
+      setDepartureTime(timing.time ?? DEFAULT_FLIGHT_TIMING.time!);
+      setArrivalDate(flight?.arrivalDate ?? timing.date ?? dayDate);
+      setArrivalTime(flight?.arrivalTime ?? DEFAULT_FLIGHT_DETAILS.arrivalTime);
+      setFlightNumber(flight?.flightNumber ?? "");
+    }
+    setOpen(next);
+  }
+
+  function apply() {
+    if (!departureTime || !arrivalTime) return;
+    onApply({
+      timing: { kind: "DEPART_AT", time: departureTime, ...(departureDate !== dayDate ? { date: departureDate } : {}) },
+      flight: {
+        arrivalTime,
+        ...(arrivalDate !== departureDate ? { arrivalDate } : {}),
+        ...(flightNumber.trim() ? { flightNumber: flightNumber.trim() } : {}),
+      },
+    });
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={openChange}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="leg-flight-trigger">
+          ✈️ 항공편 시각
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="leg-flight-editor">
+        <label className="leg-flight-number">
+          편명 (선택)
+          <Input
+            type="text"
+            value={flightNumber}
+            placeholder="예: OZ102"
+            maxLength={20}
+            onChange={(event) => setFlightNumber(event.target.value)}
+          />
+        </label>
+        <div className="leg-timing-fields">
+          <label>
+            출발일
+            <Input type="date" value={departureDate} onChange={(event) => setDepartureDate(event.target.value)} />
+          </label>
+          <label>
+            출발 시각
+            <Input type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} />
+          </label>
+        </div>
+        <div className="leg-timing-fields">
+          <label>
+            도착일
+            <Input type="date" value={arrivalDate} onChange={(event) => setArrivalDate(event.target.value)} />
+          </label>
+          <label>
+            도착 시각
+            <Input type="time" value={arrivalTime} onChange={(event) => setArrivalTime(event.target.value)} />
+          </label>
+        </div>
+        <div className="leg-timing-actions">
+          <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+            취소
+          </Button>
+          <Button type="button" size="sm" onClick={apply} disabled={!departureTime || !arrivalTime}>
+            적용
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function LegInfo({
   from,
   to,
@@ -152,6 +271,7 @@ export function LegInfo({
   timezone,
   preference,
   selected,
+  selectedRideRunIndex,
   onSelect,
   onChange,
 }: {
@@ -161,15 +281,23 @@ export function LegInfo({
   timezone: string;
   preference: LegPreference;
   selected: boolean;
-  onSelect: () => void;
+  // Which boarded vehicle (0-based, matching transitSummary()'s order) is
+  // the one currently highlighted on the map, if any - see RouteOverlay.tsx.
+  selectedRideRunIndex?: number;
+  // No argument selects the whole leg, same as clicking its line on the map.
+  // A ride-run index selects just that one vehicle's stretch of the route -
+  // see routeSegmentsInRideRun() in routeStyles.ts.
+  onSelect: (rideRunIndex?: number) => void;
   onChange: (patch: LegPatch) => void;
 }) {
-  const { mode, timing, trafficAware } = preference;
+  const [isEditing, setIsEditing] = useState(false);
+  const { mode, timing, trafficAware, flight } = preference;
   const { data: leg, isError, isLoading } = useLeg(from, to, mode, trafficAware, date, timezone, timing);
   const hasMapLeg = (from.lat != null && from.lng != null && to.lat != null && to.lng != null) || (!!from.placeId && !!to.placeId);
   if (!hasMapLeg) return null;
 
   const legacyMode = isLegacyLegMode(mode);
+  const isFlight = mode === "FLIGHT";
   const routeIndex = selectedRouteIndex(leg?.routes, preference);
   const selectedRoute = leg?.routes[routeIndex];
   const anchor = resolveLegAnchor(from, timing, date, timezone);
@@ -182,101 +310,190 @@ export function LegInfo({
     const straight = directDistanceMeters(from, to);
     if (straight != null) parts.push(`직선 ${(straight / 1000).toFixed(1)}km`);
   }
+  // No provider for a flight - both ends were entered directly, so the
+  // summary reads them straight off preference.flight instead of a fetched
+  // route's duration/distance/fare.
+  if (isFlight && flight) {
+    if (flight.flightNumber) parts.push(flight.flightNumber);
+    const departureClock = formatZonedClock(anchor.when, timezone);
+    const arrivalIso = zonedIso(flight.arrivalDate ?? timing.date ?? date, flight.arrivalTime, timezone);
+    const arrivalClock = formatZonedClock(arrivalIso, timezone);
+    if (departureClock && arrivalClock) parts.push(`${departureClock} → ${arrivalClock}`);
+    const durationS = (Date.parse(arrivalIso) - Date.parse(anchor.when)) / 1000;
+    if (durationS > 0) parts.push(formatDuration(durationS));
+  }
   const modeLabel = LEG_MODE_OPTIONS.find((option) => option.mode === mode)?.label ?? "직선(사용 중지됨)";
-  const transitDetails = selectedRoute?.transit;
-  const transitLabel = transitSummary(transitDetails);
-  const firstTransit = transitDetails?.[0];
+  const transitLegs = transitSummary(selectedRoute?.transit);
 
   return (
     <div className={`leg-info${selected ? " selected" : ""}`} aria-label={`${from.name}에서 ${to.name}까지 동선`}>
-      <Button
-        type="button"
-        variant={selected ? "secondary" : "ghost"}
-        className="leg-summary meta"
-        onClick={onSelect}
-        aria-pressed={selected}
-      >
+      <div className="leg-summary-row">
         {mode === "TRANSIT" ? (
-          <>
-            <TransitVehicleIcon vehicle={firstTransit?.vehicle} />
-            <span>{transitLabel ?? "경로 정보 없음"}</span>
-            {parts.length > 0 && <span className="leg-summary-meta">{parts.join(" · ")}</span>}
-          </>
+          // Not a single <Button>: each boarded vehicle needs its own click
+          // target (highlight just that vehicle's stretch on the map), and
+          // a button element can't nest inside another one.
+          <div className={`leg-summary meta${selected && selectedRideRunIndex == null ? " selected" : ""}`}>
+            {transitLegs ? (
+              // One icon per boarded vehicle, so a subway-to-bus transfer
+              // shows the bus icon once the ride actually changes, instead of
+              // the subway icon carrying through the whole summary.
+              transitLegs.map((transitLeg, index) => (
+                <span className="leg-transit-vehicle" key={index}>
+                  {index > 0 && <span aria-hidden="true"> → </span>}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="leg-transit-vehicle-button"
+                    aria-pressed={selected && selectedRideRunIndex === index}
+                    aria-label={`${transitLeg.text} 구간을 지도에서 강조`}
+                    onClick={() => onSelect(index)}
+                  >
+                    <TransitVehicleIcon vehicle={transitLeg.vehicle} />
+                    <span>{transitLeg.text}</span>
+                  </Button>
+                </span>
+              ))
+            ) : (
+              <Button type="button" variant="ghost" className="leg-transit-vehicle-button" onClick={() => onSelect()}>
+                <TransitVehicleIcon vehicle={null} />
+                <span>경로 정보 없음</span>
+              </Button>
+            )}
+            {parts.length > 0 && (
+              <Button type="button" variant="ghost" className="leg-summary-meta" onClick={() => onSelect()}>
+                {parts.join(" · ")}
+              </Button>
+            )}
+          </div>
         ) : (
-          <>
+          <Button
+            type="button"
+            variant={selected ? "secondary" : "ghost"}
+            className="leg-summary meta"
+            onClick={() => onSelect()}
+            aria-pressed={selected}
+          >
             {modeSummaryIcon(mode)}
             <span>{parts.join(" · ") || `${modeLabel} 동선`}</span>
-          </>
+          </Button>
         )}
-      </Button>
 
-      <PlannerChoiceGroup
-        value={legacyMode ? "" : mode}
-        // Radix reports "" when the active item is pressed again. Ignore it:
-        // a leg always travels by some means, so there is no "no mode" state
-        // to fall back to.
-        onValueChange={(next) => { if (next) onChange({ mode: next as PersistedLegMode }); }}
-        className="leg-mode-toggle"
-        aria-label={`${from.name}에서 ${to.name}까지 이동 수단`}
-      >
-        {LEG_MODE_OPTIONS.map((option) => (
-          <PlannerChoiceItem key={option.mode} value={option.mode} aria-label={option.description} title={option.description}>
-            {option.label}
-          </PlannerChoiceItem>
-        ))}
-      </PlannerChoiceGroup>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="leg-edit-toggle"
+          aria-label={isEditing ? "이동 수단·경로 수정 닫기" : "이동 수단·경로 수정"}
+          aria-expanded={isEditing}
+          onClick={() => setIsEditing((value) => !value)}
+        >
+          <Pencil aria-hidden="true" />
+        </Button>
+      </div>
 
-      {legacyMode && (
-        <p className="leg-legacy-note" role="status">
-          직선 표시는 더 이상 지원하지 않습니다. 이동 수단을 선택하면 실제 경로로 바뀝니다.
-        </p>
-      )}
-
-      {mode === "TRANSIT" && (
-        <TransitTimingEditor timing={timing} dayDate={date} onApply={(next) => onChange({ timing: next })} />
-      )}
-
-      {mode === "DRIVE" && (
-        <label className="leg-traffic-toggle">
-          <Switch checked={trafficAware} onCheckedChange={(next) => onChange({ trafficAware: next })} />
-          실시간 교통 반영
-        </label>
-      )}
-
-      {!legacyMode && leg && leg.routes.length > 1 && (
-        <fieldset className="leg-route-picker">
-          <legend>경로 선택</legend>
-          <RadioGroup
-            value={String(routeIndex)}
+      {isEditing && (
+        <>
+          <PlannerChoiceGroup
+            value={legacyMode ? "" : mode}
+            // Radix reports "" when the active item is pressed again. Ignore it:
+            // a leg always travels by some means, so there is no "no mode" state
+            // to fall back to.
             onValueChange={(next) => {
-              const index = Number(next);
-              // Persist the fingerprint, not just the position: the list can
-              // come back in a different order after a cache refresh.
-              onChange({ routeIndex: index, routeKey: leg.routes[index]?.key });
-            }}
-          >
-            {leg.routes.map((route, index) => {
-              const endpoints = legEndpoints(anchor.when, anchor.isArrival, route.durationS);
-              const departure = formatZonedClock(endpoints.departure, timezone);
-              const arrival = formatZonedClock(endpoints.arrival, timezone);
-              const routeParts = [
-                route.durationS != null ? formatDuration(route.durationS) : null,
-                route.distanceM != null ? `${(route.distanceM / 1000).toFixed(1)}km` : null,
-                departure && arrival ? `${departure}→${arrival}` : null,
-                route.fareAmount != null ? `${route.fareCurrency ?? ""}${route.fareAmount.toLocaleString()}` : null,
-              ].filter(Boolean);
-              return (
-                <label key={route.key} className="leg-route-option">
-                  <RadioGroupItem value={String(index)} />
-                  <span>
-                    {index === 0 ? "추천 경로" : `대안 ${index}`}
-                    {routeParts.length > 0 && ` (${routeParts.join(" · ")})`}
-                  </span>
-                </label>
+              if (!next) return;
+              const nextMode = next as PersistedLegMode;
+              // A flight has no provider to leave its timing at AUTO, so
+              // switching to it needs an immediately valid starting point
+              // rather than landing on a combination the schema rejects.
+              onChange(
+                nextMode === "FLIGHT"
+                  ? {
+                      mode: nextMode,
+                      timing: timing.kind === "DEPART_AT" && timing.time ? timing : DEFAULT_FLIGHT_TIMING,
+                      flight: flight ?? DEFAULT_FLIGHT_DETAILS,
+                    }
+                  : { mode: nextMode },
               );
-            })}
-          </RadioGroup>
-        </fieldset>
+            }}
+            className="leg-mode-toggle"
+            aria-label={`${from.name}에서 ${to.name}까지 이동 수단`}
+          >
+            {LEG_MODE_OPTIONS.map((option) => (
+              <PlannerChoiceItem key={option.mode} value={option.mode} aria-label={option.description} title={option.description}>
+                {option.label}
+              </PlannerChoiceItem>
+            ))}
+          </PlannerChoiceGroup>
+
+          {legacyMode && (
+            <p className="leg-legacy-note" role="status">
+              직선 표시는 더 이상 지원하지 않습니다. 이동 수단을 선택하면 실제 경로로 바뀝니다.
+            </p>
+          )}
+
+          {mode === "TRANSIT" && (
+            <TransitTimingEditor timing={timing} dayDate={date} onApply={(next) => onChange({ timing: next })} />
+          )}
+
+          {isFlight && (
+            <FlightDetailsEditor
+              timing={timing}
+              flight={flight}
+              dayDate={date}
+              onApply={(patch) => onChange(patch)}
+            />
+          )}
+
+          {mode === "DRIVE" && (
+            <label className="leg-traffic-toggle">
+              <Switch checked={trafficAware} onCheckedChange={(next) => onChange({ trafficAware: next })} />
+              실시간 교통 반영
+            </label>
+          )}
+
+          {!legacyMode && leg && leg.routes.length > 1 && (
+            <fieldset className="leg-route-picker">
+              <legend>경로 선택</legend>
+              <RadioGroup
+                value={String(routeIndex)}
+                onValueChange={(next) => {
+                  const index = Number(next);
+                  // Persist the fingerprint, not just the position: the list can
+                  // come back in a different order after a cache refresh.
+                  onChange({ routeIndex: index, routeKey: leg.routes[index]?.key });
+                }}
+              >
+                {(() => {
+                  const badgesByRoute = routeBadges(leg.routes);
+                  return leg.routes.map((route, index) => {
+                    const endpoints = legEndpoints(anchor.when, anchor.isArrival, route.durationS);
+                    const departure = formatZonedClock(endpoints.departure, timezone);
+                    const arrival = formatZonedClock(endpoints.arrival, timezone);
+                    const routeParts = [
+                      route.durationS != null ? formatDuration(route.durationS) : null,
+                      route.distanceM != null ? `${(route.distanceM / 1000).toFixed(1)}km` : null,
+                      departure && arrival ? `${departure}→${arrival}` : null,
+                      route.fareAmount != null ? `${route.fareCurrency ?? ""}${route.fareAmount.toLocaleString()}` : null,
+                    ].filter(Boolean);
+                    // T-map style ranking badges (추천/최소 시간/최단 거리/최저 요금)
+                    // when they apply; a route with none falls back to the old
+                    // position-based label so it's never unlabeled.
+                    const badges = badgesByRoute[index] ?? [];
+                    const label = badges.length > 0 ? badges.map((badge) => ROUTE_BADGE_LABELS[badge]).join(" · ") : `대안 ${index}`;
+                    return (
+                      <label key={route.key} className="leg-route-option">
+                        <RadioGroupItem value={String(index)} />
+                        <span>
+                          {label}
+                          {routeParts.length > 0 && ` (${routeParts.join(" · ")})`}
+                        </span>
+                      </label>
+                    );
+                  });
+                })()}
+              </RadioGroup>
+            </fieldset>
+          )}
+        </>
       )}
 
       {trafficAware && mode === "DRIVE" && !isError && (

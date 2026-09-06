@@ -25,6 +25,17 @@ test("waypoints accept a place id or a bounded coordinate pair", () => {
   assert.equal(WaypointSchema.safeParse({ latLng: { latitude: 91, longitude: 0 } }).success, false);
   assert.equal(WaypointSchema.safeParse({ latLng: { latitude: 0, longitude: 181 } }).success, false);
   assert.equal(WaypointSchema.safeParse({ latLng: { latitude: 35.68 } }).success, false);
+
+  // Neither at all is the only truly invalid shape now that both may coexist.
+  assert.equal(WaypointSchema.safeParse({}).success, false);
+});
+
+test("a waypoint carrying both a placeId and coordinates keeps both, not just one", () => {
+  // This is what a search-picked spot actually has, and dropping either half
+  // used to silently starve NAVITIME of every such leg (see registry.test.ts).
+  const parsed = WaypointSchema.parse({ placeId: "ChIJ_abc", latLng: { latitude: 35.68, longitude: 139.76 } });
+  assert.equal(parsed.placeId, "ChIJ_abc");
+  assert.deepEqual(parsed.latLng, { latitude: 35.68, longitude: 139.76 });
 });
 
 test("waypoint refs distinguish endpoint kinds and normalize coordinate precision", () => {
@@ -37,6 +48,9 @@ test("waypoint refs distinguish endpoint kinds and normalize coordinate precisio
   );
   // A place id and a coordinate can never collide into the same ref.
   assert.notEqual(waypointRef({ placeId: "35.1,139.2" }), waypointRef({ latLng: { latitude: 35.1, longitude: 139.2 } }));
+  // The placeId wins when both are present, so a venue's cache slot stays
+  // stable even if its resolved coordinates drift a little between refreshes.
+  assert.equal(waypointRef({ placeId: "ChIJ_abc", latLng: { latitude: 35.1, longitude: 139.2 } }), "place:ChIJ_abc");
 });
 
 test("waypoints serialize to the shapes the Routes API documents", () => {
@@ -44,6 +58,13 @@ test("waypoints serialize to the shapes the Routes API documents", () => {
   assert.deepEqual(toRoutesApiWaypoint({ latLng: { latitude: 35.68, longitude: 139.76 } }), {
     location: { latLng: { latitude: 35.68, longitude: 139.76 } },
   });
+  // Google still gets the placeId when both are present - it geocodes more
+  // precisely from that than from the coordinate Places already resolved it
+  // to, and this is the field NAVITIME's presence must not change for Google.
+  assert.deepEqual(
+    toRoutesApiWaypoint({ placeId: "ChIJ_abc", latLng: { latitude: 35.68, longitude: 139.76 } }),
+    { placeId: "ChIJ_abc" },
+  );
 });
 
 test("cache buckets follow the trip timezone, not the server's", () => {
@@ -62,6 +83,7 @@ test("cache keys separate every input that can change the returned route", () =>
     timingKind: "AUTO" as const,
     alternatives: true,
     trafficAware: false,
+    provider: "google" as const,
   };
   const key = cacheKey(base);
 
@@ -73,6 +95,9 @@ test("cache keys separate every input that can change the returned route", () =>
   // A user-chosen departure must not read a bucket filled by a derived one.
   assert.notEqual(key, cacheKey({ ...base, timingKind: "DEPART_AT" }));
   assert.notEqual(key, cacheKey({ ...base, timingKind: "ARRIVE_BY" }));
+  // A Google-served cache row and a NAVITIME-served one must never share a
+  // slot - they can answer the same (from, to, mode) with different journeys.
+  assert.notEqual(key, cacheKey({ ...base, provider: "navitime" }));
   // Same inputs must be stable across calls, or nothing would ever cache-hit.
   assert.equal(key, cacheKey({ ...base }));
   // The geometry/schema version participates, so old entries cannot be read.
