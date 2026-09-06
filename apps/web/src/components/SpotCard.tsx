@@ -92,19 +92,30 @@ function TimelineSchedule({
   onEdit: () => void;
   mapNumber?: number;
 }) {
-  const label = schedule
-    ? `${spot.name} ${schedule.start}${schedule.end ? `부터 ${schedule.end}까지` : ""} 일정 시각 수정`
-    : `${spot.name} 시작 시각 입력`;
+  // A spot can have a start with no end, an end with no start (the
+  // departure is fixed, when it begins isn't), both, or - same as
+  // before - neither. None of those is a state to nudge the user out of.
+  const label = !schedule
+    ? `${spot.name} 시각 입력`
+    : schedule.start && schedule.end
+      ? `${spot.name} ${schedule.start}부터 ${schedule.end}까지 일정 시각 수정`
+      : schedule.start
+        ? `${spot.name} ${schedule.start} 일정 시각 수정`
+        : `${spot.name} ${schedule.end}까지 일정 시각 수정`;
   return (
     <div className={`timeline-schedule${schedule ? "" : " unscheduled"}`}>
       <Button type="button" variant="ghost" className="timeline-time" onClick={onEdit} aria-label={label}>
         {schedule ? (
           <>
-            <time dateTime={schedule.start} className="timeline-start">{schedule.start}</time>
-            {schedule.end && <time dateTime={schedule.end} className="timeline-end">{schedule.end}</time>}
+            {schedule.start && <time dateTime={schedule.start} className="timeline-start">{schedule.start}</time>}
+            {schedule.end && (
+              <time dateTime={schedule.end} className="timeline-end">
+                {schedule.start ? schedule.end : `~${schedule.end}`}
+              </time>
+            )}
           </>
         ) : (
-          <span>시간 입력<br />필요</span>
+          <span>시간 미정</span>
         )}
       </Button>
       <span className={`timeline-node${mapNumber != null ? " has-number" : ""}${spot.isAccommodation ? " accommodation" : ""}`} aria-hidden="true">

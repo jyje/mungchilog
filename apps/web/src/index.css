@@ -1821,14 +1821,21 @@ button.ghost {
   padding-inline: 0.6rem;
   font-size: var(--type-label);
 }
-.leg-timing-trigger {
+.leg-timing-trigger,
+.leg-flight-trigger {
   justify-self: start;
   min-height: 36px;
 }
-.leg-timing-editor {
+.leg-timing-editor,
+.leg-flight-editor {
   display: grid;
   gap: 0.6rem;
   width: min(20rem, calc(100vw - 2rem));
+}
+.leg-flight-number {
+  display: grid;
+  gap: 0.2rem;
+  font-size: var(--type-label);
 }
 .leg-timing-kind {
   margin: 0;

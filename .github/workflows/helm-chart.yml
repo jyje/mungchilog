@@ -48,3 +48,20 @@ jobs:
           --set-string usageMonitoring.googleCloud.workloadIdentity.audience=https://iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/example/providers/kubernetes
           --set usageMonitoring.googleCloud.workloadIdentity.credentialConfigMap=mungchilog-google-wif
           > /tmp/mungchilog-google-monitoring.yaml
+      # Disabled by default - not part of the routine sync, only an Ops
+      # decision. Templates for both database providers so a future one
+      # doesn't silently drop the other's env wiring.
+      - run: >-
+          ! helm template mungchilog charts/mungchilog | grep -q "kind: Job"
+      - run: >-
+          helm template mungchilog charts/mungchilog
+          --set migration.spotTimeFields.enabled=true
+          --set migration.spotTimeFields.dryRun=true
+          > /tmp/mungchilog-migration-sqlite.yaml
+      - run: >-
+          helm template mungchilog charts/mungchilog
+          --set migration.spotTimeFields.enabled=true
+          --set database.provider=postgres
+          --set database.postgres.existingSecret=mungchilog-postgres
+          --set database.postgres.connectionMode=components
+          > /tmp/mungchilog-migration-postgres.yaml

@@ -594,7 +594,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   function saveLegPreference(
     fromSpotId: string,
     toSpotId: string,
-    patch: Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware">> & { mode?: PersistedLegMode },
+    patch: Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware" | "flight">> & { mode?: PersistedLegMode },
   ) {
     if (!trip || !day) return;
     const previous = trip;
@@ -606,6 +606,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       routeKey: patch.routeKey ?? (modeChanged ? undefined : current.routeKey),
       timing: patch.timing ?? current.timing,
       trafficAware: patch.trafficAware ?? current.trafficAware,
+      flight: patch.flight ?? current.flight,
     };
     const days = trip.days.map((candidate, index) => (
       index !== dayIndex

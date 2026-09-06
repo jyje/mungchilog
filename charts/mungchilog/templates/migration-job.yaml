@@ -1,0 +1,106 @@
+{{- if .Values.migration.spotTimeFields.enabled }}
+# Disabled by default (migration.spotTimeFields.enabled: false) - an Ops
+# decision per environment, not something a routine sync should trigger.
+# See docs/migrations/2026-spot-planned-departure.md.
+#
+# Rendered as an ArgoCD PreSync hook, not a bare Job: while enabled, every
+# sync deletes the previous run (hook-delete-policy: BeforeHookCreation)
+# and runs a fresh one BEFORE the Deployment's rollout, and ArgoCD blocks
+# that rollout on the hook's success. That gives an actual guarantee ("this
+# ran, and passed, before the new server image took traffic") instead of a
+# Job an operator has to remember to check by hand. The app itself is still
+# backward compatible with unmigrated data either way (see the doc above),
+# so a dry-run "succeeding" here does not need to block anything on its own
+# - it exists to inspect the logs before flipping dryRun to false.
+#
+# The DB_* env block below must stay in sync with deployment.yaml's - this
+# Job needs to reach the exact same database the main Deployment writes to.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mungchilog-migrate-spot-time-fields
+  labels:
+    app: mungchilog
+    app.kubernetes.io/component: migration
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app: mungchilog
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate-spot-time-fields
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node"]
+          args:
+            - scripts/migrate-spot-time-fields.mjs
+            {{- if .Values.migration.spotTimeFields.dryRun }}
+            - --dry-run
+            {{- end }}
+          env:
+            - name: DB_PROVIDER
+              value: {{ .Values.database.provider | quote }}
+            {{- if eq .Values.database.provider "sqlite" }}
+            - name: DB_SQLITE_PATH
+              value: {{ required "database.sqlite.path is required for SQLite" .Values.database.sqlite.path | quote }}
+            {{- else if eq .Values.database.provider "postgres" }}
+            {{- $postgres := .Values.database.postgres }}
+            {{- if not $postgres.existingSecret }}
+            {{- fail "database.postgres.existingSecret is required for PostgreSQL" }}
+            {{- end }}
+            {{- if eq $postgres.connectionMode "url" }}
+            - name: DB_POSTGRES_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.urlKey is required for PostgreSQL URL mode" $postgres.urlKey }}
+            {{- else if eq $postgres.connectionMode "components" }}
+            - name: DB_POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.hostKey is required for PostgreSQL component mode" $postgres.hostKey }}
+            - name: DB_POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.portKey is required for PostgreSQL component mode" $postgres.portKey }}
+            - name: DB_POSTGRES_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.databaseKey is required for PostgreSQL component mode" $postgres.databaseKey }}
+            - name: DB_POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.usernameKey is required for PostgreSQL component mode" $postgres.usernameKey }}
+            - name: DB_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $postgres.existingSecret }}
+                  key: {{ required "database.postgres.passwordKey is required for PostgreSQL component mode" $postgres.passwordKey }}
+            {{- else }}
+            {{- fail "database.postgres.connectionMode must be url or components" }}
+            {{- end }}
+            {{- end }}
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+          {{- end }}
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mungchilog-data
+      {{- end }}
+{{- end }}

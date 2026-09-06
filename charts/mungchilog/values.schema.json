@@ -118,6 +118,20 @@
           ]
         }
       }
+    },
+    "migration": {
+      "type": "object",
+      "required": ["spotTimeFields"],
+      "properties": {
+        "spotTimeFields": {
+          "type": "object",
+          "required": ["enabled", "dryRun"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "dryRun": { "type": "boolean" }
+          }
+        }
+      }
     }
   }
 }
