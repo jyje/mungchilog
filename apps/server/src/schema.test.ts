@@ -142,6 +142,45 @@ test("a chosen departure or arrival must carry a valid trip-local time", () => {
   );
 });
 
+test("a flight needs a departure time and an arrival time - it has no provider to derive either", () => {
+  // Neither the departure (timing) nor the arrival (flight) half alone is enough.
+  assert.equal(
+    TripImportSchema.safeParse(tripWithLegPreference({ mode: "FLIGHT", timing: { kind: "DEPART_AT", time: "10:00" } })).success,
+    false,
+  );
+  assert.equal(
+    TripImportSchema.safeParse(tripWithLegPreference({ mode: "FLIGHT", flight: { arrivalTime: "11:35" } })).success,
+    false,
+  );
+  // AUTO (no provider to derive it from) or arrive-by (the wrong end) don't work either.
+  assert.equal(
+    TripImportSchema.safeParse(
+      tripWithLegPreference({ mode: "FLIGHT", timing: { kind: "ARRIVE_BY", time: "10:00" }, flight: { arrivalTime: "11:35" } }),
+    ).success,
+    false,
+  );
+
+  const parsed = TripImportSchema.safeParse(
+    tripWithLegPreference({
+      mode: "FLIGHT",
+      timing: { kind: "DEPART_AT", time: "10:00" },
+      flight: { flightNumber: "OZ102", arrivalTime: "11:35" },
+    }),
+  );
+  assert.equal(parsed.success, true);
+  if (parsed.success) assert.deepEqual(parsed.data.days[0].legPreferences[0].flight, { flightNumber: "OZ102", arrivalTime: "11:35" });
+});
+
+test("flight details are rejected on any other mode", () => {
+  for (const mode of ["WALK", "TRANSIT", "DRIVE", "DIRECT"]) {
+    assert.equal(
+      TripImportSchema.safeParse(tripWithLegPreference({ mode, flight: { arrivalTime: "11:35" } })).success,
+      false,
+      `${mode} must not accept flight details`,
+    );
+  }
+});
+
 test("arrive-by timing is limited to transit legs", () => {
   for (const mode of ["WALK", "DRIVE"]) {
     assert.equal(

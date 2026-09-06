@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { computeLeg, type LegWaypoint } from "../api";
 import { resolveLegAnchor } from "../legTiming";
-import { isLegacyLegMode } from "../legPreferences";
+import { isRoutedLegMode } from "../legPreferences";
 import type { LegTiming, PersistedLegMode, Spot } from "../types";
 
 // Keep browser-persisted route data aligned with the server cache whenever
@@ -36,9 +36,10 @@ export function useLeg(
 ) {
   const fromWaypoint = waypointForSpot(from);
   const toWaypoint = waypointForSpot(to);
-  // A legacy DIRECT leg has no provider route to fetch - it stays a straight
-  // line until the user picks a real mode.
-  const enabled = !isLegacyLegMode(mode) && !!fromWaypoint && !!toWaypoint;
+  // A legacy DIRECT leg, or a manually-entered FLIGHT, has no provider route
+  // to fetch - DIRECT stays a straight line until the user picks a real
+  // mode, and FLIGHT never had one to begin with.
+  const enabled = isRoutedLegMode(mode) && !!fromWaypoint && !!toWaypoint;
 
   const anchor = resolveLegAnchor(from, timing, date, timezone);
 
@@ -48,7 +49,7 @@ export function useLeg(
       computeLeg({
         from: fromWaypoint!,
         to: toWaypoint!,
-        mode: mode as Exclude<PersistedLegMode, "DIRECT">,
+        mode: mode as Exclude<PersistedLegMode, "DIRECT" | "FLIGHT">,
         when: anchor.when,
         timingKind: timing.kind,
         timezone,

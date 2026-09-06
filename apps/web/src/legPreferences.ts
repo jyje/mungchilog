@@ -1,15 +1,20 @@
-import { SELECTABLE_LEG_MODES } from "./types";
-import type { LegPreference, LegTiming, PersistedLegMode, SelectableLegMode, Spot } from "./types";
+import { ROUTED_LEG_MODES, SELECTABLE_LEG_MODES } from "./types";
+import type { FlightDetails, LegPreference, LegTiming, PersistedLegMode, SelectableLegMode, Spot } from "./types";
 
 export const DEFAULT_LEG_MODE: SelectableLegMode = "TRANSIT";
 export const DEFAULT_LEG_TIMING: LegTiming = { kind: "AUTO" };
+// A flight has no provider to suggest a time, so switching to it needs some
+// starting point to edit from rather than an immediately-invalid empty one.
+export const DEFAULT_FLIGHT_TIMING: LegTiming = { kind: "DEPART_AT", time: "09:00" };
+export const DEFAULT_FLIGHT_DETAILS: FlightDetails = { arrivalTime: "11:00" };
 
-// Only these three are offered for new selections. DIRECT is deliberately
+// Only these four are offered for new selections. DIRECT is deliberately
 // absent: a straight line is a drawing, not a route (issue 48).
 export const LEG_MODE_OPTIONS: Array<{ mode: SelectableLegMode; label: string; description: string }> = [
   { mode: "WALK", label: "도보", description: "보행자 경로" },
   { mode: "TRANSIT", label: "대중교통", description: "대중교통 시간표 경로" },
   { mode: "DRIVE", label: "운전", description: "도로 경로" },
+  { mode: "FLIGHT", label: "항공편", description: "직접 입력하는 항공편 시각 (경로 계산 없음)" },
 ];
 
 // A leg saved before issue 48, or imported from an older export. It still
@@ -17,6 +22,12 @@ export const LEG_MODE_OPTIONS: Array<{ mode: SelectableLegMode; label: string; d
 // keep promoting.
 export function isLegacyLegMode(mode: PersistedLegMode): boolean {
   return !(SELECTABLE_LEG_MODES as readonly string[]).includes(mode);
+}
+
+// WALK/TRANSIT/DRIVE fetch a real route; FLIGHT (like the legacy DIRECT) is
+// entered by hand and must never trigger a provider request.
+export function isRoutedLegMode(mode: PersistedLegMode): boolean {
+  return (ROUTED_LEG_MODES as readonly string[]).includes(mode);
 }
 
 export function legModeFor(preferences: LegPreference[] | undefined, fromSpotId: string, toSpotId: string): PersistedLegMode {
@@ -36,7 +47,7 @@ export function replaceLegPreference(
   fromSpotId: string,
   toSpotId: string,
   mode: PersistedLegMode,
-  options: Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware">> = {},
+  options: Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware" | "flight">> = {},
 ): LegPreference[] {
   const withoutCurrent = (preferences ?? []).filter(
     (preference) => preference.fromSpotId !== fromSpotId || preference.toSpotId !== toSpotId,
@@ -45,15 +56,24 @@ export function replaceLegPreference(
   const routeKey = options.routeKey;
   const trafficAware = mode === "DRIVE" && (options.trafficAware ?? false);
   // Arrive-by is transit-only, so switching away from transit must drop it
-  // rather than persist a combination the schema rejects.
-  const requested = options.timing ?? DEFAULT_LEG_TIMING;
-  const timing: LegTiming = requested.kind === "ARRIVE_BY" && mode !== "TRANSIT" ? DEFAULT_LEG_TIMING : requested;
+  // rather than persist a combination the schema rejects. A flight has no
+  // provider to pick a time for, so it needs an immediately valid starting
+  // point instead of falling through to AUTO like every other mode does.
+  const requested = options.timing ?? (mode === "FLIGHT" ? DEFAULT_FLIGHT_TIMING : DEFAULT_LEG_TIMING);
+  const timing: LegTiming =
+    mode === "FLIGHT"
+      ? requested.kind === "DEPART_AT" && requested.time ? requested : DEFAULT_FLIGHT_TIMING
+      : requested.kind === "ARRIVE_BY" && mode !== "TRANSIT" ? DEFAULT_LEG_TIMING : requested;
+  // Only a flight leg may carry flight details - any other mode drops
+  // whatever was passed rather than persist a combination the schema
+  // rejects (mirrors the arrive-by rule above).
+  const flight = mode === "FLIGHT" ? options.flight ?? DEFAULT_FLIGHT_DETAILS : undefined;
 
   const isDefault =
     mode === DEFAULT_LEG_MODE && routeIndex === 0 && routeKey == null && timing.kind === "AUTO" && !trafficAware;
   return isDefault
     ? withoutCurrent
-    : [...withoutCurrent, { fromSpotId, toSpotId, mode, routeIndex, routeKey, timing, trafficAware }];
+    : [...withoutCurrent, { fromSpotId, toSpotId, mode, routeIndex, routeKey, timing, trafficAware, flight }];
 }
 
 export function removeSpotLegPreferences(preferences: LegPreference[] | undefined, spotId: string): LegPreference[] {
