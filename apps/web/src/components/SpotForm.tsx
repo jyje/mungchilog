@@ -21,10 +21,21 @@ const ACCOMMODATION_KEYWORDS = [
   "ホテル", "旅館", "民宿", "ゲストハウス",
 ];
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Matched with a boundary on each side (start/end of string, or a
+// non-alphanumeric character) so a short keyword like "inn" or "resort"
+// can't fire inside an unrelated word ("Innovation Museum", "Insurance
+// Agency") - a bare substring search did exactly that.
 function looksLikeAccommodation(category?: string): boolean {
   if (!category) return false;
   const normalized = category.toLowerCase();
-  return ACCOMMODATION_KEYWORDS.some((keyword) => normalized.includes(keyword.toLowerCase()));
+  return ACCOMMODATION_KEYWORDS.some((keyword) => {
+    const escaped = escapeRegExp(keyword.toLowerCase());
+    return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:[^a-z0-9]|$)`).test(normalized);
+  });
 }
 
 export type SpotFormValues = {
@@ -86,8 +97,12 @@ export function SpotForm({
   );
   // Once the person has touched the toggle themselves, a later place pick
   // stops overwriting their choice - the keyword guess only gets to speak
-  // once, before they've said anything of their own.
-  const [accommodationTouched, setAccommodationTouched] = useState(false);
+  // once, before they've said anything of their own. Editing an existing
+  // spot counts as already decided even before any click: `initial` always
+  // carries a real isAccommodation value (true or an explicit false), and
+  // re-picking the same place to refresh its coordinates must not silently
+  // flip that decision back to a fresh guess.
+  const [accommodationTouched, setAccommodationTouched] = useState(!!initial);
   const [picked, setPicked] = useState<SelectedLocation | null>(
     initial?.placeId
       ? {

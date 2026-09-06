@@ -71,7 +71,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [dateAddOpen, setDateAddOpen] = useState(false);
   const [customDate, setCustomDate] = useState("");
   const [newDayAccommodationName, setNewDayAccommodationName] = useState("");
-  const [newDayAccommodationPlace, setNewDayAccommodationPlace] = useState<PlaceSelection | null>(null);
+  // Looser than PlaceSelection: reusing the previous day's accommodation
+  // (a spot that may itself have no coordinates, e.g. imported without a
+  // resolved place) must be able to carry an unset lat/lng through rather
+  // than coercing a missing coordinate into a false (0, 0) position.
+  const [newDayAccommodationPlace, setNewDayAccommodationPlace] = useState<AccommodationSeed | null>(null);
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [dateEditValue, setDateEditValue] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
@@ -240,13 +244,42 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     return lastDate ? nextDate(lastDate) : trip.startDate;
   }
 
+  // Last, not first: a day (or the previous day) can carry more than one
+  // accommodation-flagged spot (checked out of one, into another later the
+  // same day), and the one relevant to "tonight" - or to carry into the
+  // next day - is whichever came last in the itinerary, not whichever was
+  // added first.
+  function lastAccommodationOf(spots: Spot[]): Spot | undefined {
+    return [...spots].sort((a, b) => a.order - b.order).findLast((s) => s.isAccommodation);
+  }
+
   // Finds the accommodation of the day right before `beforeDate`, if any -
   // powers the "어제와 같은 숙소" quick chip so a multi-night stay doesn't
   // need re-searching every day it's added.
   function accommodationOfPreviousDay(beforeDate: string): Spot | undefined {
     if (!trip) return undefined;
     const priorDays = sortDays(trip.days).filter((d) => d.date < beforeDate);
-    return priorDays.at(-1)?.spots.find((s) => s.isAccommodation);
+    const lastPriorDay = priorDays.at(-1);
+    return lastPriorDay ? lastAccommodationOf(lastPriorDay.spots) : undefined;
+  }
+
+  // Shared by addDayAt's seeded first spot and addReturnToAccommodation's
+  // duplicated last spot - both create a fresh accommodation spot from an
+  // existing one (or a seed), never a reference to it, since a morning
+  // check-out and an evening return are genuinely different visits.
+  function buildAccommodationSpot(source: AccommodationSeed | Spot, order: number): Spot {
+    return {
+      id: crypto.randomUUID(),
+      order,
+      name: source.name,
+      placeId: source.placeId,
+      lat: source.lat,
+      lng: source.lng,
+      category: source.category,
+      bufferMinutes: 10,
+      items: [],
+      isAccommodation: true,
+    };
   }
 
   function addDayAt(date: string, accommodation?: AccommodationSeed | null) {
@@ -260,20 +293,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return false;
     }
 
-    const accommodationSpot: Spot | undefined = accommodation
-      ? {
-          id: crypto.randomUUID(),
-          order: 0,
-          name: accommodation.name,
-          placeId: accommodation.placeId,
-          lat: accommodation.lat,
-          lng: accommodation.lng,
-          category: accommodation.category,
-          bufferMinutes: 10,
-          items: [],
-          isAccommodation: true,
-        }
-      : undefined;
+    const accommodationSpot = accommodation ? buildAccommodationSpot(accommodation, 0) : undefined;
     const days = sortDays([...trip.days, { date, spots: accommodationSpot ? [accommodationSpot] : [], legPreferences: [], groups: [] }]);
     const startDate = date < trip.startDate ? date : trip.startDate;
     const endDate = date > trip.endDate ? date : trip.endDate;
@@ -409,18 +429,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   // accommodation that isn't already the last stop.
   function addReturnToAccommodation(accommodation: Spot) {
     if (!trip || !day) return;
-    const spot: Spot = {
-      id: crypto.randomUUID(),
-      order: day.spots.length,
-      name: accommodation.name,
-      placeId: accommodation.placeId,
-      lat: accommodation.lat,
-      lng: accommodation.lng,
-      category: accommodation.category,
-      bufferMinutes: 10,
-      items: [],
-      isAccommodation: true,
-    };
+    const spot = buildAccommodationSpot(accommodation, day.spots.length);
     const days = trip.days.map((d, i) => (i === dayIndex ? { ...d, spots: [...d.spots, spot] } : d));
     saveNow({ ...trip, days });
   }
@@ -820,7 +829,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                           size="sm"
                           className="quick-chip"
                           onClick={() => {
-                            setNewDayAccommodationPlace(previous.placeId ? { name: previous.name, placeId: previous.placeId, lat: previous.lat ?? 0, lng: previous.lng ?? 0, category: previous.category } : null);
+                            setNewDayAccommodationPlace({ name: previous.name, placeId: previous.placeId, lat: previous.lat, lng: previous.lng, category: previous.category });
                             setNewDayAccommodationName(previous.name);
                           }}
                         >
@@ -935,7 +944,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 </DndContext>
                 {(() => {
                   if (addingSpot || orderedSpots.length === 0) return null;
-                  const accommodation = orderedSpots.find((s) => s.isAccommodation);
+                  const accommodation = orderedSpots.findLast((s) => s.isAccommodation);
                   if (!accommodation || orderedSpots.at(-1)?.isAccommodation) return null;
                   return (
                     <Button type="button" variant="outline" className="return-to-accommodation-button" onClick={() => addReturnToAccommodation(accommodation)}>
