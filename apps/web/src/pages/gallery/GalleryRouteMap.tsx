@@ -24,6 +24,7 @@ const WESTMINSTER: Spot = {
   lng: -0.1246,
   bufferMinutes: 10,
   items: [],
+  isAccommodation: false,
 };
 
 const BRITISH_MUSEUM: Spot = {
@@ -34,6 +35,7 @@ const BRITISH_MUSEUM: Spot = {
   lng: -0.127,
   bufferMinutes: 10,
   items: [],
+  isAccommodation: false,
 };
 
 const GALLERY_SPOTS = [WESTMINSTER, BRITISH_MUSEUM];

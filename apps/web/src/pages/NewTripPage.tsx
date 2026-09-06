@@ -87,6 +87,7 @@ export function NewTripPage({ navigate }: { navigate: (path: string) => void }) 
             } : {}),
             bufferMinutes: 10,
             items: [],
+            isAccommodation: false,
           }
         : null;
       const { id } = await saveTrip({

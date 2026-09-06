@@ -25,7 +25,7 @@ import type { LegPreference, PersistedLegMode } from "../types";
 import type { Me } from "../api";
 import { downloadTripExchange } from "../tripExchange";
 import { PlaceDetailsPanel } from "../components/PlaceDetailsPanel";
-import type { PlaceSelection } from "../components/PlaceAutocompleteInput";
+import { PlaceAutocompleteInput, type PlaceSelection } from "../components/PlaceAutocompleteInput";
 import { PlannerPanelTabs, type PlannerPanelTab } from "../components/system/PlannerPanelTabs";
 import { scheduleWarnings } from "../schedule";
 import { itineraryBlocks, normalizeItineraryGroups, removeSpotFromItineraryGroups } from "../itineraryGroups";
@@ -46,6 +46,12 @@ function formatScheduleDate(date: string) {
   return `${month}월 ${day}일 (${weekday})`;
 }
 
+// What the "이 날 묵는 숙소" field in the date-add popover needs to seed a
+// spot with - looser than PlaceSelection (a bare typed name has no
+// placeId/coords yet) and looser than Spot (no id/order/isAccommodation,
+// which addDayAt fills in itself).
+type AccommodationSeed = { name: string; placeId?: string; lat?: number; lng?: number; category?: string };
+
 const SELECTION_HISTORY_KEY = "mungchilog:itinerary-selection";
 
 function removeSelectionHistoryState() {
@@ -64,6 +70,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [dayNoteOpen, setDayNoteOpen] = useState(false);
   const [dateAddOpen, setDateAddOpen] = useState(false);
   const [customDate, setCustomDate] = useState("");
+  const [newDayAccommodationName, setNewDayAccommodationName] = useState("");
+  const [newDayAccommodationPlace, setNewDayAccommodationPlace] = useState<PlaceSelection | null>(null);
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [dateEditValue, setDateEditValue] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
@@ -232,7 +240,16 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     return lastDate ? nextDate(lastDate) : trip.startDate;
   }
 
-  function addDayAt(date: string) {
+  // Finds the accommodation of the day right before `beforeDate`, if any -
+  // powers the "어제와 같은 숙소" quick chip so a multi-night stay doesn't
+  // need re-searching every day it's added.
+  function accommodationOfPreviousDay(beforeDate: string): Spot | undefined {
+    if (!trip) return undefined;
+    const priorDays = sortDays(trip.days).filter((d) => d.date < beforeDate);
+    return priorDays.at(-1)?.spots.find((s) => s.isAccommodation);
+  }
+
+  function addDayAt(date: string, accommodation?: AccommodationSeed | null) {
     if (!trip) return false;
     if (!date) {
       setDateError("날짜를 선택해주세요.");
@@ -243,7 +260,21 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       return false;
     }
 
-    const days = sortDays([...trip.days, { date, spots: [], legPreferences: [], groups: [] }]);
+    const accommodationSpot: Spot | undefined = accommodation
+      ? {
+          id: crypto.randomUUID(),
+          order: 0,
+          name: accommodation.name,
+          placeId: accommodation.placeId,
+          lat: accommodation.lat,
+          lng: accommodation.lng,
+          category: accommodation.category,
+          bufferMinutes: 10,
+          items: [],
+          isAccommodation: true,
+        }
+      : undefined;
+    const days = sortDays([...trip.days, { date, spots: accommodationSpot ? [accommodationSpot] : [], legPreferences: [], groups: [] }]);
     const startDate = date < trip.startDate ? date : trip.startDate;
     const endDate = date > trip.endDate ? date : trip.endDate;
     saveNow({ ...trip, startDate, endDate, days });
@@ -263,6 +294,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     setCustomDate(defaultNewDayDate());
     setDateError(null);
     setEditingDate(null);
+    setNewDayAccommodationName("");
+    setNewDayAccommodationPlace(null);
     setDateAddOpen(true);
   }
 
@@ -277,10 +310,17 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     setDateAddOpen(false);
     setEditingDate(null);
     setDateError(null);
+    setNewDayAccommodationName("");
+    setNewDayAccommodationPlace(null);
   }
 
   function addCustomDay() {
-    if (addDayAt(customDate)) setDateAddOpen(false);
+    const accommodation = newDayAccommodationPlace?.name === newDayAccommodationName
+      ? newDayAccommodationPlace
+      : newDayAccommodationName.trim()
+        ? { name: newDayAccommodationName.trim() }
+        : null;
+    if (addDayAt(customDate, accommodation)) setDateAddOpen(false);
   }
 
   function updateDayDate() {
@@ -360,6 +400,29 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     const nextSelection = { kind: "spot", spotId: spot.id } as const;
     previousItinerarySelectionRef.current = nextSelection;
     setSelection(nextSelection);
+  }
+
+  // Duplicates the day's accommodation as its own new spot at the end of
+  // the day - not a reference to the existing one, since the morning
+  // check-out and the evening return are genuinely different visits (their
+  // own time, their own leg). Offered only when the day already has an
+  // accommodation that isn't already the last stop.
+  function addReturnToAccommodation(accommodation: Spot) {
+    if (!trip || !day) return;
+    const spot: Spot = {
+      id: crypto.randomUUID(),
+      order: day.spots.length,
+      name: accommodation.name,
+      placeId: accommodation.placeId,
+      lat: accommodation.lat,
+      lng: accommodation.lng,
+      category: accommodation.category,
+      bufferMinutes: 10,
+      items: [],
+      isAccommodation: true,
+    };
+    const days = trip.days.map((d, i) => (i === dayIndex ? { ...d, spots: [...d.spots, spot] } : d));
+    saveNow({ ...trip, days });
   }
 
   function startPointPick() {
@@ -731,6 +794,42 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     일정 날짜
                     <Input className="min-h-11" type="date" value={customDate} onChange={(event) => setCustomDate(event.target.value)} />
                   </label>
+                  <label>
+                    이 날 묵는 숙소 (선택)
+                    <PlaceAutocompleteInput
+                      value={newDayAccommodationName}
+                      placeholder="숙소 이름으로 검색…"
+                      onChange={(value) => {
+                        setNewDayAccommodationName(value);
+                        if (newDayAccommodationPlace && value !== newDayAccommodationPlace.name) setNewDayAccommodationPlace(null);
+                      }}
+                      onSelect={(place) => {
+                        setNewDayAccommodationPlace(place);
+                        setNewDayAccommodationName(place.name);
+                      }}
+                    />
+                  </label>
+                  {(() => {
+                    const previous = accommodationOfPreviousDay(customDate);
+                    if (!previous || newDayAccommodationName) return null;
+                    return (
+                      <div className="quick-row">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="quick-chip"
+                          onClick={() => {
+                            setNewDayAccommodationPlace(previous.placeId ? { name: previous.name, placeId: previous.placeId, lat: previous.lat ?? 0, lng: previous.lng ?? 0, category: previous.category } : null);
+                            setNewDayAccommodationName(previous.name);
+                          }}
+                        >
+                          🏨 어제와 같은 숙소 · {previous.name}
+                        </Button>
+                      </div>
+                    );
+                  })()}
+                  <p className="meta day-date-hint">비워두면 나중에 스팟에서 언제든 지정할 수 있어요.</p>
                   {dateError && <p className="error day-date-error">{dateError}</p>}
                   <div className="day-date-actions">
                     <Button type="button" className="min-h-11" onClick={addCustomDay}>추가</Button>
@@ -834,6 +933,16 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     </ul>
                   </SortableContext>
                 </DndContext>
+                {(() => {
+                  if (addingSpot || orderedSpots.length === 0) return null;
+                  const accommodation = orderedSpots.find((s) => s.isAccommodation);
+                  if (!accommodation || orderedSpots.at(-1)?.isAccommodation) return null;
+                  return (
+                    <Button type="button" variant="outline" className="return-to-accommodation-button" onClick={() => addReturnToAccommodation(accommodation)}>
+                      🏨 오늘 밤도 {accommodation.name}에 묵나요? 마지막 일정으로 추가
+                    </Button>
+                  );
+                })()}
                 {!addingSpot && (
                   <div className="add-spot-actions">
                     <Button type="button" variant="outline" className="add-spot-button" onClick={() => { setPendingCoordinate(null); setPendingPlace(null); setAddingSpot(true); }}>

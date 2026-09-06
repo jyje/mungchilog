@@ -336,9 +336,9 @@ function MapContent({
           >
             <Pin
               glyphText={String(i + 1)}
-              background={selected ? "#0284c7" : "#7dd3fc"}
+              background={s.isAccommodation ? (selected ? "#6d28d9" : "#c4b5fd") : (selected ? "#0284c7" : "#7dd3fc")}
               glyphColor={selected ? "#ffffff" : "#111214"}
-              borderColor={selected ? "#ffffff" : "#38bdf8"}
+              borderColor={s.isAccommodation ? (selected ? "#ffffff" : "#a78bfa") : (selected ? "#ffffff" : "#38bdf8")}
               scale={selected ? 1.22 : 1}
             />
           </AdvancedMarker>

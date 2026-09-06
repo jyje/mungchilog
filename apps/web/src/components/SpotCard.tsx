@@ -118,7 +118,7 @@ function TimelineSchedule({
           <span>시간 미정</span>
         )}
       </Button>
-      <span className={`timeline-node${mapNumber != null ? " has-number" : ""}`} aria-hidden="true">
+      <span className={`timeline-node${mapNumber != null ? " has-number" : ""}${spot.isAccommodation ? " accommodation" : ""}`} aria-hidden="true">
         {mapNumber != null && <span className="timeline-node-number">{mapNumber}</span>}
       </span>
     </div>
@@ -172,7 +172,7 @@ export function SpotCard({
 
   if (editing) {
     return (
-      <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}`}>
+      <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}${spot.isAccommodation ? " accommodation" : ""}`}>
         <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => undefined} mapNumber={mapNumber} />
         <div className="spot-card-surface">
           <span className="drag-handle" aria-hidden>
@@ -197,7 +197,7 @@ export function SpotCard({
   }
 
   return (
-    <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}`}>
+    <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}${spot.isAccommodation ? " accommodation" : ""}`}>
       <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => setEditing(true)} mapNumber={mapNumber} />
       <div className="spot-card-surface">
         <Button type="button" variant="ghost" size="icon-lg" className="drag-handle" aria-label="순서 변경" {...attributes} {...listeners}>
@@ -206,7 +206,10 @@ export function SpotCard({
         <div className="spot-body">
           <div className="spot-header">
             <Button type="button" variant={selected ? "secondary" : "ghost"} className="spot-select" onClick={onSelect} aria-pressed={selected} aria-label={`${spot.name} 지도에서 보기`}>
-              <span className="spot-name">{spot.name}</span>
+              <span className="spot-name-row">
+                <span className="spot-name">{spot.name}</span>
+                {spot.isAccommodation && <span className="spot-accommodation-badge">🏨 숙소</span>}
+              </span>
               {spot.nameLocal && <span className="spot-local">{spot.nameLocal}</span>}
             </Button>
             <div className="spot-actions">

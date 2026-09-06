@@ -29,6 +29,11 @@
   --accent: #0284c7;
   --accent-contrast: #ffffff;
   --danger: #dc2626;
+  /* Accommodation's own accent - kept distinct from --accent so a stay
+     never reads as "just another selected spot" on the timeline or map. */
+  --stay: #6d28d9;
+  --stay-soft: #efe9fb;
+  --stay-line: #d9cbf5;
   --shadow-color: rgba(20, 21, 26, 0.16);
   /* Mobile apps use a stable type ramp. rem honors the person's browser
      text-size preference, unlike viewport-based scaling in a narrow panel. */
@@ -89,6 +94,9 @@
     --accent: #7dd3fc;
     --accent-contrast: #0b1220;
     --danger: #f87171;
+    --stay: #c4b5fd;
+    --stay-soft: #241f36;
+    --stay-line: #3c3160;
     --shadow-color: rgba(0, 0, 0, 0.45);
     --secondary: #22313c;
     --muted: #24262a;
@@ -117,6 +125,9 @@
   --accent: #7dd3fc;
   --accent-contrast: #0b1220;
   --danger: #f87171;
+  --stay: #c4b5fd;
+  --stay-soft: #241f36;
+  --stay-line: #3c3160;
   --shadow-color: rgba(0, 0, 0, 0.45);
   --secondary: #22313c;
   --muted: #24262a;
@@ -459,6 +470,16 @@ ul {
 .day-date-hint,
 .day-date-error {
   margin: 0;
+}
+.quick-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.quick-chip {
+  color: var(--stay);
+  background: var(--stay-soft);
+  border-color: var(--stay-line);
 }
 .day-date-actions {
   display: flex;
@@ -1030,9 +1051,29 @@ body.trip-panel-resizing { cursor: col-resize; }
   border-radius: 10px;
   padding: 0.75rem;
 }
+/* Accommodation reads as a distinct color, not a distinct shape - the
+   surrounding grid (numbered node, leg rows) stays exactly as it is for
+   every other spot. */
+.spot-card.accommodation .spot-card-surface {
+  background: var(--stay-soft);
+  border-color: var(--stay-line);
+}
 .spot-card.selected .spot-card-surface {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.spot-accommodation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: none;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--stay);
+  background: var(--surface);
+  border: 1px solid var(--stay-line);
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
 }
 .timeline-schedule {
   position: relative;
@@ -1093,6 +1134,19 @@ body.trip-panel-resizing { cursor: col-resize; }
 }
 .timeline-schedule.unscheduled .timeline-node.has-number {
   background: var(--text-muted);
+}
+/* Accommodation's color wins over both the plain and the "needs time"
+   muted node - the point of the color is to spot the day's home base at a
+   glance, which matters whether or not its time is filled in yet. Matched
+   at the same specificity as the ".unscheduled" rules above (3 classes),
+   not just 2, or an unscheduled accommodation would keep losing to them. */
+.timeline-node.accommodation,
+.timeline-schedule.unscheduled .timeline-node.accommodation {
+  border-color: var(--stay);
+}
+.timeline-node.has-number.accommodation,
+.timeline-schedule.unscheduled .timeline-node.has-number.accommodation {
+  background: var(--stay);
 }
 .timeline-node-number {
   font-size: 0.62rem;
@@ -1157,8 +1211,16 @@ body.trip-panel-resizing { cursor: col-resize; }
   padding: 0.45rem 0.3rem;
   text-align: left;
 }
-.spot-name {
+.spot-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   width: 100%;
+  min-width: 0;
+}
+.spot-name {
+  flex: 1 1 auto;
+  min-width: 0;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1279,6 +1341,16 @@ body.trip-panel-resizing { cursor: col-resize; }
   margin-top: 0.5rem;
   min-height: 44px;
 }
+.return-to-accommodation-button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 0.5rem;
+  color: var(--stay);
+  background: var(--stay-soft);
+  border-color: var(--stay-line);
+  border-style: dashed;
+}
 .add-spot-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1367,6 +1439,29 @@ body.trip-panel-resizing { cursor: col-resize; }
 .add-spot-row > * {
   flex: 1;
   min-width: 0;
+}
+.spot-accommodation-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.spot-accommodation-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.spot-accommodation-copy .tt {
+  font-weight: 600;
+}
+.spot-accommodation-copy .td {
+  color: var(--text-muted);
+  font-size: var(--type-small);
 }
 .spot-schedule-editor {
   min-width: 0;

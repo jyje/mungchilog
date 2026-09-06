@@ -6,7 +6,26 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Switch } from "./ui/switch";
 import { resolveTripWallClock, spotScheduleDisplay, wallClockMinutes } from "../schedule";
+
+// `category` is Places' own localized display name (e.g. "호텔", "Hotel"),
+// not a stable machine type, so this is a keyword sniff across the
+// languages this app actually sees - good enough to pre-check the toggle
+// below on first pick, never to force it. A picked place with no category,
+// or wording outside this list (an Airbnb, most ryokan listings), still
+// leaves the toggle in the user's hands.
+const ACCOMMODATION_KEYWORDS = [
+  "lodging", "hotel", "hostel", "motel", "inn", "resort", "guest house", "guesthouse",
+  "호텔", "게스트하우스", "모텔", "여관", "펜션", "리조트",
+  "ホテル", "旅館", "民宿", "ゲストハウス",
+];
+
+function looksLikeAccommodation(category?: string): boolean {
+  if (!category) return false;
+  const normalized = category.toLowerCase();
+  return ACCOMMODATION_KEYWORDS.some((keyword) => normalized.includes(keyword.toLowerCase()));
+}
 
 export type SpotFormValues = {
   name: string;
@@ -19,6 +38,7 @@ export type SpotFormValues = {
   lat?: number;
   lng?: number;
   category?: string;
+  isAccommodation: boolean;
 };
 
 export type CoordinateSelection = { lat: number; lng: number };
@@ -42,7 +62,7 @@ export function SpotForm({
   onSubmit,
   onCancel,
 }: {
-  initial?: Pick<Spot, "name" | "nameLocal" | "plannedArrival" | "plannedDeparture" | "timeKind" | "dwellMinutes" | "note" | "placeId" | "lat" | "lng" | "category">;
+  initial?: Pick<Spot, "name" | "nameLocal" | "plannedArrival" | "plannedDeparture" | "timeKind" | "dwellMinutes" | "note" | "placeId" | "lat" | "lng" | "category" | "isAccommodation">;
   initialLocation?: CoordinateSelection;
   initialPlace?: PlaceSelection;
   date?: string;
@@ -61,6 +81,13 @@ export function SpotForm({
     () => initial?.plannedDeparture ?? spotScheduleDisplay(initial ?? {})?.end ?? "",
   );
   const [note, setNote] = useState(initial?.note ?? "");
+  const [isAccommodation, setIsAccommodation] = useState(
+    initial?.isAccommodation ?? looksLikeAccommodation(initial?.category ?? initialPlace?.category),
+  );
+  // Once the person has touched the toggle themselves, a later place pick
+  // stops overwriting their choice - the keyword guess only gets to speak
+  // once, before they've said anything of their own.
+  const [accommodationTouched, setAccommodationTouched] = useState(false);
   const [picked, setPicked] = useState<SelectedLocation | null>(
     initial?.placeId
       ? {
@@ -91,6 +118,7 @@ export function SpotForm({
   function handleSelect(place: PlaceSelection) {
     setPicked({ kind: "place", ...place });
     setName(place.name);
+    if (!accommodationTouched) setIsAccommodation(looksLikeAccommodation(place.category));
   }
 
   // Advisory only, never a submit gate: reordering an itinerary before its
@@ -137,6 +165,7 @@ export function SpotForm({
       lat: hasCoordinates ? coordinates.lat : undefined,
       lng: hasCoordinates ? coordinates.lng : undefined,
       category: matchedPlace ? picked.category : undefined,
+      isAccommodation,
     });
   }
 
@@ -159,6 +188,20 @@ export function SpotForm({
         </div>
       )}
       <Input className="min-h-11" type="text" placeholder="현지어 이름 (선택)" value={nameLocal} onChange={(e) => setNameLocal(e.target.value)} />
+      <label className="spot-accommodation-toggle">
+        <span className="spot-accommodation-copy">
+          <span className="tt">🏨 이 장소는 숙소예요</span>
+          <span className="td">타임라인·지도에서 숙소로 표시되고, 하루의 첫/마지막 순서일 때 자동으로 출발·도착 지점이 돼요</span>
+        </span>
+        <Switch
+          checked={isAccommodation}
+          onCheckedChange={(checked) => {
+            setIsAccommodation(checked === true);
+            setAccommodationTouched(true);
+          }}
+          aria-label="이 장소를 숙소로 표시"
+        />
+      </label>
       <fieldset className="spot-schedule-editor">
         <legend>일정 시각</legend>
         <RadioGroup
