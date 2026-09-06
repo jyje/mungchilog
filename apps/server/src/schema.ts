@@ -86,6 +86,14 @@ export const SpotSchema = z.object({
   // "ask for the window seat", a phrase to show staff) - rendered/edited
   // as markdown client-side, stored as plain text server-side either way.
   note: z.string().optional(),
+  // User-declared, independent of `category` (Google Places' own category
+  // string, e.g. "lodging"): a place can be a legitimate stay without
+  // Places ever saying so (an Airbnb, a ryokan with no listing), so this
+  // is never inferred, only toggled. When it lands first/last in the day's
+  // spot order, clients treat it as that day's default departure/return
+  // point; anywhere else it's just a stay visited mid-day (check-in, bag
+  // drop) with no effect on ordering or leg calculation.
+  isAccommodation: z.boolean().default(false),
   items: z.array(ItemSchema).default([]),
 }).superRefine((spot, ctx) => {
   if ((spot.lat == null) !== (spot.lng == null)) {

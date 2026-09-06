@@ -62,6 +62,11 @@ export const SpotSchema = z.object({
   dwellMinutes: z.number().int().nonnegative().optional(),
   bufferMinutes: z.number().int().nonnegative().default(10),
   note: z.string().optional(),
+  // User-declared, independent of `category` (Google Places' own category
+  // string): never inferred, only toggled. First/last in the day's spot
+  // order makes it that day's default departure/return point; anywhere
+  // else it's just a stay visited mid-day (check-in, bag drop).
+  isAccommodation: z.boolean().default(false),
   items: z.array(ItemSchema).default([]),
 }).superRefine((spot, ctx) => {
   if ((spot.lat == null) !== (spot.lng == null)) {

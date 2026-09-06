@@ -8,7 +8,13 @@ import { NativeSelect, NativeSelectOption } from "./ui/native-select";
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 function allSpots(trip: Trip): Array<{ date: string; spot: Spot }> {
-  return trip.days.flatMap((day) => day.spots.map((spot) => ({ date: day.date, spot }))).sort((a, b) => a.date.localeCompare(b.date) || a.spot.order - b.spot.order);
+  // Accommodations float to the top - they're usually the most
+  // recognizable, "this is our trip" photo, so surfacing them saves a
+  // scroll through every date to find one. Selection itself stays fully
+  // manual either way.
+  return trip.days
+    .flatMap((day) => day.spots.map((spot) => ({ date: day.date, spot })))
+    .sort((a, b) => Number(b.spot.isAccommodation) - Number(a.spot.isAccommodation) || a.date.localeCompare(b.date) || a.spot.order - b.spot.order);
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -75,7 +81,7 @@ export function TripCoverEditor({
           <NativeSelectOption value="">선택하지 않음</NativeSelectOption>
           {spots.map(({ date, spot }) => (
             <NativeSelectOption key={spot.id} value={spot.id}>
-              {date} - {spot.name}
+              {spot.isAccommodation ? "🏨 " : ""}{date} - {spot.name}
             </NativeSelectOption>
           ))}
         </NativeSelect>
