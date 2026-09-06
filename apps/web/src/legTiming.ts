@@ -48,6 +48,11 @@ export function resolveLegAnchor(from: Spot, timing: LegTiming, dayDate: string,
   isArrival: boolean;
 } {
   if (timing.kind === "AUTO") {
+    // An explicit departure time is itself the anchor - no arrival-plus-dwell
+    // math needed, and none possible when there's no known arrival at all.
+    if (from.plannedDeparture) {
+      return { when: zonedIso(dayDate, from.plannedDeparture, timezone), isArrival: false };
+    }
     const base = zonedIso(dayDate, from.plannedArrival, timezone);
     const dwellMs = (from.dwellMinutes ?? 0) * 60_000;
     return { when: new Date(Date.parse(base) + dwellMs).toISOString(), isArrival: false };

@@ -91,9 +91,9 @@ describe("spot card actions", () => {
     expect(screen.getByRole("status")).toHaveTextContent("앞 일정의 예상 종료 19:30와 겹칩니다.");
   });
 
-  it("labels unscheduled stops instead of hiding their state", () => {
+  it("labels unscheduled stops neutrally instead of nudging for a required input", () => {
     renderCard();
-    expect(screen.getByRole("button", { name: "남산 시작 시각 입력" })).toHaveTextContent(/시간 입력\s*필요/);
+    expect(screen.getByRole("button", { name: "남산 시각 입력" })).toHaveTextContent("시간 미정");
   });
 });
 
