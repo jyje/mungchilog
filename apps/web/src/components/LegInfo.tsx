@@ -1,8 +1,15 @@
 import { useState } from "react";
-import { CarFront, Footprints, Pencil, Route, TrainFront } from "lucide-react";
+import { CarFront, Footprints, Pencil, Plane, Route, TrainFront } from "lucide-react";
 import { useLeg } from "../hooks/useLeg";
-import { formatZonedClock, legEndpoints, resolveLegAnchor } from "../legTiming";
-import { directDistanceMeters, isLegacyLegMode, LEG_MODE_OPTIONS, selectedRouteIndex } from "../legPreferences";
+import { formatZonedClock, legEndpoints, resolveLegAnchor, zonedIso } from "../legTiming";
+import {
+  DEFAULT_FLIGHT_DETAILS,
+  DEFAULT_FLIGHT_TIMING,
+  directDistanceMeters,
+  isLegacyLegMode,
+  LEG_MODE_OPTIONS,
+  selectedRouteIndex,
+} from "../legPreferences";
 import { routeBadges, type RouteBadge } from "../routeChoices";
 import type { LegPreference, LegTiming, PersistedLegMode, Spot } from "../types";
 import { Button } from "./ui/button";
@@ -20,7 +27,7 @@ const ROUTE_BADGE_LABELS: Record<RouteBadge, string> = {
   cheapest: "최저 요금",
 };
 
-type LegPatch = Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware">> & {
+type LegPatch = Partial<Pick<LegPreference, "routeIndex" | "routeKey" | "timing" | "trafficAware" | "flight">> & {
   mode?: PersistedLegMode;
 };
 
@@ -34,6 +41,7 @@ function modeSummaryIcon(mode: PersistedLegMode) {
   if (mode === "WALK") return <Footprints aria-hidden="true" />;
   if (mode === "DRIVE") return <CarFront aria-hidden="true" />;
   if (mode === "TRANSIT") return <TrainFront aria-hidden="true" />;
+  if (mode === "FLIGHT") return <Plane aria-hidden="true" />;
   return <Route aria-hidden="true" />;
 }
 
@@ -156,6 +164,106 @@ function TransitTimingEditor({
   );
 }
 
+// A flight's two ends are entered directly - there is no provider to derive
+// a duration from a single anchor the way TransitTimingEditor's AUTO/DEPART_AT
+// /ARRIVE_BY does. Kept in its own popover for the same reason: edits apply
+// on submit, so a half-typed time never becomes a saved one.
+function FlightDetailsEditor({
+  timing,
+  flight,
+  dayDate,
+  onApply,
+}: {
+  timing: LegTiming;
+  flight: LegPreference["flight"];
+  dayDate: string;
+  onApply: (patch: { timing: LegTiming; flight: NonNullable<LegPreference["flight"]> }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [departureDate, setDepartureDate] = useState(timing.date ?? dayDate);
+  const [departureTime, setDepartureTime] = useState(timing.time ?? DEFAULT_FLIGHT_TIMING.time!);
+  const [arrivalDate, setArrivalDate] = useState(flight?.arrivalDate ?? timing.date ?? dayDate);
+  const [arrivalTime, setArrivalTime] = useState(flight?.arrivalTime ?? DEFAULT_FLIGHT_DETAILS.arrivalTime);
+  const [flightNumber, setFlightNumber] = useState(flight?.flightNumber ?? "");
+
+  function openChange(next: boolean) {
+    if (next) {
+      // Reopening always starts from what is actually saved, same as
+      // TransitTimingEditor - an abandoned edit never reappears as if it
+      // had been applied.
+      setDepartureDate(timing.date ?? dayDate);
+      setDepartureTime(timing.time ?? DEFAULT_FLIGHT_TIMING.time!);
+      setArrivalDate(flight?.arrivalDate ?? timing.date ?? dayDate);
+      setArrivalTime(flight?.arrivalTime ?? DEFAULT_FLIGHT_DETAILS.arrivalTime);
+      setFlightNumber(flight?.flightNumber ?? "");
+    }
+    setOpen(next);
+  }
+
+  function apply() {
+    if (!departureTime || !arrivalTime) return;
+    onApply({
+      timing: { kind: "DEPART_AT", time: departureTime, ...(departureDate !== dayDate ? { date: departureDate } : {}) },
+      flight: {
+        arrivalTime,
+        ...(arrivalDate !== departureDate ? { arrivalDate } : {}),
+        ...(flightNumber.trim() ? { flightNumber: flightNumber.trim() } : {}),
+      },
+    });
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={openChange}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="leg-flight-trigger">
+          ✈️ 항공편 시각
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="leg-flight-editor">
+        <label className="leg-flight-number">
+          편명 (선택)
+          <Input
+            type="text"
+            value={flightNumber}
+            placeholder="예: OZ102"
+            maxLength={20}
+            onChange={(event) => setFlightNumber(event.target.value)}
+          />
+        </label>
+        <div className="leg-timing-fields">
+          <label>
+            출발일
+            <Input type="date" value={departureDate} onChange={(event) => setDepartureDate(event.target.value)} />
+          </label>
+          <label>
+            출발 시각
+            <Input type="time" value={departureTime} onChange={(event) => setDepartureTime(event.target.value)} />
+          </label>
+        </div>
+        <div className="leg-timing-fields">
+          <label>
+            도착일
+            <Input type="date" value={arrivalDate} onChange={(event) => setArrivalDate(event.target.value)} />
+          </label>
+          <label>
+            도착 시각
+            <Input type="time" value={arrivalTime} onChange={(event) => setArrivalTime(event.target.value)} />
+          </label>
+        </div>
+        <div className="leg-timing-actions">
+          <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+            취소
+          </Button>
+          <Button type="button" size="sm" onClick={apply} disabled={!departureTime || !arrivalTime}>
+            적용
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export function LegInfo({
   from,
   to,
@@ -183,12 +291,13 @@ export function LegInfo({
   onChange: (patch: LegPatch) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const { mode, timing, trafficAware } = preference;
+  const { mode, timing, trafficAware, flight } = preference;
   const { data: leg, isError, isLoading } = useLeg(from, to, mode, trafficAware, date, timezone, timing);
   const hasMapLeg = (from.lat != null && from.lng != null && to.lat != null && to.lng != null) || (!!from.placeId && !!to.placeId);
   if (!hasMapLeg) return null;
 
   const legacyMode = isLegacyLegMode(mode);
+  const isFlight = mode === "FLIGHT";
   const routeIndex = selectedRouteIndex(leg?.routes, preference);
   const selectedRoute = leg?.routes[routeIndex];
   const anchor = resolveLegAnchor(from, timing, date, timezone);
@@ -200,6 +309,18 @@ export function LegInfo({
   if (parts.length === 0 && legacyMode) {
     const straight = directDistanceMeters(from, to);
     if (straight != null) parts.push(`직선 ${(straight / 1000).toFixed(1)}km`);
+  }
+  // No provider for a flight - both ends were entered directly, so the
+  // summary reads them straight off preference.flight instead of a fetched
+  // route's duration/distance/fare.
+  if (isFlight && flight) {
+    if (flight.flightNumber) parts.push(flight.flightNumber);
+    const departureClock = formatZonedClock(anchor.when, timezone);
+    const arrivalIso = zonedIso(flight.arrivalDate ?? timing.date ?? date, flight.arrivalTime, timezone);
+    const arrivalClock = formatZonedClock(arrivalIso, timezone);
+    if (departureClock && arrivalClock) parts.push(`${departureClock} → ${arrivalClock}`);
+    const durationS = (Date.parse(arrivalIso) - Date.parse(anchor.when)) / 1000;
+    if (durationS > 0) parts.push(formatDuration(durationS));
   }
   const modeLabel = LEG_MODE_OPTIONS.find((option) => option.mode === mode)?.label ?? "직선(사용 중지됨)";
   const transitLegs = transitSummary(selectedRoute?.transit);
@@ -277,7 +398,22 @@ export function LegInfo({
             // Radix reports "" when the active item is pressed again. Ignore it:
             // a leg always travels by some means, so there is no "no mode" state
             // to fall back to.
-            onValueChange={(next) => { if (next) onChange({ mode: next as PersistedLegMode }); }}
+            onValueChange={(next) => {
+              if (!next) return;
+              const nextMode = next as PersistedLegMode;
+              // A flight has no provider to leave its timing at AUTO, so
+              // switching to it needs an immediately valid starting point
+              // rather than landing on a combination the schema rejects.
+              onChange(
+                nextMode === "FLIGHT"
+                  ? {
+                      mode: nextMode,
+                      timing: timing.kind === "DEPART_AT" && timing.time ? timing : DEFAULT_FLIGHT_TIMING,
+                      flight: flight ?? DEFAULT_FLIGHT_DETAILS,
+                    }
+                  : { mode: nextMode },
+              );
+            }}
             className="leg-mode-toggle"
             aria-label={`${from.name}에서 ${to.name}까지 이동 수단`}
           >
@@ -296,6 +432,15 @@ export function LegInfo({
 
           {mode === "TRANSIT" && (
             <TransitTimingEditor timing={timing} dayDate={date} onApply={(next) => onChange({ timing: next })} />
+          )}
+
+          {isFlight && (
+            <FlightDetailsEditor
+              timing={timing}
+              flight={flight}
+              dayDate={date}
+              onApply={(patch) => onChange(patch)}
+            />
           )}
 
           {mode === "DRIVE" && (

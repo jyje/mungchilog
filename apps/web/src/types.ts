@@ -84,16 +84,37 @@ export const SpotSchema = z.object({
 // stays readable for existing itineraries but is never offered as a new
 // choice. The picker shows it as an unavailable fallback and requires a real
 // mode once the user edits that leg.
-export const SELECTABLE_LEG_MODES = ["WALK", "TRANSIT", "DRIVE"] as const;
-export const PersistedLegModeSchema = z.enum(["DIRECT", "TRANSIT", "DRIVE", "WALK"]);
+export const SELECTABLE_LEG_MODES = ["WALK", "TRANSIT", "DRIVE", "FLIGHT"] as const;
+// The subset that actually fetches a route from a provider (Google
+// Routes/NAVITIME). Neither provider knows anything that crosses open
+// water - FLIGHT has no provider at all and is entered by hand instead, so
+// it must never trigger a route fetch the way the others do.
+export const ROUTED_LEG_MODES = ["WALK", "TRANSIT", "DRIVE"] as const;
+export const PersistedLegModeSchema = z.enum(["DIRECT", "TRANSIT", "DRIVE", "WALK", "FLIGHT"]);
+const WALL_CLOCK_TIME_LEG = /^([01]\d|2[0-3]):[0-5]\d$/;
+const CALENDAR_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 // When the leg should happen, in the trip's own local time. AUTO is derived
 // from the preceding stop's planned arrival plus its dwell time, so it stores
 // no clock of its own.
 export const LegTimingSchema = z.object({
   kind: z.enum(["AUTO", "DEPART_AT", "ARRIVE_BY"]).default("AUTO"),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  date: z.string().regex(CALENDAR_DATE).optional(),
+  time: z.string().regex(WALL_CLOCK_TIME_LEG).optional(),
+});
+
+// A flight has no provider to compute its duration from a departure time,
+// so both ends are entered directly rather than one anchor plus a
+// computed offset (contrast LegTimingSchema/resolveLegAnchor). The
+// departure half of this lives in the leg's own `timing` (kind DEPART_AT) -
+// this only adds what a provider route would otherwise have supplied: when
+// it lands, and optionally which flight.
+export const FlightDetailsSchema = z.object({
+  flightNumber: z.string().trim().max(20).optional(),
+  // Defaults to the departure date when omitted - most flights land the
+  // same day; only a red-eye needs to say otherwise.
+  arrivalDate: z.string().regex(CALENDAR_DATE).optional(),
+  arrivalTime: z.string().regex(WALL_CLOCK_TIME_LEG),
 });
 
 export const LegPreferenceSchema = z
@@ -110,6 +131,7 @@ export const LegPreferenceSchema = z
     routeKey: z.string().min(1).optional(),
     timing: LegTimingSchema.default({ kind: "AUTO" }),
     trafficAware: z.boolean().default(false),
+    flight: FlightDetailsSchema.optional(),
   })
   .superRefine((preference, ctx) => {
     const { kind, date, time } = preference.timing;
@@ -121,6 +143,16 @@ export const LegPreferenceSchema = z
     }
     if (kind !== "AUTO" && time == null) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing", "time"], message: "출발 또는 도착 시각을 입력해주세요." });
+    }
+    if (preference.mode === "FLIGHT") {
+      if (kind !== "DEPART_AT" || time == null) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["timing"], message: "항공편은 출발 시각을 입력해야 합니다." });
+      }
+      if (!preference.flight) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["flight"], message: "항공편은 도착 시각을 입력해야 합니다." });
+      }
+    } else if (preference.flight) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["flight"], message: "항공편이 아닌 동선에는 항공편 정보를 저장할 수 없습니다." });
     }
   });
 
@@ -223,6 +255,7 @@ export type ItineraryGroup = z.infer<typeof ItineraryGroupSchema>;
 export type PersistedLegMode = z.infer<typeof PersistedLegModeSchema>;
 export type SelectableLegMode = (typeof SELECTABLE_LEG_MODES)[number];
 export type LegTiming = z.infer<typeof LegTimingSchema>;
+export type FlightDetails = z.infer<typeof FlightDetailsSchema>;
 export type LegPreference = z.infer<typeof LegPreferenceSchema>;
 export type Day = z.infer<typeof DaySchema>;
 export type TripData = z.infer<typeof TripDataSchema>;

@@ -85,10 +85,10 @@ beforeEach(() => {
 });
 
 describe("choosing how to travel a leg", () => {
-  it("offers only walking, transit, and driving", () => {
+  it("offers walking, transit, driving, and a manual flight", () => {
     renderLeg();
     const group = screen.getByRole("radiogroup", { name: /이동 수단/ });
-    expect(within(group).getAllByRole("radio").map((item) => item.textContent)).toEqual(["도보", "대중교통", "운전"]);
+    expect(within(group).getAllByRole("radio").map((item) => item.textContent)).toEqual(["도보", "대중교통", "운전", "항공편"]);
     expect(within(group).queryByText("직선")).toBeNull();
   });
 
@@ -105,6 +105,61 @@ describe("choosing how to travel a leg", () => {
     expect(useLegMock).toHaveBeenCalled();
     expect(useLegMock.mock.calls[0][1]).toBe(to);
     expect(screen.getByRole("radiogroup", { name: /이동 수단/ })).toBeInTheDocument();
+  });
+});
+
+describe("flying a leg by hand", () => {
+  it("gives the flight an immediately valid departure and arrival when first selected", () => {
+    const { onChange } = renderLeg();
+    fireEvent.click(screen.getByRole("radio", { name: /항공편/ }));
+    expect(onChange).toHaveBeenCalledWith({
+      mode: "FLIGHT",
+      timing: { kind: "DEPART_AT", time: "09:00" },
+      flight: { arrivalTime: "11:00" },
+    });
+  });
+
+  it("summarises the flight number and both clock times without fetching a route", () => {
+    renderLeg({
+      preference: preferenceOf({
+        mode: "FLIGHT",
+        timing: { kind: "DEPART_AT", time: "10:00" },
+        flight: { flightNumber: "OZ102", arrivalTime: "11:35" },
+      }),
+    }, { edit: false });
+    const summary = screen.getByRole("button", { name: /OZ102/ });
+    expect(summary).toHaveTextContent("OZ102");
+    expect(summary).toHaveTextContent("10:00 → 11:35");
+    expect(summary).toHaveTextContent("1시간 35분");
+    // No provider route ever backs a flight, so nothing here should read as
+    // a loading or failed fetch - unlike useLeg.test.ts's own coverage of
+    // isRoutedLegMode (the actual gate), this only checks the UI doesn't
+    // misrepresent the (here mocked) "no data" state as an error.
+    expect(screen.queryByText(/불러오는 중|불러오지 못했습니다/)).toBeNull();
+  });
+
+  it("saves an edited flight number and both times", () => {
+    const { onChange } = renderLeg({
+      preference: preferenceOf({
+        mode: "FLIGHT",
+        timing: { kind: "DEPART_AT", time: "10:00" },
+        flight: { flightNumber: "OZ102", arrivalTime: "11:35" },
+      }),
+    });
+    fireEvent.click(screen.getByRole("button", { name: /항공편 시각/ }));
+    fireEvent.change(screen.getByLabelText("편명 (선택)"), { target: { value: "OZ103" } });
+    fireEvent.change(screen.getByLabelText("출발 시각"), { target: { value: "12:00" } });
+    fireEvent.change(screen.getByLabelText("도착 시각"), { target: { value: "13:35" } });
+    fireEvent.click(screen.getByRole("button", { name: "적용" }));
+    expect(onChange).toHaveBeenCalledWith({
+      timing: { kind: "DEPART_AT", time: "12:00" },
+      flight: { flightNumber: "OZ103", arrivalTime: "13:35" },
+    });
+  });
+
+  it("does not offer a route-alternatives picker for a flight", () => {
+    renderLeg({ preference: preferenceOf({ mode: "FLIGHT", timing: { kind: "DEPART_AT", time: "10:00" }, flight: { arrivalTime: "11:35" } }) });
+    expect(screen.queryByRole("group", { name: "경로 선택" })).toBeNull();
   });
 });
 
