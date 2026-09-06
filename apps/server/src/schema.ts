@@ -76,7 +76,15 @@ export const SpotSchema = z.object({
   lng: z.number().min(-180).max(180).optional(),
   category: z.string().optional(),
   plannedArrival: z.string().regex(WALL_CLOCK_TIME, "planned arrival must use HH:mm in 24-hour time").optional(),
+  // Independent of plannedArrival on purpose: a spot may record only a known
+  // end time, only a known start, both, or neither. See apps/web/src/schedule.ts
+  // (this schema is duplicated there) for how a missing one is derived.
+  plannedDeparture: z.string().regex(WALL_CLOCK_TIME, "planned departure must use HH:mm in 24-hour time").optional(),
   timeKind: SpotTimeKindSchema.optional(),
+  // Deprecated in favor of plannedDeparture (v0.2.0). Still accepted on
+  // read/write for spots a migration hasn't rewritten yet - see
+  // apps/server/scripts/migrate-spot-time-fields.ts and
+  // docs/migrations/2026-spot-planned-departure.md. Target removal: v0.2.1.
   dwellMinutes: z.number().int().nonnegative().optional(),
   // Transfer/walking buffer (minutes). Bump this for major transit
   // hubs, wherever the trip is - Google routinely underestimates
@@ -90,9 +98,6 @@ export const SpotSchema = z.object({
 }).superRefine((spot, ctx) => {
   if ((spot.lat == null) !== (spot.lng == null)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: [spot.lat == null ? "lat" : "lng"], message: "latitude and longitude must be stored together" });
-  }
-  if (spot.timeKind && !spot.plannedArrival) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["plannedArrival"], message: "a time kind requires a planned arrival" });
   }
 });
 
@@ -253,3 +258,4 @@ export const TripImportSchema = z.object({ id: z.string().optional() }).and(Trip
 
 export type TripData = z.infer<typeof TripDataSchema>;
 export type TripImport = z.infer<typeof TripImportSchema>;
+export type Spot = z.infer<typeof SpotSchema>;

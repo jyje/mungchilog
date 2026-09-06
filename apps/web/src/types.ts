@@ -58,7 +58,16 @@ export const SpotSchema = z.object({
   lng: z.number().min(-180).max(180).optional(),
   category: z.string().optional(),
   plannedArrival: z.string().regex(WALL_CLOCK_TIME, "시간은 24시간제 HH:mm 형식이어야 합니다.").optional(),
+  // Independent of plannedArrival on purpose: a spot may have only a known
+  // end time (the departure is fixed, the start isn't), only a known start,
+  // both, or neither - none of those states are invalid. See schedule.ts
+  // for how a missing one is derived or left blank at display time.
+  plannedDeparture: z.string().regex(WALL_CLOCK_TIME, "시간은 24시간제 HH:mm 형식이어야 합니다.").optional(),
   timeKind: SpotTimeKindSchema.optional(),
+  // Deprecated in favor of plannedDeparture (v0.2.0). Still accepted on
+  // read/write for spots a migration hasn't rewritten yet - see
+  // apps/server/scripts/migrate-spot-time-fields.ts and
+  // docs/migrations/2026-spot-planned-departure.md. Target removal: v0.2.1.
   dwellMinutes: z.number().int().nonnegative().optional(),
   bufferMinutes: z.number().int().nonnegative().default(10),
   note: z.string().optional(),
@@ -66,9 +75,6 @@ export const SpotSchema = z.object({
 }).superRefine((spot, ctx) => {
   if ((spot.lat == null) !== (spot.lng == null)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: [spot.lat == null ? "lat" : "lng"], message: "위도와 경도는 함께 저장해야 합니다." });
-  }
-  if (spot.timeKind && !spot.plannedArrival) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["plannedArrival"], message: "시간 유형을 선택하면 시각도 입력해야 합니다." });
   }
 });
 

@@ -48,6 +48,46 @@ describe("itinerary schedule semantics", () => {
     expect(routeDepartureIso("2026-10-01", {}, "Asia/Seoul")).toBe("2026-10-01T03:00:00.000Z");
   });
 
+  it("uses an explicit plannedDeparture directly as the departure anchor when there is no known arrival", () => {
+    expect(routeDepartureIso("2026-10-01", { plannedDeparture: "18:00" }, "Asia/Seoul")).toBe("2026-10-01T09:00:00.000Z");
+  });
+
+  it("treats an explicit plannedDeparture as authoritative over a legacy dwellMinutes duration", () => {
+    expect(spotScheduleDisplay({ plannedArrival: "23:30", plannedDeparture: "01:00", timeKind: "RESERVATION", dwellMinutes: 999 })).toEqual({
+      kind: "RESERVATION",
+      label: "예약",
+      start: "23:30",
+      end: "01:00",
+      durationMinutes: 90,
+      crossesMidnight: true,
+    });
+  });
+
+  it("shows an end time with no known start - the departure is fixed, the start isn't", () => {
+    expect(spotScheduleDisplay({ plannedDeparture: "18:00" })).toEqual({
+      kind: "APPROXIMATE",
+      label: "대략",
+      start: null,
+      end: "18:00",
+      durationMinutes: null,
+      crossesMidnight: false,
+    });
+    expect(effectiveTimeKind({ plannedDeparture: "18:00" })).toBe("APPROXIMATE");
+  });
+
+  it("has nothing to show for a spot with neither a start nor an end", () => {
+    expect(spotScheduleDisplay({})).toBeNull();
+  });
+
+  it("flags a conflict for a departure-only stop against the previous stop's end, without blocking anything", () => {
+    expect(scheduleWarnings([
+      { id: "museum", plannedArrival: "10:00", dwellMinutes: 120 },
+      { id: "lunch", plannedDeparture: "11:00" },
+    ])).toEqual([
+      { spotId: "lunch", message: "앞 일정의 예상 종료 12:00와 겹칩니다." },
+    ]);
+  });
+
   it("detects a nonexistent daylight-saving wall time without moving it backwards", () => {
     expect(resolveTripWallClock("2026-03-08", "02:30", "America/New_York")).toEqual({
       iso: "2026-03-08T07:30:00.000Z",

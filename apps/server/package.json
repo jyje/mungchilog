@@ -1,7 +1,7 @@
 {
   "name": "mungchilog-server",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development NODE_OPTIONS=--experimental-sqlite tsx watch --env-file-if-exists=../../.env src/index.ts",
@@ -9,7 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "NODE_OPTIONS=--experimental-sqlite node dist/index.js",
     "test": "NODE_OPTIONS=--experimental-sqlite tsx --test src/*.test.ts src/route-providers/*.test.ts",
-    "test:e2e": "NODE_OPTIONS=--experimental-sqlite tsx --env-file-if-exists=../../.env --test src/e2e/*.e2e.test.ts"
+    "test:e2e": "NODE_OPTIONS=--experimental-sqlite tsx --env-file-if-exists=../../.env --test src/e2e/*.e2e.test.ts",
+    "migrate:spot-time-fields": "scripts/migrate-spot-time-fields.sh"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",

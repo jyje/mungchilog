@@ -37,6 +37,21 @@ describe("resolving when a leg happens", () => {
     expect(anchor.when).toBe("2026-09-07T00:00:00.000Z");
   });
 
+  it("uses an explicit plannedDeparture directly, with no arrival-plus-dwell math", () => {
+    const anchor = resolveLegAnchor(
+      spot({ plannedArrival: "09:00", dwellMinutes: 999, plannedDeparture: "09:45" }),
+      { kind: "AUTO" },
+      "2026-09-07",
+      "Asia/Tokyo",
+    );
+    expect(anchor).toEqual({ when: "2026-09-07T00:45:00.000Z", isArrival: false });
+  });
+
+  it("leaves at the declared plannedDeparture even with no known arrival", () => {
+    const anchor = resolveLegAnchor(spot({ plannedDeparture: "18:00" }), { kind: "AUTO" }, "2026-09-07", "Asia/Tokyo");
+    expect(anchor).toEqual({ when: "2026-09-07T09:00:00.000Z", isArrival: false });
+  });
+
   it("uses the stored clock for a chosen departure", () => {
     const anchor = resolveLegAnchor(
       spot({ plannedArrival: "09:00", dwellMinutes: 45 }),

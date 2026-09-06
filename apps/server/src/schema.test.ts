@@ -201,8 +201,24 @@ test("spot schedules preserve legacy times and validate explicit semantics", () 
 
   assert.equal(withSpot({ plannedArrival: "19:00", timeKind: "RESERVATION", dwellMinutes: 90 }).success, true);
   assert.equal(withSpot({ plannedArrival: "9:00", timeKind: "APPROXIMATE" }).success, false);
-  assert.equal(withSpot({ timeKind: "RESERVATION" }).success, false);
   assert.equal(withSpot({ plannedArrival: "24:00" }).success, false);
+});
+
+test("a spot's start and end times are each independently optional", () => {
+  const withSpot = (spot: Record<string, unknown>) => TripImportSchema.safeParse({
+    ...tripWithCover(undefined),
+    days: [{ date: "2026-09-07", spots: [{ id: "point", order: 0, name: "예약 장소", items: [], ...spot }] }],
+  });
+
+  // A time kind with no time of its own is no longer an error - reordering
+  // an itinerary happens before its times are filled in, so this state
+  // must be representable, not rejected.
+  assert.equal(withSpot({ timeKind: "RESERVATION" }).success, true);
+  assert.equal(withSpot({}).success, true);
+  // The departure is fixed, the start isn't.
+  assert.equal(withSpot({ plannedDeparture: "18:00" }).success, true);
+  assert.equal(withSpot({ plannedArrival: "19:00", plannedDeparture: "20:30" }).success, true);
+  assert.equal(withSpot({ plannedDeparture: "9:00" }).success, false);
 });
 
 test("groups are optional for existing trips and form non-overlapping itinerary ranges", () => {
