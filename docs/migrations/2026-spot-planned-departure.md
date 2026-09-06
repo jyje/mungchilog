@@ -19,16 +19,16 @@ v0.2.0부터 `plannedDeparture`(절대 시각)를 독립 필드로 추가해서 
 
 이 스크립트/Job은 **저장된 데이터를 실제로 정리**하기 위한 것이다 — 두 가지
 표현이 영구히 공존하도록 방치하지 않고, `dwellMinutes`를 스키마에서 완전히
-제거할 v0.3.0 전에 기존 데이터를 새 형태로 옮겨두기 위함이다.
+제거할 v0.2.1 전에 기존 데이터를 새 형태로 옮겨두기 위함이다.
 
 ## 목표 semver
 
 | 버전 | 상태 | 의미 |
 |---|---|---|
 | **v0.2.0** (이번 릴리스) | `charts/mungchilog` Chart.yaml/appVersion, `apps/server` package.json에 반영됨 | `plannedDeparture` 도입, `dwellMinutes`는 읽기/쓰기 모두 계속 허용(레거시 폴백). 마이그레이션 스크립트/Job 제공 |
-| **v0.3.0** (목표, 아직 미착수) | dev/stg/prd 전 환경에서 마이그레이션이 완료됐다고 확인된 후에만 진행 | `apps/web/src/types.ts`·`apps/server/src/schema.ts`의 `SpotSchema`에서 `dwellMinutes` 필드 완전 삭제. 그 전에 삭제하면 아직 마이그레이션되지 않은 트립의 종료 시각 데이터가 저장할 때마다 조용히 사라짐(Zod가 스키마에 없는 키를 파싱 시 그냥 버리기 때문) |
+| **v0.2.1** (목표, 아직 미착수) | dev/stg/prd 전 환경에서 마이그레이션이 완료됐다고 확인된 후에만 진행 | `apps/web/src/types.ts`·`apps/server/src/schema.ts`의 `SpotSchema`에서 `dwellMinutes` 필드 완전 삭제. 새 기능이나 동작 변경이 아니라 정리 작업이라 패치 버전으로 충분 - 단, 그 전에 삭제하면 아직 마이그레이션되지 않은 트립의 종료 시각 데이터가 저장할 때마다 조용히 사라짐(Zod가 스키마에 없는 키를 파싱 시 그냥 버리기 때문)이 전제 조건은 그대로 유효 |
 
-v0.3.0 작업을 시작하기 전에 이 문서의 "환경별 실행 절차"를 dev → stg → prd
+v0.2.1 작업을 시작하기 전에 이 문서의 "환경별 실행 절차"를 dev → stg → prd
 순서로 전부 거쳤는지 반드시 확인할 것.
 
 ## 무엇이 바뀌는가

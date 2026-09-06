@@ -9,7 +9,7 @@
 // plannedDeparture is absent. This script exists to actually clean up
 // stored data instead of leaving two overlapping representations around
 // forever, ahead of removing dwellMinutes from the schema entirely in
-// v0.3.0.
+// v0.2.1.
 //
 // Idempotent: a trip with nothing left to upgrade is left completely
 // untouched (byte-identical `data`, `updated_at` never touched), so running

@@ -8,7 +8,7 @@ import type { Spot, TripData } from "./schema.js";
 // plannedDeparture is absent), so this migration is not required for
 // correctness - it exists to actually clean up the stored data instead of
 // leaving two overlapping representations around forever. Target removal
-// of dwellMinutes from the schema entirely: v0.3.0. See
+// of dwellMinutes from the schema entirely: v0.2.1. See
 // docs/migrations/2026-spot-planned-departure.md for the full plan and
 // apps/server/scripts/migrate-spot-time-fields.ts for the runnable script.
 const MINUTES_PER_DAY = 24 * 60;

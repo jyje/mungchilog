@@ -84,7 +84,7 @@ export const SpotSchema = z.object({
   // Deprecated in favor of plannedDeparture (v0.2.0). Still accepted on
   // read/write for spots a migration hasn't rewritten yet - see
   // apps/server/scripts/migrate-spot-time-fields.ts and
-  // docs/migrations/2026-spot-planned-departure.md. Target removal: v0.3.0.
+  // docs/migrations/2026-spot-planned-departure.md. Target removal: v0.2.1.
   dwellMinutes: z.number().int().nonnegative().optional(),
   // Transfer/walking buffer (minutes). Bump this for major transit
   // hubs, wherever the trip is - Google routinely underestimates
