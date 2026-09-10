@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Bell, LoaderCircle, MoreVertical, Plus, Trash2 } from "lucide-react";
+import { Bell, Image, LoaderCircle, MoreVertical, Plus, SquarePen, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -34,6 +34,8 @@ export function ProductThemeGallery() {
   const [mode, setMode] = useState("TRANSIT");
   const [checked, setChecked] = useState(true);
   const [sharing, setSharing] = useState(false);
+  const [galleryTripEditing, setGalleryTripEditing] = useState(false);
+  const [galleryDeleteOpen, setGalleryDeleteOpen] = useState(false);
 
   return (
     <div className="space-y-7" data-ui-theme-contract>
@@ -61,20 +63,31 @@ export function ProductThemeGallery() {
             <TooltipTrigger asChild><Button variant="outline" size="icon-lg" aria-label="알림"><Bell /></Button></TooltipTrigger>
             <TooltipContent>알림</TooltipContent>
           </Tooltip>
+          {/* 더보기 메뉴 템플릿 — see docs/UI_THEME.md "더보기 메뉴 템플릿". Trigger is
+              ghost or secondary icon-lg with a "{대상} 더보기" aria-label/title, items
+              are grouped under DropdownMenuLabel with an icon+label pair each, a
+              toggle is a DropdownMenuCheckboxItem, and the destructive action sits in
+              its own trailing group behind a separator and opens a confirm Dialog. */}
           <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="outline" size="icon-lg" aria-label="더보기"><MoreVertical /></Button></DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuLabel>여행 설정</DropdownMenuLabel>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-lg" aria-label="여행 더보기" title="여행 더보기"><MoreVertical /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>여행</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem checked={galleryTripEditing} onCheckedChange={(next) => setGalleryTripEditing(next === true)}>
+                <SquarePen aria-hidden="true" /> 여행 편집
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuItem>
+                <Image aria-hidden="true" /> 대표 화면 설정
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>대표 장소 설정</DropdownMenuItem>
-              <DropdownMenuItem>대표 사진 설정</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => setGalleryDeleteOpen(true)}>
+                <Trash2 aria-hidden="true" /> 여행 삭제
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Dialog>
-            <DialogTrigger asChild><Button variant="destructive">삭제 확인</Button></DialogTrigger>
+          <Dialog open={galleryDeleteOpen} onOpenChange={setGalleryDeleteOpen}>
             <DialogContent>
               <DialogHeader><DialogTitle>여행을 삭제할까요?</DialogTitle><DialogDescription>삭제한 여행과 일정은 복구할 수 없습니다.</DialogDescription></DialogHeader>
-              <DialogFooter><DialogClose asChild><Button variant="outline">취소</Button></DialogClose><Button variant="destructive">삭제</Button></DialogFooter>
+              <DialogFooter><DialogClose asChild><Button variant="outline">취소</Button></DialogClose><Button variant="destructive" onClick={() => setGalleryDeleteOpen(false)}>삭제</Button></DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
