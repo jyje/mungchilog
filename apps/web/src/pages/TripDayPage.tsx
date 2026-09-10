@@ -72,6 +72,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [customDate, setCustomDate] = useState("");
   const [newDayAccommodationName, setNewDayAccommodationName] = useState("");
   const [newDayAccommodationPlace, setNewDayAccommodationPlace] = useState<PlaceSelection | null>(null);
+  // Trip editing is a deliberate mode, not the default: browsing an itinerary
+  // on the road should not put date add, move and delete one mis-tap away.
+  const [editingTrip, setEditingTrip] = useState(false);
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [dateEditValue, setDateEditValue] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
@@ -225,6 +228,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   const tripTimezone = trip.timezone;
   const day = trip.days[dayIndex];
+  // Editing is opt-in, except on a trip that has no days yet: hiding "+ 날짜"
+  // there would leave the empty state pointing at a control that is not on
+  // screen, with no way forward but the overflow menu.
+  const showDateActions = editingTrip || trip.days.length === 0;
   const orderedSpots = [...(day?.spots ?? [])].sort((a, b) => a.order - b.order);
   const scheduleWarningBySpotId = new Map(scheduleWarnings(orderedSpots, day?.date, trip.timezone).map((warning) => [warning.spotId, warning.message]));
   // Same numbering as TripMap's map pins (sort by order, keep only spots with
@@ -304,6 +311,16 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     setDateError(null);
     setEditingDate(date);
     setDateEditValue(date);
+  }
+
+  function changeTripEditing(next: boolean) {
+    setEditingTrip(next);
+    // Leaving the mode must not strand an open date dialog behind a hidden
+    // trigger.
+    if (!next) {
+      cancelDayLongPress();
+      closeDatePopover();
+    }
   }
 
   function closeDatePopover() {
@@ -733,7 +750,15 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               sharedLocations={sharedLocations}
               onFocusLocation={selectSharedLocation}
             />
-            <TripActionsMenu trip={trip} onSave={saveNow} onExport={() => downloadTripExchange(trip)} saving={mutation.isPending} panelActions={panelActions} />
+            <TripActionsMenu
+              trip={trip}
+              onSave={saveNow}
+              onExport={() => downloadTripExchange(trip)}
+              saving={mutation.isPending}
+              panelActions={panelActions}
+              editingTrip={editingTrip}
+              onEditingTripChange={changeTripEditing}
+            />
           </>;
         }}
         title={trip.title}
@@ -750,45 +775,62 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             itinerary={<>
             <div className="day-tabs-wrap">
               <div className="day-tabs">
-                <PlannerChoiceGroup
-                  value={day?.date ?? ""}
-                  onValueChange={(date) => {
-                    const nextIndex = trip.days.findIndex((candidate) => candidate.date === date);
-                    if (nextIndex >= 0) selectDay(nextIndex);
-                  }}
-                  className="day-choice-group"
-                  aria-label="여행 날짜"
-                >
-                  {trip.days.map((d, i) => (
-                    <PlannerChoiceItem
-                      key={d.date}
-                      value={d.date}
-                      onContextMenu={(event) => {
-                        event.preventDefault();
-                        openDateEditor(d.date);
-                      }}
-                      onPointerDown={(event) => {
-                        if (event.pointerType !== "mouse" || event.button === 0) startDayLongPress(d.date);
-                      }}
-                      onPointerUp={cancelDayLongPress}
-                      onPointerCancel={cancelDayLongPress}
-                      onPointerLeave={cancelDayLongPress}
-                      aria-current={i === dayIndex ? "date" : undefined}
-                      aria-label={`${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리`}
-                    >
-                      {formatScheduleDate(d.date)}
-                    </PlannerChoiceItem>
-                  ))}
-                </PlannerChoiceGroup>
-                <DateAddSplitButton onAddDay={addDay} onOpenDateAdd={openDateAdd} />
-                {day && (
-                  <Button type="button" variant="ghost" size="icon-lg" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
-                    ⋮
-                  </Button>
+                <div className="day-tabs-scroll">
+                  <PlannerChoiceGroup
+                    value={day?.date ?? ""}
+                    onValueChange={(date) => {
+                      const nextIndex = trip.days.findIndex((candidate) => candidate.date === date);
+                      // Pressing the selected chip deselects it in a single
+                      // toggle group, reporting "". The day stays as it is, but
+                      // the long-press guard still has to be released or it
+                      // swallows the next real day switch.
+                      if (nextIndex < 0) ignoreNextDayClick.current = false;
+                      else selectDay(nextIndex);
+                    }}
+                    className="day-choice-group"
+                    aria-label="여행 날짜"
+                  >
+                    {trip.days.map((d, i) => (
+                      <PlannerChoiceItem
+                        key={d.date}
+                        value={d.date}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          if (editingTrip) openDateEditor(d.date);
+                        }}
+                        onPointerDown={(event) => {
+                          if (!editingTrip) return;
+                          if (event.pointerType !== "mouse" || event.button === 0) startDayLongPress(d.date);
+                        }}
+                        onPointerUp={cancelDayLongPress}
+                        onPointerCancel={cancelDayLongPress}
+                        onPointerLeave={cancelDayLongPress}
+                        aria-current={i === dayIndex ? "date" : undefined}
+                        aria-label={editingTrip ? `${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리` : `${d.date} 일정`}
+                      >
+                        {formatScheduleDate(d.date)}
+                      </PlannerChoiceItem>
+                    ))}
+                  </PlannerChoiceGroup>
+                </div>
+                {/* Adding, moving and deleting a date is trip editing, not day
+                    browsing: those controls stay out of the reading view and
+                    appear only while 여행 편집 is on. A trip with no days yet is
+                    the exception - there is nothing to read, and adding the
+                    first date is the only thing to do here. */}
+                {showDateActions && (
+                  <div className="day-tabs-actions">
+                    <DateAddSplitButton onAddDay={addDay} onOpenDateAdd={openDateAdd} />
+                    {day && (
+                      <Button type="button" variant="ghost" size="icon-lg" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
+                        ⋮
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
 
-              {dateAddOpen && (
+              {showDateActions && dateAddOpen && (
                 <div className="day-date-popover" role="dialog" aria-label="특정 날짜 추가">
                   <label>
                     일정 날짜
@@ -838,7 +880,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 </div>
               )}
 
-              {editingDate && (
+              {showDateActions && editingDate && (
                 <div className="day-date-popover" role="dialog" aria-label={`${editingDate} 날짜 관리`}>
                   <label>
                     일정 날짜

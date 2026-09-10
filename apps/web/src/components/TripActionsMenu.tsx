@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, Image, MoreVertical, PanelsTopLeft, X } from "lucide-react";
+import { Download, Image, MoreVertical, PanelsTopLeft, SquarePen, X } from "lucide-react";
 import type { Trip } from "../types";
 import type { PanelPosition, TripPanelActions } from "./SplitMapShell";
 import { TripCoverEditor } from "./TripCoverEditor";
@@ -49,12 +49,17 @@ export function TripActionsMenu({
   onExport,
   saving,
   panelActions,
+  editingTrip = false,
+  onEditingTripChange,
 }: {
   trip: Trip;
   onSave: (trip: Trip) => void;
   onExport: () => void;
   saving: boolean;
   panelActions?: TripPanelActions;
+  /** Whether the trip's structural controls (date add, move, delete) are shown. */
+  editingTrip?: boolean;
+  onEditingTripChange?: (editing: boolean) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -76,6 +81,15 @@ export function TripActionsMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="trip-actions-menu">
           <DropdownMenuLabel>여행</DropdownMenuLabel>
+          {onEditingTripChange && (
+            <DropdownMenuCheckboxItem
+              checked={editingTrip}
+              onCheckedChange={(checked) => onEditingTripChange(checked === true)}
+            >
+              <SquarePen aria-hidden="true" />
+              여행 편집
+            </DropdownMenuCheckboxItem>
+          )}
           <DropdownMenuItem onSelect={() => setEditorOpen(true)}>
             <Image aria-hidden="true" />
             대표 화면 설정
