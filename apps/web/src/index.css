@@ -453,9 +453,10 @@ ul {
   flex: 0 1 auto;
   min-width: 0;
   overflow-x: auto;
-  /* Room for the chips' focus ring, which a clipping scroller would cut. */
-  padding: 2px 2px 0.25rem;
-  margin: -2px -2px 0;
+  /* Room for the chips' focus ring, which a clipping scroller would cut.
+     Matches toggleVariants' focus-visible:ring-[3px]. */
+  padding: 3px 3px 0.25rem;
+  margin: -3px -3px 0;
 }
 .day-choice-group {
   flex: none;

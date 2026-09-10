@@ -21,6 +21,9 @@ const trip: Trip = {
   cover: null,
 };
 
+// NewTripPage creates exactly this when no representative place is given.
+const emptyTrip: Trip = { ...trip, id: "trip-2", days: [] };
+
 const me: Me = { id: "user-1", email: "me@example.com", name: "나", status: "approved", role: "member" };
 
 const panelActions: TripPanelActions = {
@@ -56,7 +59,7 @@ vi.mock("../src/components/PlaceAutocompleteInput", () => ({ PlaceAutocompleteIn
 vi.mock("../src/hooks/useTripLocationSharing", () => ({ useTripLocationSharing: () => ({ status: null }) }));
 vi.mock("../src/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../src/api")>()),
-  getTrip: vi.fn(async () => trip),
+  getTrip: vi.fn(async (id: string) => (id === emptyTrip.id ? emptyTrip : trip)),
   saveTrip: vi.fn(async (next: Trip) => next),
 }));
 
@@ -73,13 +76,17 @@ beforeEach(() => {
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
 });
 
-async function renderDay() {
+function renderTrip(id: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={queryClient}>
-      <TripDayPage id={trip.id} navigate={vi.fn()} me={me} />
+      <TripDayPage id={id} navigate={vi.fn()} me={me} />
     </QueryClientProvider>,
   );
+}
+
+async function renderDay() {
+  renderTrip(trip.id);
   return screen.findByRole("radiogroup", { name: "여행 날짜" });
 }
 
@@ -123,6 +130,32 @@ describe("trip day editing mode", () => {
 
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "2026-09-07 날짜 관리" })).not.toBeInTheDocument());
     expect(screen.queryByRole("group", { name: "날짜 추가" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the first date reachable on a trip that has no days yet", async () => {
+    // The empty state tells the user to press "+ 날짜"; hiding it behind the
+    // overflow menu would leave a new trip with no way forward.
+    renderTrip(emptyTrip.id);
+
+    expect(await screen.findByRole("group", { name: "날짜 추가" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ 날짜" })).toBeInTheDocument();
+  });
+
+  it("releases the long-press guard when the pressed chip was already selected", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    await renderDay();
+    await turnOnEditing();
+
+    // Long-pressing the selected chip deselects it in a single toggle group,
+    // which used to leave the guard latched and swallow the next day switch.
+    const selected = screen.getByRole("radio", { name: /2026-09-07 일정/ });
+    fireEvent.pointerDown(selected, { pointerType: "touch" });
+    await vi.advanceTimersByTimeAsync(1000);
+    fireEvent.pointerUp(selected);
+    fireEvent.click(selected);
+
+    fireEvent.click(screen.getByRole("radio", { name: /2026-09-08 일정/ }));
+    expect(screen.getByRole("button", { name: "2026-09-08 날짜 관리" })).toBeInTheDocument();
   });
 
   it("ignores the long-press date shortcut while only browsing", async () => {

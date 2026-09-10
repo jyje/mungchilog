@@ -228,6 +228,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   const tripTimezone = trip.timezone;
   const day = trip.days[dayIndex];
+  // Editing is opt-in, except on a trip that has no days yet: hiding "+ 날짜"
+  // there would leave the empty state pointing at a control that is not on
+  // screen, with no way forward but the overflow menu.
+  const showDateActions = editingTrip || trip.days.length === 0;
   const orderedSpots = [...(day?.spots ?? [])].sort((a, b) => a.order - b.order);
   const scheduleWarningBySpotId = new Map(scheduleWarnings(orderedSpots, day?.date, trip.timezone).map((warning) => [warning.spotId, warning.message]));
   // Same numbering as TripMap's map pins (sort by order, keep only spots with
@@ -776,7 +780,12 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     value={day?.date ?? ""}
                     onValueChange={(date) => {
                       const nextIndex = trip.days.findIndex((candidate) => candidate.date === date);
-                      if (nextIndex >= 0) selectDay(nextIndex);
+                      // Pressing the selected chip deselects it in a single
+                      // toggle group, reporting "". The day stays as it is, but
+                      // the long-press guard still has to be released or it
+                      // swallows the next real day switch.
+                      if (nextIndex < 0) ignoreNextDayClick.current = false;
+                      else selectDay(nextIndex);
                     }}
                     className="day-choice-group"
                     aria-label="여행 날짜"
@@ -786,9 +795,8 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                         key={d.date}
                         value={d.date}
                         onContextMenu={(event) => {
-                          if (!editingTrip) return;
                           event.preventDefault();
-                          openDateEditor(d.date);
+                          if (editingTrip) openDateEditor(d.date);
                         }}
                         onPointerDown={(event) => {
                           if (!editingTrip) return;
@@ -807,8 +815,10 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 </div>
                 {/* Adding, moving and deleting a date is trip editing, not day
                     browsing: those controls stay out of the reading view and
-                    appear only while 여행 편집 is on. */}
-                {editingTrip && (
+                    appear only while 여행 편집 is on. A trip with no days yet is
+                    the exception - there is nothing to read, and adding the
+                    first date is the only thing to do here. */}
+                {showDateActions && (
                   <div className="day-tabs-actions">
                     <DateAddSplitButton onAddDay={addDay} onOpenDateAdd={openDateAdd} />
                     {day && (
@@ -820,7 +830,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 )}
               </div>
 
-              {editingTrip && dateAddOpen && (
+              {showDateActions && dateAddOpen && (
                 <div className="day-date-popover" role="dialog" aria-label="특정 날짜 추가">
                   <label>
                     일정 날짜
@@ -870,7 +880,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 </div>
               )}
 
-              {editingTrip && editingDate && (
+              {showDateActions && editingDate && (
                 <div className="day-date-popover" role="dialog" aria-label={`${editingDate} 날짜 관리`}>
                   <label>
                     일정 날짜
