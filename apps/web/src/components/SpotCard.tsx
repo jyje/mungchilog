@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { ExternalLink, GripVertical, MoreVertical, TriangleAlert, X } from "lucide-react";
@@ -89,7 +89,9 @@ function TimelineSchedule({
 }: {
   spot: Spot;
   schedule: ReturnType<typeof spotScheduleDisplay>;
-  onEdit: () => void;
+  /** Omitted outside trip-editing mode: the time then renders as a static,
+   * non-interactive label instead of an edit trigger. */
+  onEdit?: () => void;
   mapNumber?: number;
 }) {
   // A spot can have a start with no end, an end with no start (the
@@ -102,22 +104,29 @@ function TimelineSchedule({
       : schedule.start
         ? `${spot.name} ${schedule.start} 일정 시각 수정`
         : `${spot.name} ${schedule.end}까지 일정 시각 수정`;
+  const timeContent = schedule ? (
+    <>
+      {schedule.start && <time dateTime={schedule.start} className="timeline-start">{schedule.start}</time>}
+      {schedule.end && (
+        <time dateTime={schedule.end} className="timeline-end">
+          {schedule.start ? schedule.end : `~${schedule.end}`}
+        </time>
+      )}
+    </>
+  ) : (
+    <span>시간 미정</span>
+  );
   return (
     <div className={`timeline-schedule${schedule ? "" : " unscheduled"}`}>
-      <Button type="button" variant="ghost" className="timeline-time" onClick={onEdit} aria-label={label}>
-        {schedule ? (
-          <>
-            {schedule.start && <time dateTime={schedule.start} className="timeline-start">{schedule.start}</time>}
-            {schedule.end && (
-              <time dateTime={schedule.end} className="timeline-end">
-                {schedule.start ? schedule.end : `~${schedule.end}`}
-              </time>
-            )}
-          </>
-        ) : (
-          <span>시간 미정</span>
-        )}
-      </Button>
+      {onEdit ? (
+        <Button type="button" variant="ghost" className="timeline-time" onClick={onEdit} aria-label={label}>
+          {timeContent}
+        </Button>
+      ) : (
+        <span className="timeline-time" aria-label={schedule ? label.replace("수정", "표시") : "시간 미정"}>
+          {timeContent}
+        </span>
+      )}
       <span className={`timeline-node${mapNumber != null ? " has-number" : ""}${spot.isAccommodation ? " accommodation" : ""}`} aria-hidden="true">
         {mapNumber != null && <span className="timeline-node-number">{mapNumber}</span>}
       </span>
@@ -139,6 +148,7 @@ export function SpotCard({
   scheduleWarning,
   mapNumber,
   hasNextLeg = false,
+  tripEditing,
 }: {
   spot: Spot;
   onToggleItem: (itemId: string) => void;
@@ -156,13 +166,28 @@ export function SpotCard({
    * line below its node should continue down to meet that leg's own line
    * instead of stopping short. */
   hasNextLeg?: boolean;
+  /** Whether the trip is in its editing mode. Selecting, viewing notes,
+   * opening hours, and checking off items stay available either way; every
+   * mutating control (reorder, edit/delete, time edit, add/remove items) is
+   * gated behind this. */
+  tripEditing: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: spot.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: spot.id, disabled: !tripEditing });
   const [addingItem, setAddingItem] = useState(false);
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmingDeletion, setConfirmingDeletion] = useState(false);
   const schedule = spotScheduleDisplay(spot);
+
+  // Leaving trip-editing mode must not strand this card's own edit UI open
+  // behind now-hidden triggers.
+  useEffect(() => {
+    if (tripEditing) return;
+    setAddingItem(false);
+    setEditing(false);
+    setMenuOpen(false);
+    setConfirmingDeletion(false);
+  }, [tripEditing]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -198,11 +223,13 @@ export function SpotCard({
 
   return (
     <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}${spot.isAccommodation ? " accommodation" : ""}`}>
-      <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => setEditing(true)} mapNumber={mapNumber} />
+      <TimelineSchedule spot={spot} schedule={schedule} onEdit={tripEditing ? () => setEditing(true) : undefined} mapNumber={mapNumber} />
       <div className="spot-card-surface">
-        <Button type="button" variant="ghost" size="icon-lg" className="drag-handle" aria-label="순서 변경" {...attributes} {...listeners}>
-          <GripVertical aria-hidden="true" />
-        </Button>
+        {tripEditing && (
+          <Button type="button" variant="ghost" size="icon-lg" className="drag-handle" aria-label="순서 변경" {...attributes} {...listeners}>
+            <GripVertical aria-hidden="true" />
+          </Button>
+        )}
         <div className="spot-body">
           <div className="spot-header">
             <Button type="button" variant={selected ? "secondary" : "ghost"} className="spot-select" onClick={onSelect} aria-pressed={selected} aria-label={`${spot.name} 지도에서 보기`}>
@@ -224,29 +251,33 @@ export function SpotCard({
                   <ExternalLink aria-hidden="true" />
                 </a>
               </Button>
-              <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="icon-lg" className="spot-more" aria-label={`${spot.name} 더보기`}>
-                    <MoreVertical aria-hidden="true" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="spot-context-menu">
-                  <DropdownMenuItem onSelect={() => setEditing(true)}>수정</DropdownMenuItem>
-                  <DropdownMenuItem variant="destructive" onSelect={() => setConfirmingDeletion(true)}>삭제</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Dialog open={confirmingDeletion} onOpenChange={setConfirmingDeletion}>
-                <DialogContent className="spot-delete-dialog">
-                  <DialogHeader>
-                    <DialogTitle>이 장소와 목록을 삭제할까요?</DialogTitle>
-                    <DialogDescription>{spot.name}의 일정과 목록을 삭제합니다. 이 작업은 되돌릴 수 없습니다.</DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <DialogClose asChild><Button type="button" variant="ghost">취소</Button></DialogClose>
-                    <Button type="button" variant="destructive" onClick={() => { setConfirmingDeletion(false); onDeleteSpot(); }}>삭제</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              {tripEditing && (
+                <>
+                  <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+                    <DropdownMenuTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon-lg" className="spot-more" aria-label={`${spot.name} 더보기`}>
+                        <MoreVertical aria-hidden="true" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="spot-context-menu">
+                      <DropdownMenuItem onSelect={() => setEditing(true)}>수정</DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onSelect={() => setConfirmingDeletion(true)}>삭제</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Dialog open={confirmingDeletion} onOpenChange={setConfirmingDeletion}>
+                    <DialogContent className="spot-delete-dialog">
+                      <DialogHeader>
+                        <DialogTitle>이 장소와 목록을 삭제할까요?</DialogTitle>
+                        <DialogDescription>{spot.name}의 일정과 목록을 삭제합니다. 이 작업은 되돌릴 수 없습니다.</DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter>
+                        <DialogClose asChild><Button type="button" variant="ghost">취소</Button></DialogClose>
+                        <Button type="button" variant="destructive" onClick={() => { setConfirmingDeletion(false); onDeleteSpot(); }}>삭제</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </>
+              )}
             </div>
           </div>
           {scheduleWarning && (
@@ -267,9 +298,11 @@ export function SpotCard({
                       {item.price != null ? ` · ¥${item.price.toLocaleString()}` : ""}
                     </span>
                   </label>
-                  <Button type="button" variant="ghost" size="icon-lg" className="item-delete" aria-label={`${item.title} 삭제`} onClick={() => onDeleteItem(item.id)}>
-                    <X aria-hidden="true" />
-                  </Button>
+                  {tripEditing && (
+                    <Button type="button" variant="ghost" size="icon-lg" className="item-delete" aria-label={`${item.title} 삭제`} onClick={() => onDeleteItem(item.id)}>
+                      <X aria-hidden="true" />
+                    </Button>
+                  )}
                 </li>
               ))}
               {addingItem && (
@@ -283,7 +316,7 @@ export function SpotCard({
               )}
             </ul>
           )}
-          {!addingItem && (
+          {tripEditing && !addingItem && (
             <Button type="button" variant="outline" className="add-item-button" onClick={() => setAddingItem(true)}>
               + 살 것/먹을 것 추가
             </Button>

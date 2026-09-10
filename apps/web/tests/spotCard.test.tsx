@@ -40,6 +40,7 @@ function renderCard(overrides: Partial<React.ComponentProps<typeof SpotCard>> = 
       selected={false}
       onSelect={vi.fn()}
       date="2026-08-29"
+      tripEditing
       {...overrides}
     />,
   );
@@ -94,6 +95,43 @@ describe("spot card actions", () => {
   it("labels unscheduled stops neutrally instead of nudging for a required input", () => {
     renderCard();
     expect(screen.getByRole("button", { name: "남산 시각 입력" })).toHaveTextContent("시간 미정");
+  });
+});
+
+describe("view mode (tripEditing off)", () => {
+  it("hides every mutating control and shows a static time label", () => {
+    renderCard({ tripEditing: false });
+
+    expect(screen.queryByRole("button", { name: "순서 변경" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "남산 더보기" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "예약 확인 삭제" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ 살 것/먹을 것 추가" })).not.toBeInTheDocument();
+    // The time is still shown, just as a non-interactive label.
+    expect(screen.queryByRole("button", { name: "남산 시각 입력" })).not.toBeInTheDocument();
+    expect(screen.getByText("시간 미정")).toBeVisible();
+  });
+
+  it("brings every control back once tripEditing turns on again", () => {
+    const { rerender } = renderCard({ tripEditing: false });
+    expect(screen.queryByRole("button", { name: "순서 변경" })).not.toBeInTheDocument();
+
+    rerender(
+      <SpotCard
+        spot={spot}
+        onToggleItem={vi.fn()}
+        onDeleteItem={vi.fn()}
+        onAddItem={vi.fn()}
+        onDeleteSpot={vi.fn()}
+        onEditSpot={vi.fn()}
+        selected={false}
+        onSelect={vi.fn()}
+        date="2026-08-29"
+        tripEditing
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "순서 변경" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "남산 더보기" })).toBeInTheDocument();
   });
 });
 

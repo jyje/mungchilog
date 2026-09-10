@@ -90,14 +90,18 @@ async function renderDay() {
   return screen.findByRole("radiogroup", { name: "여행 날짜" });
 }
 
-function openMenu() {
-  fireEvent.pointerDown(screen.getByRole("button", { name: "여행 더보기" }), { button: 0 });
+function editingToggle() {
+  return screen.getByRole("button", { name: /여행 편집 시작|보기 모드로 전환/ });
 }
 
 async function turnOnEditing() {
-  openMenu();
-  fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "여행 편집" }));
-  await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+  fireEvent.click(editingToggle());
+  await waitFor(() => expect(editingToggle()).toHaveAttribute("aria-pressed", "true"));
+}
+
+async function turnOffEditing() {
+  fireEvent.click(editingToggle());
+  await waitFor(() => expect(editingToggle()).toHaveAttribute("aria-pressed", "false"));
 }
 
 describe("trip day editing mode", () => {
@@ -125,8 +129,7 @@ describe("trip day editing mode", () => {
     fireEvent.click(screen.getByRole("button", { name: "2026-09-07 날짜 관리" }));
     expect(await screen.findByRole("dialog", { name: "2026-09-07 날짜 관리" })).toBeInTheDocument();
 
-    openMenu();
-    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "여행 편집" }));
+    await turnOffEditing();
 
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "2026-09-07 날짜 관리" })).not.toBeInTheDocument());
     expect(screen.queryByRole("group", { name: "날짜 추가" })).not.toBeInTheDocument();
@@ -167,5 +170,34 @@ describe("trip day editing mode", () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("hides every day-level mutating control while only browsing, and reveals them once editing is on", async () => {
+    await renderDay();
+
+    expect(screen.queryByRole("button", { name: "+ 스팟 추가" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "지도에서 선택" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ 그룹 만들기" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ 이 날 메모 추가" })).not.toBeInTheDocument();
+
+    await turnOnEditing();
+
+    expect(screen.getByRole("button", { name: "+ 스팟 추가" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "지도에서 선택" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ 그룹 만들기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ 이 날 메모 추가" })).toBeInTheDocument();
+  });
+
+  it("closes an in-progress spot-add form when editing is turned back off", async () => {
+    await renderDay();
+    await turnOnEditing();
+
+    fireEvent.click(screen.getByRole("button", { name: "+ 스팟 추가" }));
+    expect(await screen.findByRole("button", { name: "스팟 추가" })).toBeInTheDocument();
+
+    await turnOffEditing();
+
+    expect(screen.queryByRole("button", { name: "스팟 추가" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ 스팟 추가" })).not.toBeInTheDocument();
   });
 });

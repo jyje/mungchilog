@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CarFront, Footprints, Pencil, Plane, Route, TrainFront } from "lucide-react";
 import { useLeg } from "../hooks/useLeg";
 import { formatZonedClock, legEndpoints, resolveLegAnchor, zonedIso } from "../legTiming";
@@ -272,6 +272,7 @@ export function LegInfo({
   preference,
   selected,
   selectedRideRunIndex,
+  editing,
   onSelect,
   onChange,
 }: {
@@ -284,6 +285,10 @@ export function LegInfo({
   // Which boarded vehicle (0-based, matching transitSummary()'s order) is
   // the one currently highlighted on the map, if any - see RouteOverlay.tsx.
   selectedRideRunIndex?: number;
+  // Whether the trip is in its editing mode. Viewing the leg summary (this
+  // component's read-only parts) is always available; only the mode/route
+  // picker below the pencil button is gated.
+  editing: boolean;
   // No argument selects the whole leg, same as clicking its line on the map.
   // A ride-run index selects just that one vehicle's stretch of the route -
   // see routeSegmentsInRideRun() in routeStyles.ts.
@@ -291,6 +296,11 @@ export function LegInfo({
   onChange: (patch: LegPatch) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  // Leaving trip-editing mode must not strand this leg's picker open behind
+  // a hidden pencil button.
+  useEffect(() => {
+    if (!editing) setIsEditing(false);
+  }, [editing]);
   const { mode, timing, trafficAware, flight } = preference;
   const { data: leg, isError, isLoading } = useLeg(from, to, mode, trafficAware, date, timezone, timing);
   const hasMapLeg = (from.lat != null && from.lng != null && to.lat != null && to.lng != null) || (!!from.placeId && !!to.placeId);
@@ -378,20 +388,22 @@ export function LegInfo({
           </Button>
         )}
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="leg-edit-toggle"
-          aria-label={isEditing ? "이동 수단·경로 수정 닫기" : "이동 수단·경로 수정"}
-          aria-expanded={isEditing}
-          onClick={() => setIsEditing((value) => !value)}
-        >
-          <Pencil aria-hidden="true" />
-        </Button>
+        {editing && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="leg-edit-toggle"
+            aria-label={isEditing ? "이동 수단·경로 수정 닫기" : "이동 수단·경로 수정"}
+            aria-expanded={isEditing}
+            onClick={() => setIsEditing((value) => !value)}
+          >
+            <Pencil aria-hidden="true" />
+          </Button>
+        )}
       </div>
 
-      {isEditing && (
+      {editing && isEditing && (
         <>
           <PlannerChoiceGroup
             value={legacyMode ? "" : mode}
