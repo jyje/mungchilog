@@ -750,42 +750,46 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             itinerary={<>
             <div className="day-tabs-wrap">
               <div className="day-tabs">
-                <PlannerChoiceGroup
-                  value={day?.date ?? ""}
-                  onValueChange={(date) => {
-                    const nextIndex = trip.days.findIndex((candidate) => candidate.date === date);
-                    if (nextIndex >= 0) selectDay(nextIndex);
-                  }}
-                  className="day-choice-group"
-                  aria-label="여행 날짜"
-                >
-                  {trip.days.map((d, i) => (
-                    <PlannerChoiceItem
-                      key={d.date}
-                      value={d.date}
-                      onContextMenu={(event) => {
-                        event.preventDefault();
-                        openDateEditor(d.date);
-                      }}
-                      onPointerDown={(event) => {
-                        if (event.pointerType !== "mouse" || event.button === 0) startDayLongPress(d.date);
-                      }}
-                      onPointerUp={cancelDayLongPress}
-                      onPointerCancel={cancelDayLongPress}
-                      onPointerLeave={cancelDayLongPress}
-                      aria-current={i === dayIndex ? "date" : undefined}
-                      aria-label={`${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리`}
-                    >
-                      {formatScheduleDate(d.date)}
-                    </PlannerChoiceItem>
-                  ))}
-                </PlannerChoiceGroup>
-                <DateAddSplitButton onAddDay={addDay} onOpenDateAdd={openDateAdd} />
-                {day && (
-                  <Button type="button" variant="ghost" size="icon-lg" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
-                    ⋮
-                  </Button>
-                )}
+                <div className="day-tabs-scroll">
+                  <PlannerChoiceGroup
+                    value={day?.date ?? ""}
+                    onValueChange={(date) => {
+                      const nextIndex = trip.days.findIndex((candidate) => candidate.date === date);
+                      if (nextIndex >= 0) selectDay(nextIndex);
+                    }}
+                    className="day-choice-group"
+                    aria-label="여행 날짜"
+                  >
+                    {trip.days.map((d, i) => (
+                      <PlannerChoiceItem
+                        key={d.date}
+                        value={d.date}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          openDateEditor(d.date);
+                        }}
+                        onPointerDown={(event) => {
+                          if (event.pointerType !== "mouse" || event.button === 0) startDayLongPress(d.date);
+                        }}
+                        onPointerUp={cancelDayLongPress}
+                        onPointerCancel={cancelDayLongPress}
+                        onPointerLeave={cancelDayLongPress}
+                        aria-current={i === dayIndex ? "date" : undefined}
+                        aria-label={`${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리`}
+                      >
+                        {formatScheduleDate(d.date)}
+                      </PlannerChoiceItem>
+                    ))}
+                  </PlannerChoiceGroup>
+                </div>
+                <div className="day-tabs-actions">
+                  <DateAddSplitButton onAddDay={addDay} onOpenDateAdd={openDateAdd} />
+                  {day && (
+                    <Button type="button" variant="ghost" size="icon-lg" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
+                      ⋮
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {dateAddOpen && (
