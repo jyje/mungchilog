@@ -72,6 +72,9 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   const [customDate, setCustomDate] = useState("");
   const [newDayAccommodationName, setNewDayAccommodationName] = useState("");
   const [newDayAccommodationPlace, setNewDayAccommodationPlace] = useState<PlaceSelection | null>(null);
+  // Trip editing is a deliberate mode, not the default: browsing an itinerary
+  // on the road should not put date add, move and delete one mis-tap away.
+  const [editingTrip, setEditingTrip] = useState(false);
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [dateEditValue, setDateEditValue] = useState("");
   const [dateError, setDateError] = useState<string | null>(null);
@@ -304,6 +307,16 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     setDateError(null);
     setEditingDate(date);
     setDateEditValue(date);
+  }
+
+  function changeTripEditing(next: boolean) {
+    setEditingTrip(next);
+    // Leaving the mode must not strand an open date dialog behind a hidden
+    // trigger.
+    if (!next) {
+      cancelDayLongPress();
+      closeDatePopover();
+    }
   }
 
   function closeDatePopover() {
@@ -733,7 +746,15 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               sharedLocations={sharedLocations}
               onFocusLocation={selectSharedLocation}
             />
-            <TripActionsMenu trip={trip} onSave={saveNow} onExport={() => downloadTripExchange(trip)} saving={mutation.isPending} panelActions={panelActions} />
+            <TripActionsMenu
+              trip={trip}
+              onSave={saveNow}
+              onExport={() => downloadTripExchange(trip)}
+              saving={mutation.isPending}
+              panelActions={panelActions}
+              editingTrip={editingTrip}
+              onEditingTripChange={changeTripEditing}
+            />
           </>;
         }}
         title={trip.title}
@@ -765,34 +786,41 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                         key={d.date}
                         value={d.date}
                         onContextMenu={(event) => {
+                          if (!editingTrip) return;
                           event.preventDefault();
                           openDateEditor(d.date);
                         }}
                         onPointerDown={(event) => {
+                          if (!editingTrip) return;
                           if (event.pointerType !== "mouse" || event.button === 0) startDayLongPress(d.date);
                         }}
                         onPointerUp={cancelDayLongPress}
                         onPointerCancel={cancelDayLongPress}
                         onPointerLeave={cancelDayLongPress}
                         aria-current={i === dayIndex ? "date" : undefined}
-                        aria-label={`${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리`}
+                        aria-label={editingTrip ? `${d.date} 일정. 우클릭하거나 길게 눌러 날짜 관리` : `${d.date} 일정`}
                       >
                         {formatScheduleDate(d.date)}
                       </PlannerChoiceItem>
                     ))}
                   </PlannerChoiceGroup>
                 </div>
-                <div className="day-tabs-actions">
-                  <DateAddSplitButton onAddDay={addDay} onOpenDateAdd={openDateAdd} />
-                  {day && (
-                    <Button type="button" variant="ghost" size="icon-lg" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
-                      ⋮
-                    </Button>
-                  )}
-                </div>
+                {/* Adding, moving and deleting a date is trip editing, not day
+                    browsing: those controls stay out of the reading view and
+                    appear only while 여행 편집 is on. */}
+                {editingTrip && (
+                  <div className="day-tabs-actions">
+                    <DateAddSplitButton onAddDay={addDay} onOpenDateAdd={openDateAdd} />
+                    {day && (
+                      <Button type="button" variant="ghost" size="icon-lg" className="day-manage" aria-label={`${day.date} 날짜 관리`} onClick={() => openDateEditor(day.date)}>
+                        ⋮
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {dateAddOpen && (
+              {editingTrip && dateAddOpen && (
                 <div className="day-date-popover" role="dialog" aria-label="특정 날짜 추가">
                   <label>
                     일정 날짜
@@ -842,7 +870,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 </div>
               )}
 
-              {editingDate && (
+              {editingTrip && editingDate && (
                 <div className="day-date-popover" role="dialog" aria-label={`${editingDate} 날짜 관리`}>
                   <label>
                     일정 날짜

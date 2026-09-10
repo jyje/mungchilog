@@ -35,10 +35,28 @@ beforeEach(() => {
   document.documentElement.classList.remove("dark");
 });
 
-function renderMenu(overrides: { onExport?: () => void; onSave?: (trip: Trip) => void; panelActions?: TripPanelActions } = {}) {
+function renderMenu(
+  overrides: {
+    onExport?: () => void;
+    onSave?: (trip: Trip) => void;
+    panelActions?: TripPanelActions;
+    editingTrip?: boolean;
+    onEditingTripChange?: (editing: boolean) => void;
+  } = {},
+) {
   const onExport = overrides.onExport ?? vi.fn();
   const onSave = overrides.onSave ?? vi.fn();
-  render(<TripActionsMenu trip={trip} onSave={onSave} onExport={onExport} saving={false} panelActions={overrides.panelActions} />);
+  render(
+    <TripActionsMenu
+      trip={trip}
+      onSave={onSave}
+      onExport={onExport}
+      saving={false}
+      panelActions={overrides.panelActions}
+      editingTrip={overrides.editingTrip}
+      onEditingTripChange={overrides.onEditingTripChange}
+    />,
+  );
   return { onExport, onSave };
 }
 
@@ -55,6 +73,38 @@ describe("trip actions menu", () => {
 
     expect(onExport).toHaveBeenCalledOnce();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("toggles trip editing from the trip section of the overflow menu", async () => {
+    const onEditingTripChange = vi.fn();
+    renderMenu({ editingTrip: false, onEditingTripChange });
+
+    openMenu();
+    const toggle = await screen.findByRole("menuitemcheckbox", { name: "여행 편집" });
+    expect(toggle).toHaveAttribute("data-state", "unchecked");
+    fireEvent.click(toggle);
+
+    expect(onEditingTripChange).toHaveBeenCalledWith(true);
+  });
+
+  it("reports the current editing state and turning it back off", async () => {
+    const onEditingTripChange = vi.fn();
+    renderMenu({ editingTrip: true, onEditingTripChange });
+
+    openMenu();
+    const toggle = await screen.findByRole("menuitemcheckbox", { name: "여행 편집" });
+    expect(toggle).toHaveAttribute("data-state", "checked");
+    fireEvent.click(toggle);
+
+    expect(onEditingTripChange).toHaveBeenCalledWith(false);
+  });
+
+  it("omits the editing toggle for surfaces that do not own an editing mode", async () => {
+    renderMenu();
+
+    openMenu();
+    expect(await screen.findByRole("menuitem", { name: "대표 화면 설정" })).toBeVisible();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "여행 편집" })).not.toBeInTheDocument();
   });
 
   it("switches theme from the existing overflow instead of adding a toolbar button", async () => {
