@@ -35,10 +35,26 @@ beforeEach(() => {
   document.documentElement.classList.remove("dark");
 });
 
-function renderMenu(overrides: { onExport?: () => void; onSave?: (trip: Trip) => void; panelActions?: TripPanelActions } = {}) {
+function renderMenu(
+  overrides: {
+    onExport?: () => void;
+    onSave?: (trip: Trip) => void;
+    panelActions?: TripPanelActions;
+    editingTrip?: boolean;
+  } = {},
+) {
   const onExport = overrides.onExport ?? vi.fn();
   const onSave = overrides.onSave ?? vi.fn();
-  render(<TripActionsMenu trip={trip} onSave={onSave} onExport={onExport} saving={false} panelActions={overrides.panelActions} />);
+  render(
+    <TripActionsMenu
+      trip={trip}
+      onSave={onSave}
+      onExport={onExport}
+      saving={false}
+      panelActions={overrides.panelActions}
+      editingTrip={overrides.editingTrip ?? true}
+    />,
+  );
   return { onExport, onSave };
 }
 
@@ -55,6 +71,27 @@ describe("trip actions menu", () => {
 
     expect(onExport).toHaveBeenCalledOnce();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  // The editing mode itself is toggled from the header pencil button next to
+  // this menu's trigger (see TripDayPage / tripDayEditMode.test.tsx), not
+  // from inside the menu - this menu only reflects that mode to gate its own
+  // mutating entry ("대표 화면 설정").
+  it("hides the mutating trip group while the trip is only being browsed", async () => {
+    renderMenu({ editingTrip: false });
+
+    openMenu();
+    expect(await screen.findByRole("menuitem", { name: "여행 내보내기 (.json)" })).toBeVisible();
+    expect(screen.queryByRole("menuitem", { name: "대표 화면 설정" })).not.toBeInTheDocument();
+    expect(screen.queryByText("여행")).not.toBeInTheDocument();
+  });
+
+  it("shows the mutating trip group once the trip is being edited", async () => {
+    renderMenu({ editingTrip: true });
+
+    openMenu();
+    expect(await screen.findByRole("menuitem", { name: "대표 화면 설정" })).toBeVisible();
+    expect(screen.getByText("여행")).toBeVisible();
   });
 
   it("switches theme from the existing overflow instead of adding a toolbar button", async () => {

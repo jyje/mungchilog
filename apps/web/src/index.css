@@ -165,7 +165,7 @@ body {
    class on <main>; nothing adds it any more. */
 #root:has(.component-gallery) {
   max-width: none;
-  padding: 0 1.25rem 4rem;
+  padding: 0 0 4rem;
   min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
@@ -438,12 +438,36 @@ ul {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  overflow-x: auto;
   margin: 0;
-  padding-bottom: 0.25rem;
+}
+/* Only the dates scroll. Scrolling the whole row instead pushed the add and
+   manage actions out of reach once a trip had more days than fit, and - worse
+   - the choice group carries max-w-full, so from the third day on its box
+   clamped to the panel width while its chips kept their own width and painted
+   straight over those actions. A dedicated scroller keeps the chips inside a
+   box that is allowed to be wider than the panel. */
+.day-tabs-scroll {
+  /* Hug the dates when they fit - the actions stay next to the last date
+     rather than being pushed to the far edge - and shrink into a scroller
+     only once they do not. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  /* Room for the chips' focus ring, which a clipping scroller would cut.
+     Matches toggleVariants' focus-visible:ring-[3px]. */
+  padding: 3px 3px 0.25rem;
+  margin: -3px -3px 0;
 }
 .day-choice-group {
   flex: none;
+  max-width: none;
+  width: max-content;
+}
+.day-tabs-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.4rem;
 }
 .day-tabs .day-manage {
   min-width: 44px;
@@ -882,6 +906,12 @@ body.panel-resizing {
 .panel-content {
   flex: 1;
   min-height: 0;
+  /* Explicit, not inherited: with only overflow-y set, overflow-x computes to
+     auto, so any single unwrappable line inside the itinerary turned the whole
+     panel into a horizontal scroller and let cards run past its right edge.
+     Content that legitimately needs to scroll sideways (the day tabs) owns its
+     own scroller. */
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -1634,8 +1664,18 @@ button.ghost {
   margin-top: 0.3rem;
 }
 .opening-hours-summary {
+  /* shadcn's Button base is whitespace-nowrap with a fixed height, which is
+     right for compact controls but not for a full weekday hours line such as
+     "월요일: 오전 11:00 ~ 오후 3:00, 오후 5:00~9:00". Unwrapped, that line set
+     the spot card's intrinsic width and, because .panel-content scrolls on Y
+     (which forces overflow-x to auto), the whole itinerary panel gained a
+     horizontal scroll instead of the text wrapping. */
+  height: auto;
+  max-width: 100%;
   min-height: 44px;
   padding: 0.45rem 0.55rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
   border: 1px solid transparent;
   border-radius: 6px;
   background: none;
@@ -2896,4 +2936,26 @@ input[type="text"]:not([data-slot])::placeholder {
   html {
     @apply font-sans;
   }
+}
+
+/* The app omits Tailwind Preflight to preserve legacy map/layout styles.
+   Radix switches, checkboxes, and radios assume zero native button padding.
+   Keep this integration
+   reset in the utilities layer so sizing utilities still win. */
+@layer utilities {
+  [data-slot="switch"],
+  [data-slot="checkbox"],
+  [data-slot="radio-group-item"] {
+    padding: 0;
+  }
+}
+@layer base {
+  .component-gallery :where(p, h3) { margin-block: 0; }
+}
+.component-gallery .gallery-section h2 { margin-top: 0; }
+.component-gallery .gallery-theme-toggle { top: 0; right: 0; }
+.component-gallery .gallery-nav a { color: inherit; }
+.component-gallery .gallery-nav a:hover { text-decoration: none; }
+@media (max-width: 639px) {
+  .component-gallery .gallery-nav { position: static; }
 }

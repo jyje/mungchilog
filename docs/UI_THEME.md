@@ -31,6 +31,7 @@ Light and dark themes override the same semantic tokens. Components must not int
 | One-of-many state | `ToggleGroup` | `type="single"`, `variant="outline"` |
 | Content view navigation | `Tabs` | `TabsList`, `TabsTrigger`, and `TabsContent` |
 | Compact contextual edit | `Popover` | Triggered by a standard `Button` |
+| Overflow / "더보기" actions | `DropdownMenu` | See "더보기 메뉴 템플릿" below — do not improvise a shape per screen |
 | Supplemental mobile workflow | `Sheet` | Bottom sheet on narrow screens |
 | Destructive confirmation | `Dialog` | Clear cancel and destructive actions |
 | Text, date, time, number, or file input | `Input` | Labelled and paired with errors or descriptions |
@@ -39,6 +40,24 @@ Light and dark themes override the same semantic tokens. Components must not int
 | Boolean preference | `Checkbox` or `Switch` | Checkbox for a form decision, switch for an immediate setting |
 
 `ButtonGroup` is for grouped actions. `ToggleGroup` is for state. `Tabs` is for switching content panels. These primitives are not interchangeable.
+
+## 더보기 메뉴 템플릿
+
+Every overflow menu in the app — trip-level (`TripActionsMenu`), per-spot (`SpotCard`'s `spot-context-menu`), or any new one — is the same `DropdownMenu` shape. Reference implementations: `apps/web/src/components/TripActionsMenu.tsx`, `apps/web/src/components/SpotCard.tsx`, and the gallery example in `apps/web/src/pages/gallery/ProductThemeGallery.tsx` (keep that example in sync — see AGENTS.md).
+
+**Trigger**
+- `Button` `variant="ghost"` (a menu embedded in a card/row) or `variant="secondary"` (a menu that is the primary affordance of its own toolbar), always `size="icon-lg"`.
+- Icon is `MoreVertical` from `lucide-react`, `aria-hidden="true"`.
+- `aria-label` and `title` are both `"{대상 이름} 더보기"` (e.g. `"여행 더보기"`, `` `${spot.name} 더보기` ``) — never a bare "더보기" once the menu is scoped to a named item.
+
+**Content**
+- `DropdownMenuContent align="end"`. Add a menu-specific class only for width/layout, never to restyle items.
+- Group related items under a `DropdownMenuLabel` when the menu has more than one logical group (e.g. "여행" / "화면"). A single-purpose menu (like `SpotCard`'s edit/delete) skips the label.
+- Put a `DropdownMenuSeparator` **between** groups only, never inside one, and always before a trailing destructive group.
+- Every `DropdownMenuItem` / `DropdownMenuCheckboxItem` pairs a leading `lucide-react` icon (`aria-hidden="true"`) with a short Korean noun/verb label — no icon-only items, no trailing punctuation. The two-word "수정" / "삭제" style (no icon) is acceptable only in the smallest single-purpose menus that already match `SpotCard`'s existing pattern; any menu with more than two items or more than one group uses icon+label.
+- A toggleable state (edit mode, visibility, a checked setting) is a `DropdownMenuCheckboxItem`, never a plain `DropdownMenuItem` that manually renders "on/off" text.
+- A destructive action (`variant="destructive"` on the item) sits in its own trailing group after a separator and opens a confirmation `Dialog` — it never fires immediately from the menu.
+- A menu that needs deeper navigation (a submenu of settings) uses `DropdownMenuSub` / `DropdownMenuSubTrigger` / `DropdownMenuSubContent`, not a second top-level trigger.
 
 ## Product interaction rules
 
@@ -63,3 +82,35 @@ Light and dark themes override the same semantic tokens. Components must not int
 - [Checkbox](https://ui.shadcn.com/docs/components/radix/checkbox)
 - [Popover](https://ui.shadcn.com/docs/components/base/popover)
 - [Sheet](https://ui.shadcn.com/docs/components/base/sheet)
+
+## Gallery organization
+
+The gallery has five anchored entry points: Foundations, Components, Product
+patterns, Map and routing, and Flows and states. Use English for documentation
+and Korean for product examples. Keep each primitive example in one place;
+product patterns may compose it with domain content.
+
+Foundations display existing tokens rather than introducing another palette.
+Accommodation uses `--stay`, `--stay-soft`, and `--stay-line` with an icon and
+label. The native system font stack remains authoritative. Page gutters are
+16px on phones, 32px on tablets, and 40px on desktop within a 1152px container.
+Navigation wraps and stops being sticky below 640px.
+
+Location sharing has independent, initially OFF and ON examples. Their labels
+and ARIA state update together. These are local demonstrations and never request
+geolocation or start a sharing session. Flight is a manual-input example, while
+provider delay, unavailable routes, and offline copy are documented state samples.
+
+### Preflight integration
+
+This app intentionally omits Tailwind Preflight. Browser-default button padding
+must therefore be reset for fixed-size Radix switches, checkboxes, and radio
+items in the integration stylesheet. Otherwise the switch thumb extends outside
+its track and the radio indicator's available width collapses. This reset lives
+in a CSS layer, preserves primitive utilities, and does not edit generated
+`components/ui/` files.
+
+Verify both switch endpoints have a 1px track inset and aligned vertical centers,
+including at 320px, 390px, tablet, and desktop widths in light and dark themes.
+Check keyboard operation, horizontal overflow, and page gutters in a real browser;
+DOM unit tests do not prove geometric alignment.

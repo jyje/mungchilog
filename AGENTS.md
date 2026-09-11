@@ -49,3 +49,9 @@
 - Put application wrappers, composition helpers, and all product-specific classes in `apps/web/src/components/system/`, a sibling of `ui/`.
 - Use a `components/system/` wrapper only when it carries a reusable product contract. Screens may import a generated primitive directly for its documented props and ordinary layout values. Do not create pass-through wrappers around shadcn primitives.
 - Keep the existing product tokens in `apps/web/src/index.css` authoritative. shadcn tokens must map to them without silently changing existing light, dark, map, or accessibility behavior.
+
+# Overflow ("더보기") menus
+
+- Before adding any new overflow/context menu (a `MoreVertical` trigger, a long-press menu, a per-row `⋮`), read the canonical template in `docs/UI_THEME.md` under "더보기 메뉴 템플릿" and follow it exactly — trigger shape, grouping, icon+label pairing, and destructive placement are not free choices per screen.
+- `apps/web/src/pages/gallery/ProductThemeGallery.tsx` must keep its overflow-menu example in sync with that template. If you change the template, update the gallery example in the same change; if the gallery example and a real menu ever disagree, the template in `UI_THEME.md` wins and both code sites must be brought back in line with it.
+- Do not invent a one-off menu shape (bare-text items, an ungrouped list, an icon-only item, a differently sized trigger) for a "just this once" case. If the template genuinely does not fit a new case, extend the template itself first, then build the menu against the extended version.

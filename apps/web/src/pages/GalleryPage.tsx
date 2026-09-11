@@ -1,22 +1,17 @@
 import { useState } from "react";
-import { Bell, CalendarDays, Clock3, Crosshair, MapPin, MapPinned, MoreVertical, Navigation, Plus, RotateCcw, Route, Users } from "lucide-react";
+import { CalendarDays, Clock3, Crosshair, MapPin, MapPinned, Navigation, Plus, RotateCcw, Route, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MapIconButton } from "@/components/system/MapIconButton";
 import { MapControlRail } from "@/components/system/MapControlRail";
-import { DateAddSplitButton } from "@/components/system/DateAddSplitButton";
 import { PlannerChoiceGroup, PlannerChoiceItem } from "@/components/system/PlannerChoiceGroup";
 import { ThemeToggleButton } from "@/components/system/ThemeToggle";
 import { LocationSharingMapStatus } from "@/components/LocationSharingMapStatus";
@@ -24,6 +19,8 @@ import type { TripLocationSharingController } from "@/hooks/useTripLocationShari
 import { GalleryRouteLegend } from "./gallery/GalleryRouteLegend";
 import { GalleryRouteMap } from "./gallery/GalleryRouteMap";
 import { GalleryStoryboard } from "./gallery/GalleryStoryboard";
+import { FoundationsGallery } from "./gallery/FoundationsGallery";
+import { ProductPatternsGallery } from "./gallery/ProductPatternsGallery";
 import { ProductThemeGallery } from "./gallery/ProductThemeGallery";
 
 const galleryLocationSharing = {
@@ -38,12 +35,12 @@ const galleryLocationSharing = {
   stopSharing: async () => undefined,
 } as TripLocationSharingController;
 
-function GallerySection({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function GallerySection({ id, title, description, children }: { id?: string; title: string; description: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border bg-card p-5 text-card-foreground shadow-sm">
+    <section id={id} className="gallery-section min-w-0 scroll-mt-24 border-t border-border py-8">
       <div className="mb-5 space-y-1">
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-        <p className="text-sm text-muted-foreground">{description}</p>
+        <h2 className="m-0 text-xl font-semibold tracking-tight">{title}</h2>
+        <p className="max-w-2xl text-sm text-muted-foreground">{description}</p>
       </div>
       {children}
     </section>
@@ -51,65 +48,35 @@ function GallerySection({ title, description, children }: { title: string; descr
 }
 
 export function GalleryPage() {
-  const [sharing, setSharing] = useState(false);
   const [routeMode, setRouteMode] = useState("transit");
   const [scheduleKind, setScheduleKind] = useState("RESERVATION");
 
   return (
-    <main className="component-gallery mx-auto min-h-dvh w-full max-w-6xl space-y-6 bg-background py-8 text-foreground">
-      <header className="relative space-y-2 border-b pb-6">
+    <main className="component-gallery mx-auto min-h-dvh w-full max-w-6xl space-y-2 bg-background px-4 py-8 sm:px-8 lg:px-10 text-foreground">
+      <header className="relative space-y-3 pb-6 pr-14">
         <ThemeToggleButton className="gallery-theme-toggle" />
         <p className="text-sm font-medium text-primary">Development only</p>
-        <h1 className="m-0 text-3xl">Component gallery</h1>
+        <h1 className="m-0 text-3xl">Design system</h1>
         <p className="max-w-2xl text-muted-foreground">Mungchilog uses shadcn primitives directly. Product wrappers are reserved for reusable interaction contracts, such as map controls.</p>
       </header>
 
-      <GallerySection title="Product theme" description="The executable contract for semantic tokens, action hierarchy, planner choices, forms, overlays, and feedback. Product screens reuse these exact primitives and system compositions.">
+      <nav aria-label="Design system sections" className="gallery-nav sticky top-0 z-20 flex flex-wrap gap-2 border-y border-border bg-background py-3">
+        {[["foundations", "Foundations"], ["components", "Components"], ["product-patterns", "Product patterns"], ["map-routing", "Map and routing"], ["flows", "Flows and states"]].map(([id, label]) => (
+          <Button key={id} variant="ghost" size="sm" asChild><a href={`#${id}`}>{label}</a></Button>
+        ))}
+      </nav>
+      <GallerySection id="foundations" title="Foundations" description="Product tokens, typography, spacing, surfaces, and accessible interaction rules. These values follow the application theme.">
+        <FoundationsGallery />
+      </GallerySection>
+      <GallerySection id="components" title="Components" description="Generated shadcn primitives with product tokens. Documentation is in English; product examples use Korean.">
         <ProductThemeGallery />
       </GallerySection>
-
-      <GallerySection title="Actions" description="Standard variants, disabled state, menus, tooltips, and confirmation dialogs.">
-        <div className="flex flex-wrap items-center gap-3">
-          <Button>새 여행 만들기</Button>
-          <DateAddSplitButton onAddDay={() => undefined} onOpenDateAdd={() => undefined} />
-          <Button variant="outline">초대하기</Button>
-          <Button variant="ghost">취소</Button>
-          <Button disabled>저장 중</Button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" size="icon-lg" aria-label="알림"><Bell /></Button>
-            </TooltipTrigger>
-            <TooltipContent>알림</TooltipContent>
-          </Tooltip>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon-lg" aria-label="여행 더보기"><MoreVertical /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuLabel>여행 설정</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>대표 장소 설정</DropdownMenuItem>
-              <DropdownMenuItem>대표 사진 설정</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Dialog>
-            <DialogTrigger asChild><Button variant="destructive">여행 삭제</Button></DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>여행을 삭제할까요?</DialogTitle>
-                <DialogDescription>삭제한 여행과 일정은 복구할 수 없습니다.</DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="outline">취소</Button>
-                <Button variant="destructive">삭제</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+      <GallerySection id="product-patterns" title="Product patterns" description="Dates, accommodation, and saved travel choices. Gallery controls change local examples only.">
+        <ProductPatternsGallery />
       </GallerySection>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <GallerySection title="Itinerary controls" description="Tabs, a date popover, and location-sharing consent.">
+        <GallerySection title="Itinerary controls" description="Tabs and a compact date popover.">
           <Tabs defaultValue="read" className="space-y-4">
             <TabsList>
               <TabsTrigger value="read">읽기</TabsTrigger>
@@ -126,10 +93,6 @@ export function GalleryPage() {
                 <div className="grid grid-cols-7 gap-1 text-center text-sm text-muted-foreground">{[...Array(7)].map((_, index) => <span key={index}>{index + 7}</span>)}</div>
               </PopoverContent>
             </Popover>
-            <label className="inline-flex min-h-11 items-center gap-3 text-sm">
-              <Switch checked={sharing} onCheckedChange={setSharing} aria-label="내 위치 공유" />
-              이 여행에서 내 위치 공유
-            </label>
           </div>
         </GallerySection>
 
@@ -289,17 +252,14 @@ export function GalleryPage() {
       </GallerySection>
 
       <GallerySection
-        title="Route line styles"
+        id="map-routing"
+        title="Map and routing"
         description="지도에 그리는 경로선 규칙입니다. 파랑은 탑승, 초록은 도보 구간이며, 흰 테두리가 강이나 공원 위에서도 선을 분리해 줍니다. 지도는 앱 테마를 따르지 않으므로 밝은 배경 위에서 확인합니다."
       >
         <div className="space-y-5">
           <GalleryRouteMap />
           <GalleryRouteLegend />
         </div>
-      </GallerySection>
-
-      <GallerySection title="UI storyboard" description="Review the full travel flow in live component compositions before changing a production screen. Each scene uses deterministic sample content only.">
-        <GalleryStoryboard />
       </GallerySection>
 
       <GallerySection title="Map control composition" description="The gray controls simulate Google Maps-owned UI. App controls measure that area and move as a single non-overlapping rail.">
@@ -322,6 +282,10 @@ export function GalleryPage() {
           </MapControlRail>
         </div>
       </GallerySection>
+      <GallerySection id="flows" title="Flows and states" description="Review the full travel flow in live component compositions before changing a production screen. Each scene uses deterministic sample content only.">
+        <GalleryStoryboard />
+      </GallerySection>
+
     </main>
   );
 }

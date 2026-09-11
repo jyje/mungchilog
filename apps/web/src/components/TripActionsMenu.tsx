@@ -49,12 +49,17 @@ export function TripActionsMenu({
   onExport,
   saving,
   panelActions,
+  editingTrip = false,
 }: {
   trip: Trip;
   onSave: (trip: Trip) => void;
   onExport: () => void;
   saving: boolean;
   panelActions?: TripPanelActions;
+  /** Whether the trip is in its editing mode. Gates mutating entries (cover
+   * settings) in this menu; the mode itself is toggled from the header, not
+   * from here — see the pencil button next to this menu's trigger. */
+  editingTrip?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -75,12 +80,16 @@ export function TripActionsMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="trip-actions-menu">
-          <DropdownMenuLabel>여행</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => setEditorOpen(true)}>
-            <Image aria-hidden="true" />
-            대표 화면 설정
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          {editingTrip && (
+            <>
+              <DropdownMenuLabel>여행</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setEditorOpen(true)}>
+                <Image aria-hidden="true" />
+                대표 화면 설정
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem onSelect={onExport}>
             <Download aria-hidden="true" />
             여행 내보내기 (.json)
