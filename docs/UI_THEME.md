@@ -31,6 +31,7 @@ Light and dark themes override the same semantic tokens. Components must not int
 | One-of-many state | `ToggleGroup` | `type="single"`, `variant="outline"` |
 | Content view navigation | `Tabs` | `TabsList`, `TabsTrigger`, and `TabsContent` |
 | Compact contextual edit | `Popover` | Triggered by a standard `Button` |
+| Overflow / "더보기" actions | `DropdownMenu` | See "더보기 메뉴 템플릿" below — do not improvise a shape per screen |
 | Supplemental mobile workflow | `Sheet` | Bottom sheet on narrow screens |
 | Destructive confirmation | `Dialog` | Clear cancel and destructive actions |
 | Text, date, time, number, or file input | `Input` | Labelled and paired with errors or descriptions |
@@ -39,6 +40,24 @@ Light and dark themes override the same semantic tokens. Components must not int
 | Boolean preference | `Checkbox` or `Switch` | Checkbox for a form decision, switch for an immediate setting |
 
 `ButtonGroup` is for grouped actions. `ToggleGroup` is for state. `Tabs` is for switching content panels. These primitives are not interchangeable.
+
+## 더보기 메뉴 템플릿
+
+Every overflow menu in the app — trip-level (`TripActionsMenu`), per-spot (`SpotCard`'s `spot-context-menu`), or any new one — is the same `DropdownMenu` shape. Reference implementations: `apps/web/src/components/TripActionsMenu.tsx`, `apps/web/src/components/SpotCard.tsx`, and the gallery example in `apps/web/src/pages/gallery/ProductThemeGallery.tsx` (keep that example in sync — see AGENTS.md).
+
+**Trigger**
+- `Button` `variant="ghost"` (a menu embedded in a card/row) or `variant="secondary"` (a menu that is the primary affordance of its own toolbar), always `size="icon-lg"`.
+- Icon is `MoreVertical` from `lucide-react`, `aria-hidden="true"`.
+- `aria-label` and `title` are both `"{대상 이름} 더보기"` (e.g. `"여행 더보기"`, `` `${spot.name} 더보기` ``) — never a bare "더보기" once the menu is scoped to a named item.
+
+**Content**
+- `DropdownMenuContent align="end"`. Add a menu-specific class only for width/layout, never to restyle items.
+- Group related items under a `DropdownMenuLabel` when the menu has more than one logical group (e.g. "여행" / "화면"). A single-purpose menu (like `SpotCard`'s edit/delete) skips the label.
+- Put a `DropdownMenuSeparator` **between** groups only, never inside one, and always before a trailing destructive group.
+- Every `DropdownMenuItem` / `DropdownMenuCheckboxItem` pairs a leading `lucide-react` icon (`aria-hidden="true"`) with a short Korean noun/verb label — no icon-only items, no trailing punctuation. The two-word "수정" / "삭제" style (no icon) is acceptable only in the smallest single-purpose menus that already match `SpotCard`'s existing pattern; any menu with more than two items or more than one group uses icon+label.
+- A toggleable state (edit mode, visibility, a checked setting) is a `DropdownMenuCheckboxItem`, never a plain `DropdownMenuItem` that manually renders "on/off" text.
+- A destructive action (`variant="destructive"` on the item) sits in its own trailing group after a separator and opens a confirmation `Dialog` — it never fires immediately from the menu.
+- A menu that needs deeper navigation (a submenu of settings) uses `DropdownMenuSub` / `DropdownMenuSubTrigger` / `DropdownMenuSubContent`, not a second top-level trigger.
 
 ## Product interaction rules
 
