@@ -38,6 +38,13 @@
 - Treat identity and session changes as database migrations. Preserve compatible existing records where safe, make any forced sign-out explicit, and cover the migration behavior with focused tests.
 - Report security limitations and unverified infrastructure controls separately from application-level protections. Do not imply that storage encryption, backup encryption, network policy, or ingress headers are configured unless they have been verified.
 
+# Environment branches
+
+- `dev`, `stg`, and `prd` are real long-lived branches, each deployed by its own ArgoCD Application. `apps/**` (server and web source) may only ever become a deployable image by being built on `dev` and then promoted forward by `promote-image.yml`. Neither `build.yml`'s push trigger nor its `publish` gate fire for `stg` or `prd` - promotion re-tags the already-built `dev` image with a deployment metadata layer, it never recompiles the app.
+- Never make an `apps/**` change directly on `stg` or `prd`, including through a PR based on one of those branches. Nothing rejects the git push itself (neither branch has branch protection), but no workflow will ever turn that commit into a built or deployed image - it just sits in the branch, silently diverging from what is actually running, until a later `dev` promotion overwrites the branch and the commit's effect disappears without a trace. Make the change on `dev` first, then let it reach `stg`/`prd` through the normal promotion.
+- `.github/workflows/guard-app-source.yml` enforces this: it fails a PR or a direct push to `stg`/`prd` that introduces an `apps/**`-touching commit that has never existed on `dev`. A normal promotion (merging `dev` into `stg`, or `stg` into `prd`) is unaffected - every commit it carries already has `dev` in its ancestry.
+- `charts/mungchilog/**` (the Helm chart and its environment-specific values) is the opposite case: those files are meant to be edited directly on `dev`/`stg`/`prd`, since each branch's own chart/config values are what ArgoCD reads for that environment.
+
 # Documentation language
 
 - Write GitHub issues and pull request titles and descriptions in English, regardless of the language used in the conversation that produced them. This is a repository documentation convention, separate from the app's own user interface, which is Korean.
