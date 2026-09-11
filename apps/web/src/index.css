@@ -165,7 +165,7 @@ body {
    class on <main>; nothing adds it any more. */
 #root:has(.component-gallery) {
   max-width: none;
-  padding: 0 1.25rem 4rem;
+  padding: 0 0 4rem;
   min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
@@ -2936,4 +2936,26 @@ input[type="text"]:not([data-slot])::placeholder {
   html {
     @apply font-sans;
   }
+}
+
+/* The app omits Tailwind Preflight to preserve legacy map/layout styles.
+   Radix switches, checkboxes, and radios assume zero native button padding.
+   Keep this integration
+   reset in the utilities layer so sizing utilities still win. */
+@layer utilities {
+  [data-slot="switch"],
+  [data-slot="checkbox"],
+  [data-slot="radio-group-item"] {
+    padding: 0;
+  }
+}
+@layer base {
+  .component-gallery :where(p, h3) { margin-block: 0; }
+}
+.component-gallery .gallery-section h2 { margin-top: 0; }
+.component-gallery .gallery-theme-toggle { top: 0; right: 0; }
+.component-gallery .gallery-nav a { color: inherit; }
+.component-gallery .gallery-nav a:hover { text-decoration: none; }
+@media (max-width: 639px) {
+  .component-gallery .gallery-nav { position: static; }
 }
