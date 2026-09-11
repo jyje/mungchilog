@@ -121,6 +121,13 @@ Chart releases are OCI artifacts published to
 then packages and publishes that immutable version. Cluster GitOps
 configuration should consume the version rather than copying chart source.
 
+Chart `version` and `appVersion` move independently: `version` is the chart
+source's own semantic version, and `appVersion` is the workload image tag
+verbatim, which `image.tag` resolves to when left empty. `image.digest` pins a
+deployment harder still. See the
+[chart README](charts/mungchilog/README.md) for the values reference, upgrade
+and rollback procedure, and the guard rails the templates enforce.
+
 ### Environment image packages
 
 Each environment has a separate GHCR package so release candidates and
