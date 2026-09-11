@@ -19,6 +19,33 @@ jobs:
       - uses: azure/setup-helm@v4
       - run: helm lint charts/mungchilog
       - run: helm template mungchilog charts/mungchilog > /tmp/mungchilog-sqlite.yaml
+
+      # Release contract: a rendered deployment always names an immutable
+      # build. The default comes from Chart.appVersion, and `latest` - which
+      # the promotion workflow never publishes - must not appear.
+      - name: Default image resolves to Chart.appVersion
+        run: |
+          app_version="$(helm show chart charts/mungchilog | sed -n 's/^appVersion: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p')"
+          test -n "$app_version"
+          rendered="$(grep -E '^\s+image:' /tmp/mungchilog-sqlite.yaml | sort -u)"
+          echo "appVersion=$app_version"
+          echo "$rendered"
+          test "$(echo "$rendered" | wc -l)" -eq 1
+          echo "$rendered" | grep -q ":${app_version}\"$"
+      - name: Digest pin takes precedence and stays readable
+        run: |
+          digest="sha256:$(printf 'a%.0s' $(seq 64))"
+          helm template mungchilog charts/mungchilog \
+            --set image.digest="$digest" \
+            | grep -E '^\s+image:' | sort -u | grep -q "mungchilog@${digest}\"$"
+          helm template mungchilog charts/mungchilog \
+            --set image.tag=v9.9.9 --set image.digest="$digest" \
+            | grep -E '^\s+image:' | sort -u | grep -q "mungchilog:v9.9.9@${digest}\"$"
+      - name: Schema rejects a malformed digest
+        run: >-
+          ! helm template mungchilog charts/mungchilog --set image.digest=notadigest
+      - name: Chart packages cleanly
+        run: helm package charts/mungchilog --destination /tmp/chart-package
       - run: >-
           helm template mungchilog charts/mungchilog
           --set locationSharing.enabled=true
@@ -65,3 +92,11 @@ jobs:
           --set database.postgres.existingSecret=mungchilog-postgres
           --set database.postgres.connectionMode=components
           > /tmp/mungchilog-migration-postgres.yaml
+
+      # Every scenario rendered above, checked once: no moving tag reaches a
+      # manifest. `latest` still exists in the registry from before the
+      # release contract, so this stays an explicit check rather than an
+      # assumption about what the promotion workflow publishes.
+      - name: No moving tag in any rendered scenario
+        run: >-
+          ! grep -rE '^[[:space:]]+image:.*:latest"?$' /tmp/mungchilog-*.yaml
