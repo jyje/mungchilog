@@ -39,12 +39,12 @@ function googleMapsUrl(spot: Spot) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(spot.name)}`;
 }
 
-function AddItemForm({ onAdd, onCancel }: { onAdd: (item: Omit<Item, "id" | "done">) => void; onCancel: () => void }) {
+function AddItemForm({ active, onAdd, onCancel }: { active: boolean; onAdd: (item: Omit<Item, "id" | "done">) => void; onCancel: () => void }) {
   const [kind, setKind] = useState<Item["kind"]>("buy");
   const [title, setTitle] = useState("");
 
   return (
-    <li className="add-item-form">
+    <li className="add-item-form" hidden={!active} style={{ display: active ? undefined : "none" }}>
       <NativeSelect className="w-full [&>select]:min-h-11" value={kind} onChange={(e) => setKind(e.target.value as Item["kind"])}>
         {(Object.keys(KIND_LABEL) as Item["kind"][]).map((k) => (
           <NativeSelectOption key={k} value={k}>
@@ -183,8 +183,6 @@ export function SpotCard({
   // behind now-hidden triggers.
   useEffect(() => {
     if (tripEditing) return;
-    setAddingItem(false);
-    setEditing(false);
     setMenuOpen(false);
     setConfirmingDeletion(false);
   }, [tripEditing]);
@@ -195,9 +193,8 @@ export function SpotCard({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  if (editing) {
-    return (
-      <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}${spot.isAccommodation ? " accommodation" : ""}`}>
+  const editor = editing ? (
+      <div hidden={!tripEditing} style={{ display: tripEditing ? "contents" : "none" }}>
         <TimelineSchedule spot={spot} schedule={schedule} onEdit={() => undefined} mapNumber={mapNumber} />
         <div className="spot-card-surface">
           <span className="drag-handle" aria-hidden>
@@ -217,12 +214,13 @@ export function SpotCard({
             />
           </div>
         </div>
-      </li>
-    );
-  }
+      </div>
+  ) : null;
 
   return (
     <li ref={setNodeRef} style={style} className={`spot-card${selected ? " selected" : ""}${hasNextLeg ? " has-next-leg" : ""}${spot.isAccommodation ? " accommodation" : ""}`}>
+      {editor}
+      <div hidden={editing && tripEditing} style={{ display: editing && tripEditing ? "none" : "contents" }}>
       <TimelineSchedule spot={spot} schedule={schedule} onEdit={tripEditing ? () => setEditing(true) : undefined} mapNumber={mapNumber} />
       <div className="spot-card-surface">
         {tripEditing && (
@@ -307,6 +305,7 @@ export function SpotCard({
               ))}
               {addingItem && (
                 <AddItemForm
+                  active={tripEditing}
                   onAdd={(item) => {
                     onAddItem(item);
                     setAddingItem(false);
@@ -322,6 +321,7 @@ export function SpotCard({
             </Button>
           )}
         </div>
+      </div>
       </div>
     </li>
   );

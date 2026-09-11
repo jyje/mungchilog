@@ -171,7 +171,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape" || (!selection && !focusedSharedUserId && !selectedPlace && !pointPickActive && !addingSpot)) return;
       event.preventDefault();
-      if (pointPickActive || addingSpot) {
+      if (pointPickActive || (editingTrip && addingSpot)) {
         setPointPickActive(false);
         setAddingSpot(false);
         setPendingCoordinate(null);
@@ -184,9 +184,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         previousItinerarySelectionRef.current = null;
         setSharedLocationFocus(null);
         setPointPickActive(false);
-        setAddingSpot(false);
-        setPendingCoordinate(null);
-        setPendingPlace(null);
+        if (editingTrip) {
+          setAddingSpot(false);
+          setPendingCoordinate(null);
+          setPendingPlace(null);
+        }
         setSelectedPlace(null);
         setPanelTab("itinerary");
       }
@@ -197,7 +199,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("popstate", onPopState);
     };
-  }, [addingSpot, clearSelection, focusedSharedUserId, pointPickActive, selectedPlace, selection, setSharedLocationFocus]);
+  }, [addingSpot, editingTrip, clearSelection, focusedSharedUserId, pointPickActive, selectedPlace, selection, setSharedLocationFocus]);
 
   const mutation = useMutation({
     mutationFn: (next: Trip) => {
@@ -316,22 +318,13 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   function changeTripEditing(next: boolean) {
     setEditingTrip(next);
-    // Leaving the mode must not strand any open editing UI behind a now
-    // hidden trigger: the date dialog, an in-progress spot add, the group
-    // editor, a map point pick, or the day-note editor.
+    // View mode hides draft surfaces without discarding their contents.
     if (!next) {
       cancelDayLongPress();
       closeDatePopover();
-      setAddingSpot(false);
-      setPendingCoordinate(null);
-      setPendingPlace(null);
-      setGroupEditorOpen(false);
-      setGroupName("");
-      setGroupStartId("");
-      setGroupEndId("");
-      setGroupError(null);
-      if (pointPickActive) cancelPointPick();
-      setDayNoteOpen(false);
+      // Suspend draft surfaces without destroying their local form state.
+      // Point picking itself has no draft and must not remain active in view mode.
+      setPointPickActive(false);
     }
   }
 
@@ -468,6 +461,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   }
 
   function pickMapPoint(point: MapPoint) {
+    if (!editingTrip) return;
     setPointPickActive(false);
     setPendingCoordinate(point);
     setPendingPlace(null);
@@ -489,6 +483,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   }
 
   function addSelectedPlace(place: PlaceSelection) {
+    if (!editingTrip) return;
     previousItinerarySelectionRef.current = null;
     setPendingCoordinate(null);
     setPendingPlace(place);
@@ -739,7 +734,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             locationSharing={locationSharing}
             onOpenLocationSharing={() => setSharePanelOpen(true)}
             pointPickActive={pointPickActive}
-            onPickPoint={pickMapPoint}
+            onPickPoint={editingTrip ? pickMapPoint : undefined}
             onCancelPointPick={cancelPointPick}
             selectedPlace={panelTab === "places" ? selectedPlace : null}
             onSelectPlace={selectMapPlace}
@@ -769,6 +764,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               variant={editingTrip ? "secondary" : "ghost"}
               size="icon-lg"
               className="trip-editing-toggle"
+              data-preserve-editor-draft
               aria-pressed={editingTrip}
               aria-label={editingTrip ? "보기 모드로 전환" : "여행 편집 시작"}
               title={editingTrip ? "보기 모드로 전환" : "여행 편집 시작"}
@@ -925,19 +921,18 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             {day ? (
               <>
                 {legSaveError && <p className="error leg-save-error" role="alert">{legSaveError}</p>}
-                {day.note || (editingTrip && dayNoteOpen) ? (
+                {day.note || dayNoteOpen ? (
                   <div className="day-note">
                     <p className="field-label">📝 이 날 메모</p>
-                    {editingTrip ? (
+                    <div hidden={!editingTrip} style={{ display: editingTrip ? undefined : "none" }}>
                       <MarkdownEditor
                         value={day.note ?? ""}
                         onSave={updateDayNote}
                         rows={3}
                         placeholder="오늘 계획, 준비물, 예약 확인 같은 걸 적어두세요"
                       />
-                    ) : (
-                      <MarkdownView text={day.note ?? ""} className="day-note-view" />
-                    )}
+                    </div>
+                    {!editingTrip && <MarkdownView text={day.note ?? ""} className="day-note-view" />}
                   </div>
                 ) : (
                   editingTrip && (
@@ -994,7 +989,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                         });
                       })()}
                       {addingSpot && (
-                        <li>
+                        <li hidden={!editingTrip} style={{ display: editingTrip ? undefined : "none" }}>
                           <SpotForm
                             initialLocation={pendingCoordinate ?? undefined}
                             initialPlace={pendingPlace ?? undefined}
@@ -1032,7 +1027,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                   </div>
                 )}
                 {groupEditorOpen && (
-                  <div className="itinerary-group-editor" role="dialog" aria-label="일정 그룹 만들기">
+                  <div hidden={!editingTrip} style={{ display: editingTrip ? undefined : "none" }} className="itinerary-group-editor" role="dialog" aria-label="일정 그룹 만들기">
                     <label>
                       그룹 이름
                       <Input value={groupName} onChange={(event) => { setGroupName(event.target.value); setGroupError(null); }} placeholder="예: 기타하마 산책" />

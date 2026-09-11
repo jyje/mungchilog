@@ -99,6 +99,18 @@ describe("spot card actions", () => {
 });
 
 describe("view mode (tripEditing off)", () => {
+  it("preserves an item draft across view mode", () => {
+    const props = { spot, onToggleItem: vi.fn(), onDeleteItem: vi.fn(), onAddItem: vi.fn(), onDeleteSpot: vi.fn(), onEditSpot: vi.fn(), selected: false, onSelect: vi.fn(), date: "2026-08-29" };
+    const { rerender } = render(<SpotCard {...props} tripEditing />);
+    fireEvent.click(screen.getByRole("button", { name: "+ 살 것/먹을 것 추가" }));
+    fireEvent.change(screen.getByPlaceholderText("이름"), { target: { value: "예약 티켓" } });
+    rerender(<SpotCard {...props} tripEditing={false} />);
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    rerender(<SpotCard {...props} tripEditing />);
+    expect(screen.getByPlaceholderText("이름")).toHaveValue("예약 티켓");
+    expect(props.onAddItem).not.toHaveBeenCalled();
+  });
+
   it("hides every mutating control and shows a static time label", () => {
     renderCard({ tripEditing: false });
 
