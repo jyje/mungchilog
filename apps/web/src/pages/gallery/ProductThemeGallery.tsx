@@ -13,40 +13,23 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
+import { LocationSharingExamples } from "./LocationSharingExamples";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DateAddSplitButton } from "@/components/system/DateAddSplitButton";
 import { PlannerChoiceGroup, PlannerChoiceItem } from "@/components/system/PlannerChoiceGroup";
 
-const TOKENS = [
-  { label: "Canvas", className: "bg-background text-foreground" },
-  { label: "Card", className: "bg-card text-card-foreground" },
-  { label: "Primary", className: "bg-primary text-primary-foreground" },
-  { label: "Secondary", className: "bg-secondary text-secondary-foreground" },
-  { label: "Muted", className: "bg-muted text-muted-foreground" },
-  { label: "Destructive", className: "bg-destructive/15 text-destructive" },
-] as const;
 
 export function ProductThemeGallery() {
   const [date, setDate] = useState("2026-09-07");
   const [mode, setMode] = useState("TRANSIT");
   const [checked, setChecked] = useState(true);
-  const [sharing, setSharing] = useState(false);
   const [galleryTripEditing, setGalleryTripEditing] = useState(false);
   const [galleryDeleteOpen, setGalleryDeleteOpen] = useState(false);
 
   return (
     <div className="space-y-7" data-ui-theme-contract>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Semantic theme tokens">
-        {TOKENS.map((token) => (
-          <div key={token.label} className={`rounded-lg border p-3 text-sm font-medium ${token.className}`}>
-            {token.label}
-          </div>
-        ))}
-      </div>
-
       <section className="space-y-3" aria-labelledby="theme-actions">
         <div>
           <h3 id="theme-actions" className="font-semibold">Actions</h3>
@@ -109,6 +92,7 @@ export function ProductThemeGallery() {
           <PlannerChoiceItem value="WALK" className="flex-1 sm:flex-none">도보</PlannerChoiceItem>
           <PlannerChoiceItem value="TRANSIT" className="flex-1 sm:flex-none">대중교통</PlannerChoiceItem>
           <PlannerChoiceItem value="DRIVE" className="flex-1 sm:flex-none">운전</PlannerChoiceItem>
+          <PlannerChoiceItem value="FLIGHT" className="flex-1 sm:flex-none">항공</PlannerChoiceItem>
         </PlannerChoiceGroup>
       </section>
 
@@ -137,18 +121,15 @@ export function ProductThemeGallery() {
           </Field>
         </FieldGroup>
         <div className="grid gap-3 sm:grid-cols-2">
-          <FieldLabel className="rounded-lg border p-3">
+          <FieldLabel className="w-full rounded-lg border p-3">
             <Checkbox checked={checked} onCheckedChange={(next) => setChecked(next === true)} />
             <FieldContent><FieldTitle>기존 공유 종료</FieldTitle><FieldDescription>이 기기에서 위치 공유를 다시 시작합니다.</FieldDescription></FieldContent>
           </FieldLabel>
-          <FieldLabel className="justify-between rounded-lg border p-3">
-            <FieldContent><FieldTitle>내 위치 공유</FieldTitle><FieldDescription>변경 즉시 적용되는 설정입니다.</FieldDescription></FieldContent>
-            <Switch checked={sharing} onCheckedChange={setSharing} aria-label="갤러리 위치 공유" />
-          </FieldLabel>
         </div>
+        <LocationSharingExamples />
         <RadioGroup defaultValue="auto" className="grid gap-2 sm:grid-cols-3" aria-label="갤러리 시간 기준">
           {[["auto", "자동"], ["depart", "출발 시각"], ["arrive", "도착 시각"]].map(([value, label]) => (
-            <FieldLabel key={value} className="rounded-lg border p-3"><RadioGroupItem value={value} /> {label}</FieldLabel>
+            <FieldLabel key={value} className="w-full rounded-lg border p-3"><RadioGroupItem value={value} /> {label}</FieldLabel>
           ))}
         </RadioGroup>
       </section>

@@ -82,3 +82,35 @@ Every overflow menu in the app — trip-level (`TripActionsMenu`), per-spot (`Sp
 - [Checkbox](https://ui.shadcn.com/docs/components/radix/checkbox)
 - [Popover](https://ui.shadcn.com/docs/components/base/popover)
 - [Sheet](https://ui.shadcn.com/docs/components/base/sheet)
+
+## Gallery organization
+
+The gallery has five anchored entry points: Foundations, Components, Product
+patterns, Map and routing, and Flows and states. Use English for documentation
+and Korean for product examples. Keep each primitive example in one place;
+product patterns may compose it with domain content.
+
+Foundations display existing tokens rather than introducing another palette.
+Accommodation uses `--stay`, `--stay-soft`, and `--stay-line` with an icon and
+label. The native system font stack remains authoritative. Page gutters are
+16px on phones, 32px on tablets, and 40px on desktop within a 1152px container.
+Navigation wraps and stops being sticky below 640px.
+
+Location sharing has independent, initially OFF and ON examples. Their labels
+and ARIA state update together. These are local demonstrations and never request
+geolocation or start a sharing session. Flight is a manual-input example, while
+provider delay, unavailable routes, and offline copy are documented state samples.
+
+### Preflight integration
+
+This app intentionally omits Tailwind Preflight. Browser-default button padding
+must therefore be reset for fixed-size Radix switches, checkboxes, and radio
+items in the integration stylesheet. Otherwise the switch thumb extends outside
+its track and the radio indicator's available width collapses. This reset lives
+in a CSS layer, preserves primitive utilities, and does not edit generated
+`components/ui/` files.
+
+Verify both switch endpoints have a 1px track inset and aligned vertical centers,
+including at 320px, 390px, tablet, and desktop widths in light and dark themes.
+Check keyboard operation, horizontal overflow, and page gutters in a real browser;
+DOM unit tests do not prove geometric alignment.
