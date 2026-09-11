@@ -9,7 +9,21 @@ function renderThemeGallery() {
 }
 
 describe("product theme gallery", () => {
-  it("documents every interactive primitive used by product screens", () => {
+  it("shows independently operable ON and OFF location sharing without location access", () => {
+    renderThemeGallery();
+    const off = screen.getByRole("switch", { name: "내 위치 공유 OFF 예시" });
+    const on = screen.getByRole("switch", { name: "내 위치 공유 ON 예시" });
+    expect(off).toHaveAttribute("aria-checked", "false");
+    expect(on).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(off);
+    expect(off).toHaveAttribute("aria-checked", "true");
+    expect(on).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(on);
+    expect(on).toHaveAttribute("aria-checked", "false");
+    expect(off).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("documents the core inline primitives in the component catalog", () => {
     const { container } = renderThemeGallery();
 
     for (const slot of [
