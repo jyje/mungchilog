@@ -86,6 +86,8 @@ export function MarkdownEditor({
 
   function warnWhenLeavingEditor(event: FocusEvent<HTMLDivElement>) {
     if (!saveMode || !dirty || event.currentTarget.contains(event.relatedTarget)) return;
+    // The trip mode toggle hides this editor while preserving its draft.
+    if (event.relatedTarget instanceof Element && event.relatedTarget.closest("[data-preserve-editor-draft]")) return;
     discardUnsavedChanges();
   }
 

@@ -39,18 +39,21 @@ const panelActions: TripPanelActions = {
 vi.mock("../src/components/SplitMapShell", () => ({
   SplitMapShell: ({
     headerRight,
+    map,
     panel,
   }: {
     headerRight?: ReactNode | ((actions: TripPanelActions) => ReactNode);
     panel: ReactNode;
+    map?: ReactNode;
   }) => (
     <div>
       {typeof headerRight === "function" ? headerRight(panelActions) : headerRight}
+      {map}
       {panel}
     </div>
   ),
 }));
-vi.mock("../src/components/TripMap", () => ({ TripMap: () => <div data-testid="trip-map" /> }));
+vi.mock("../src/components/TripMap", () => ({ TripMap: ({ onPickPoint }: { onPickPoint?: (point: { lat: number; lng: number }) => void }) => <button data-testid="trip-map" disabled={!onPickPoint} onClick={() => onPickPoint?.({ lat: 35, lng: 135 })}>지도 우클릭 추가</button> }));
 vi.mock("../src/components/MapsScope", () => ({ MapsScope: ({ children }: { children: ReactNode }) => <>{children}</> }));
 vi.mock("../src/components/TripShareButton", () => ({ TripShareButton: () => null }));
 vi.mock("../src/components/PlaceDetailsPanel", () => ({ PlaceDetailsPanel: () => null }));
@@ -90,14 +93,18 @@ async function renderDay() {
   return screen.findByRole("radiogroup", { name: "여행 날짜" });
 }
 
-function openMenu() {
-  fireEvent.pointerDown(screen.getByRole("button", { name: "여행 더보기" }), { button: 0 });
+function editingToggle() {
+  return screen.getByRole("button", { name: /여행 편집 시작|보기 모드로 전환/ });
 }
 
 async function turnOnEditing() {
-  openMenu();
-  fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "여행 편집" }));
-  await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+  fireEvent.click(editingToggle());
+  await waitFor(() => expect(editingToggle()).toHaveAttribute("aria-pressed", "true"));
+}
+
+async function turnOffEditing() {
+  fireEvent.click(editingToggle());
+  await waitFor(() => expect(editingToggle()).toHaveAttribute("aria-pressed", "false"));
 }
 
 describe("trip day editing mode", () => {
@@ -125,8 +132,7 @@ describe("trip day editing mode", () => {
     fireEvent.click(screen.getByRole("button", { name: "2026-09-07 날짜 관리" }));
     expect(await screen.findByRole("dialog", { name: "2026-09-07 날짜 관리" })).toBeInTheDocument();
 
-    openMenu();
-    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "여행 편집" }));
+    await turnOffEditing();
 
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "2026-09-07 날짜 관리" })).not.toBeInTheDocument());
     expect(screen.queryByRole("group", { name: "날짜 추가" })).not.toBeInTheDocument();
@@ -167,5 +173,67 @@ describe("trip day editing mode", () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("hides every day-level mutating control while only browsing, and reveals them once editing is on", async () => {
+    await renderDay();
+
+    expect(screen.queryByRole("button", { name: "+ 스팟 추가" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "지도에서 선택" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ 그룹 만들기" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ 이 날 메모 추가" })).not.toBeInTheDocument();
+
+    await turnOnEditing();
+
+    expect(screen.getByRole("button", { name: "+ 스팟 추가" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "지도에서 선택" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ 그룹 만들기" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "+ 이 날 메모 추가" })).toBeInTheDocument();
+  });
+
+  it("preserves a typed spot draft across view mode", async () => {
+    await renderDay();
+    await turnOnEditing();
+
+    fireEvent.click(screen.getByRole("button", { name: "+ 스팟 추가" }));
+    expect(await screen.findByRole("button", { name: "스팟 추가" })).toBeInTheDocument();
+
+    const draft = screen.getByPlaceholderText("현지어 이름 (선택)");
+    fireEvent.change(draft, { target: { value: "保存したい場所" } });
+    await turnOffEditing();
+
+    expect(screen.queryByRole("button", { name: "스팟 추가" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "+ 스팟 추가" })).not.toBeInTheDocument();
+    await turnOnEditing();
+    expect(screen.getByPlaceholderText("현지어 이름 (선택)")).toHaveValue("保存したい場所");
+  });
+
+  it("preserves the day-note draft without saving when changing modes", async () => {
+    await renderDay();
+    await turnOnEditing();
+    fireEvent.click(screen.getByRole("button", { name: "+ 이 날 메모 추가" }));
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "예약 번호 ABC123" } });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.blur(input, { relatedTarget: editingToggle() });
+    await turnOffEditing();
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    await turnOnEditing();
+    expect(screen.getByRole("textbox")).toHaveValue("예약 번호 ABC123");
+    confirm.mockRestore();
+  });
+
+  it("disables the map context-menu callback in view mode", async () => {
+    await renderDay();
+    expect(screen.getByTestId("trip-map")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("trip-map"));
+    expect(screen.queryByRole("button", { name: "스팟 추가" })).not.toBeInTheDocument();
+    await turnOnEditing();
+    expect(screen.getByTestId("trip-map")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("trip-map"));
+    expect(await screen.findByRole("button", { name: "스팟 추가" })).toBeVisible();
+    await turnOffEditing();
+    expect(screen.getByTestId("trip-map")).toBeDisabled();
   });
 });

@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, MapPinPlus } from "lucide-react";
+import { ArrowLeft, Eye, MapPinPlus, Pencil } from "lucide-react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { DndContext, closestCenter, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-kit/sortable";
@@ -12,6 +12,7 @@ import { SpotCard } from "../components/SpotCard";
 import { LegInfo } from "../components/LegInfo";
 import { SpotForm, type SpotFormValues } from "../components/SpotForm";
 import { MarkdownEditor } from "../components/MarkdownEditor";
+import { MarkdownView } from "../components/MarkdownView";
 import { TripShareButton } from "../components/TripShareButton";
 import { useTripLocationSharing, type SharedLocationWithName } from "../hooks/useTripLocationSharing";
 import { TripActionsMenu } from "../components/TripActionsMenu";
@@ -170,7 +171,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape" || (!selection && !focusedSharedUserId && !selectedPlace && !pointPickActive && !addingSpot)) return;
       event.preventDefault();
-      if (pointPickActive || addingSpot) {
+      if (pointPickActive || (editingTrip && addingSpot)) {
         setPointPickActive(false);
         setAddingSpot(false);
         setPendingCoordinate(null);
@@ -183,9 +184,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         previousItinerarySelectionRef.current = null;
         setSharedLocationFocus(null);
         setPointPickActive(false);
-        setAddingSpot(false);
-        setPendingCoordinate(null);
-        setPendingPlace(null);
+        if (editingTrip) {
+          setAddingSpot(false);
+          setPendingCoordinate(null);
+          setPendingPlace(null);
+        }
         setSelectedPlace(null);
         setPanelTab("itinerary");
       }
@@ -196,7 +199,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("popstate", onPopState);
     };
-  }, [addingSpot, clearSelection, focusedSharedUserId, pointPickActive, selectedPlace, selection, setSharedLocationFocus]);
+  }, [addingSpot, editingTrip, clearSelection, focusedSharedUserId, pointPickActive, selectedPlace, selection, setSharedLocationFocus]);
 
   const mutation = useMutation({
     mutationFn: (next: Trip) => {
@@ -315,11 +318,13 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
 
   function changeTripEditing(next: boolean) {
     setEditingTrip(next);
-    // Leaving the mode must not strand an open date dialog behind a hidden
-    // trigger.
+    // View mode hides draft surfaces without discarding their contents.
     if (!next) {
       cancelDayLongPress();
       closeDatePopover();
+      // Suspend draft surfaces without destroying their local form state.
+      // Point picking itself has no draft and must not remain active in view mode.
+      setPointPickActive(false);
     }
   }
 
@@ -456,6 +461,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   }
 
   function pickMapPoint(point: MapPoint) {
+    if (!editingTrip) return;
     setPointPickActive(false);
     setPendingCoordinate(point);
     setPendingPlace(null);
@@ -477,6 +483,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
   }
 
   function addSelectedPlace(place: PlaceSelection) {
+    if (!editingTrip) return;
     previousItinerarySelectionRef.current = null;
     setPendingCoordinate(null);
     setPendingPlace(place);
@@ -680,6 +687,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
         scheduleWarning={scheduleWarningBySpotId.get(spot.id)}
         mapNumber={mapNumberBySpotId.get(spot.id)}
         hasNextLeg={hasNextLeg}
+        tripEditing={editingTrip}
       />
     );
   }
@@ -700,6 +708,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               ? selection.rideRunIndex
               : undefined
           }
+          editing={editingTrip}
           onSelect={(rideRunIndex) => selectItinerary({ kind: "leg", fromId: from.id, toId: to.id, rideRunIndex })}
           onChange={(patch) => saveLegPreference(from.id, to.id, patch)}
         />
@@ -725,7 +734,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
             locationSharing={locationSharing}
             onOpenLocationSharing={() => setSharePanelOpen(true)}
             pointPickActive={pointPickActive}
-            onPickPoint={pickMapPoint}
+            onPickPoint={editingTrip ? pickMapPoint : undefined}
             onCancelPointPick={cancelPointPick}
             selectedPlace={panelTab === "places" ? selectedPlace : null}
             onSelectPlace={selectMapPlace}
@@ -750,6 +759,19 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               sharedLocations={sharedLocations}
               onFocusLocation={selectSharedLocation}
             />
+            <Button
+              type="button"
+              variant={editingTrip ? "secondary" : "ghost"}
+              size="icon-lg"
+              className="trip-editing-toggle"
+              data-preserve-editor-draft
+              aria-pressed={editingTrip}
+              aria-label={editingTrip ? "보기 모드로 전환" : "여행 편집 시작"}
+              title={editingTrip ? "보기 모드로 전환" : "여행 편집 시작"}
+              onClick={() => changeTripEditing(!editingTrip)}
+            >
+              {editingTrip ? <Eye aria-hidden="true" /> : <Pencil aria-hidden="true" />}
+            </Button>
             <TripActionsMenu
               trip={trip}
               onSave={saveNow}
@@ -757,7 +779,6 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
               saving={mutation.isPending}
               panelActions={panelActions}
               editingTrip={editingTrip}
-              onEditingTripChange={changeTripEditing}
             />
           </>;
         }}
@@ -903,17 +924,22 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 {day.note || dayNoteOpen ? (
                   <div className="day-note">
                     <p className="field-label">📝 이 날 메모</p>
-                    <MarkdownEditor
-                      value={day.note ?? ""}
-                      onSave={updateDayNote}
-                      rows={3}
-                      placeholder="오늘 계획, 준비물, 예약 확인 같은 걸 적어두세요"
-                    />
+                    <div hidden={!editingTrip} style={{ display: editingTrip ? undefined : "none" }}>
+                      <MarkdownEditor
+                        value={day.note ?? ""}
+                        onSave={updateDayNote}
+                        rows={3}
+                        placeholder="오늘 계획, 준비물, 예약 확인 같은 걸 적어두세요"
+                      />
+                    </div>
+                    {!editingTrip && <MarkdownView text={day.note ?? ""} className="day-note-view" />}
                   </div>
                 ) : (
-                  <Button type="button" variant="outline" className="add-spot-button" onClick={() => setDayNoteOpen(true)}>
-                    + 이 날 메모 추가
-                  </Button>
+                  editingTrip && (
+                    <Button type="button" variant="outline" className="add-spot-button" onClick={() => setDayNoteOpen(true)}>
+                      + 이 날 메모 추가
+                    </Button>
+                  )
                 )}
 
                 <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -939,9 +965,11 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                               <li className="itinerary-group">
                                 <div className="itinerary-group-header">
                                   <span className="itinerary-group-title">{block.group.name}</span>
-                                  <Button type="button" variant="ghost" size="sm" onClick={() => removeGroup(block.group.id)}>
-                                    그룹 해제
-                                  </Button>
+                                  {editingTrip && (
+                                    <Button type="button" variant="ghost" size="sm" onClick={() => removeGroup(block.group.id)}>
+                                      그룹 해제
+                                    </Button>
+                                  )}
                                 </div>
                                 <ol className="itinerary-group-stops">
                                   {block.spots.map((spot, spotIndex) => {
@@ -961,7 +989,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                         });
                       })()}
                       {addingSpot && (
-                        <li>
+                        <li hidden={!editingTrip} style={{ display: editingTrip ? undefined : "none" }}>
                           <SpotForm
                             initialLocation={pendingCoordinate ?? undefined}
                             initialPlace={pendingPlace ?? undefined}
@@ -975,7 +1003,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     </ul>
                   </SortableContext>
                 </DndContext>
-                {(() => {
+                {editingTrip && (() => {
                   if (addingSpot || orderedSpots.length === 0) return null;
                   const accommodation = orderedSpots.find((s) => s.isAccommodation);
                   if (!accommodation || orderedSpots.at(-1)?.isAccommodation) return null;
@@ -985,7 +1013,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                     </Button>
                   );
                 })()}
-                {!addingSpot && (
+                {editingTrip && !addingSpot && (
                   <div className="add-spot-actions">
                     <Button type="button" variant="outline" className="add-spot-button" onClick={() => { setPendingCoordinate(null); setPendingPlace(null); setAddingSpot(true); }}>
                       + 스팟 추가
@@ -999,7 +1027,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                   </div>
                 )}
                 {groupEditorOpen && (
-                  <div className="itinerary-group-editor" role="dialog" aria-label="일정 그룹 만들기">
+                  <div hidden={!editingTrip} style={{ display: editingTrip ? undefined : "none" }} className="itinerary-group-editor" role="dialog" aria-label="일정 그룹 만들기">
                     <label>
                       그룹 이름
                       <Input value={groupName} onChange={(event) => { setGroupName(event.target.value); setGroupError(null); }} placeholder="예: 기타하마 산책" />
@@ -1036,7 +1064,7 @@ export function TripDayPage({ id, navigate, me }: { id: string; navigate: (path:
                 selection={selectedPlace}
                 onAdd={addSelectedPlace}
                 onClose={() => { setSelectedPlace(null); setPanelTab("itinerary"); }}
-                canAdd={!!day}
+                canAdd={editingTrip && !!day}
               />
             }
           />

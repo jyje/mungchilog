@@ -70,6 +70,7 @@ function renderLeg(overrides: Partial<React.ComponentProps<typeof LegInfo>> = {}
       timezone="Asia/Tokyo"
       preference={preferenceOf()}
       selected={false}
+      editing
       onSelect={onSelect}
       onChange={onChange}
       {...overrides}
@@ -393,5 +394,14 @@ describe("selecting one boarded vehicle from the summary", () => {
     transitLeg({ selectedRideRunIndex: 1 });
     expect(screen.getByRole("button", { name: /Sakaisuji Line.*강조/ })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: /Osaka City Bus 62.*강조/ })).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("view mode (editing off)", () => {
+  it("hides the mode/route pencil but keeps the read-only summary", () => {
+    useLegMock.mockReturnValue({ data: legOf([{ durationS: 600, distanceM: 1000 }]), isError: false, isLoading: false });
+    renderLeg({ editing: false }, { edit: false });
+    expect(screen.queryByRole("button", { name: /경로 수정/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/10분/)).toBeVisible();
   });
 });
