@@ -18,7 +18,7 @@
     "hono": "^4.13.7",
     "openid-client": "^6.8.7",
     "pg": "^8.23.0",
-    "undici": "^8.10.0",
+    "undici": "^8.10.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {
