@@ -26,3 +26,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - run: helm push .chart-release/mungchilog-*.tgz oci://ghcr.io/${{ github.repository_owner }}/charts
+
+      # A package that lints locally can still be unusable once published
+      # (wrong OCI metadata, a file missing from the archive). Pull the exact
+      # published version back and render it, so a broken release is caught
+      # here instead of by the cluster on its next sync.
+      - name: Verify the published chart pulls and renders
+        run: |
+          chart_version="$(helm show chart "$CHART_DIR" | sed -n 's/^version: *//p')"
+          test -n "$chart_version"
+          helm pull "oci://ghcr.io/${{ github.repository_owner }}/charts/mungchilog" \
+            --version "$chart_version" --destination .chart-verify
+          helm template mungchilog ".chart-verify/mungchilog-${chart_version}.tgz" \
+            > .chart-verify/rendered.yaml
+          grep -qE '^[[:space:]]+image:' .chart-verify/rendered.yaml
+          ! grep -qE '^[[:space:]]+image:.*:latest"?$' .chart-verify/rendered.yaml

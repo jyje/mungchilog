@@ -2,5 +2,9 @@ apiVersion: v2
 name: mungchilog
 description: Mungchilog travel itinerary application
 type: application
-version: 0.2.0
-appVersion: "0.2.0"
+# Chart version and appVersion move independently. `version` is this chart
+# source's own semantic version, bumped on every chart change. `appVersion` is
+# the workload image tag verbatim, `v` prefix included, so it can be used as
+# the default image tag directly.
+version: 0.3.0
+appVersion: "v0.3.0"

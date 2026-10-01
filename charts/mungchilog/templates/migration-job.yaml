@@ -37,7 +37,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: migrate-spot-time-fields
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "mungchilog.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["node"]
           args:

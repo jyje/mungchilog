@@ -43,7 +43,7 @@ spec:
       automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
       containers:
         - name: mungchilog
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ include "mungchilog.image" . | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http

@@ -2,46 +2,141 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
-    "replicaCount": { "type": "integer", "minimum": 1 },
+    "image": {
+      "type": "object",
+      "required": [
+        "repository"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "description": "Empty resolves to Chart.appVersion. A digest is stronger; prefer it for GitOps."
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^(|sha256:[0-9a-f]{64})$",
+          "description": "Immutable pin as sha256:<64 hex>, or empty. Takes precedence over tag."
+        },
+        "pullPolicy": {
+          "type": "string",
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "replicaCount": {
+      "type": "integer",
+      "minimum": 1
+    },
     "locationSharing": {
       "type": "object",
-      "required": ["enabled"],
+      "required": [
+        "enabled"
+      ],
       "properties": {
-        "enabled": { "type": "boolean" }
+        "enabled": {
+          "type": "boolean"
+        }
       }
     },
     "serviceAccount": {
       "type": "object",
-      "required": ["create", "name", "annotations", "automountServiceAccountToken"],
+      "required": [
+        "create",
+        "name",
+        "annotations",
+        "automountServiceAccountToken"
+      ],
       "properties": {
-        "create": { "type": "boolean" },
-        "name": { "type": "string" },
-        "annotations": { "type": "object" },
-        "automountServiceAccountToken": { "type": "boolean" }
+        "create": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean"
+        }
       }
     },
     "database": {
       "type": "object",
-      "required": ["provider", "sqlite", "postgres"],
+      "required": [
+        "provider",
+        "sqlite",
+        "postgres"
+      ],
       "properties": {
-        "provider": { "type": "string", "enum": ["sqlite", "postgres"] },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "sqlite",
+            "postgres"
+          ]
+        },
         "sqlite": {
           "type": "object",
-          "required": ["path"],
-          "properties": { "path": { "type": "string", "minLength": 1 } }
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
         },
         "postgres": {
           "type": "object",
-          "required": ["connectionMode", "existingSecret"],
+          "required": [
+            "connectionMode",
+            "existingSecret"
+          ],
           "properties": {
-            "connectionMode": { "type": "string", "enum": ["url", "components"] },
-            "existingSecret": { "type": "string" },
-            "urlKey": { "type": "string", "minLength": 1 },
-            "hostKey": { "type": "string", "minLength": 1 },
-            "portKey": { "type": "string", "minLength": 1 },
-            "databaseKey": { "type": "string", "minLength": 1 },
-            "usernameKey": { "type": "string", "minLength": 1 },
-            "passwordKey": { "type": "string", "minLength": 1 }
+            "connectionMode": {
+              "type": "string",
+              "enum": [
+                "url",
+                "components"
+              ]
+            },
+            "existingSecret": {
+              "type": "string"
+            },
+            "urlKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "hostKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "portKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "databaseKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "usernameKey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "passwordKey": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         }
       }
@@ -52,47 +147,95 @@
         "initialAdmin": {
           "type": "object",
           "properties": {
-            "existingSecret": { "type": "string" },
-            "key": { "type": "string", "minLength": 1 }
+            "existingSecret": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string",
+              "minLength": 1
+            }
           }
         }
       }
     },
     "usageMonitoring": {
       "type": "object",
-      "required": ["googleCloud"],
+      "required": [
+        "googleCloud"
+      ],
       "properties": {
         "googleCloud": {
           "type": "object",
-          "required": ["enabled", "projectId", "monitoredServices", "workloadIdentity"],
+          "required": [
+            "enabled",
+            "projectId",
+            "monitoredServices",
+            "workloadIdentity"
+          ],
           "properties": {
-            "enabled": { "type": "boolean" },
-            "projectId": { "type": "string" },
+            "enabled": {
+              "type": "boolean"
+            },
+            "projectId": {
+              "type": "string"
+            },
             "monitoredServices": {
               "type": "array",
-              "items": { "type": "string", "pattern": "^[a-z0-9.-]+\\.googleapis\\.com$" },
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9.-]+\\.googleapis\\.com$"
+              },
               "maxItems": 12,
               "uniqueItems": true
             },
             "workloadIdentity": {
               "type": "object",
-              "required": ["enabled", "audience", "credentialConfigMap", "credentialConfigKey", "tokenExpirationSeconds"],
+              "required": [
+                "enabled",
+                "audience",
+                "credentialConfigMap",
+                "credentialConfigKey",
+                "tokenExpirationSeconds"
+              ],
               "properties": {
-                "enabled": { "type": "boolean" },
-                "audience": { "type": "string" },
-                "credentialConfigMap": { "type": "string" },
-                "credentialConfigKey": { "type": "string", "minLength": 1 },
-                "tokenExpirationSeconds": { "type": "integer", "minimum": 600, "maximum": 86400 }
+                "enabled": {
+                  "type": "boolean"
+                },
+                "audience": {
+                  "type": "string"
+                },
+                "credentialConfigMap": {
+                  "type": "string"
+                },
+                "credentialConfigKey": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "tokenExpirationSeconds": {
+                  "type": "integer",
+                  "minimum": 600,
+                  "maximum": 86400
+                }
               }
             }
           },
           "allOf": [
             {
-              "if": { "properties": { "enabled": { "const": true } } },
+              "if": {
+                "properties": {
+                  "enabled": {
+                    "const": true
+                  }
+                }
+              },
               "then": {
                 "properties": {
-                  "projectId": { "minLength": 1 },
-                  "monitoredServices": { "minItems": 1 }
+                  "projectId": {
+                    "minLength": 1
+                  },
+                  "monitoredServices": {
+                    "minItems": 1
+                  }
                 }
               }
             },
@@ -100,7 +243,11 @@
               "if": {
                 "properties": {
                   "workloadIdentity": {
-                    "properties": { "enabled": { "const": true } }
+                    "properties": {
+                      "enabled": {
+                        "const": true
+                      }
+                    }
                   }
                 }
               },
@@ -108,8 +255,12 @@
                 "properties": {
                   "workloadIdentity": {
                     "properties": {
-                      "audience": { "minLength": 1 },
-                      "credentialConfigMap": { "minLength": 1 }
+                      "audience": {
+                        "minLength": 1
+                      },
+                      "credentialConfigMap": {
+                        "minLength": 1
+                      }
                     }
                   }
                 }
@@ -121,14 +272,23 @@
     },
     "migration": {
       "type": "object",
-      "required": ["spotTimeFields"],
+      "required": [
+        "spotTimeFields"
+      ],
       "properties": {
         "spotTimeFields": {
           "type": "object",
-          "required": ["enabled", "dryRun"],
+          "required": [
+            "enabled",
+            "dryRun"
+          ],
           "properties": {
-            "enabled": { "type": "boolean" },
-            "dryRun": { "type": "boolean" }
+            "enabled": {
+              "type": "boolean"
+            },
+            "dryRun": {
+              "type": "boolean"
+            }
           }
         }
       }

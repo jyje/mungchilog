@@ -1,6 +1,14 @@
 image:
   repository: ghcr.io/jyje/mungchilog
-  tag: latest
+  # Empty resolves to Chart.appVersion, the workload version this chart
+  # revision was tested against. Set an explicit immutable tag
+  # (`v<major>.<minor>.<patch>` or `v<version>-r<run>-<sha>`) to pin a
+  # different build. Never `latest`: the promotion workflow does not publish
+  # it, and the one left in the registry predates the release contract.
+  tag: ""
+  # Strongest pin: `sha256:...`. Takes precedence over `tag`, which is then
+  # kept in the reference only for readability.
+  digest: ""
   pullPolicy: IfNotPresent
 
 replicaCount: 1
