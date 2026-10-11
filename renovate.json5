@@ -1,0 +1,45 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended"],
+
+  // dev is the default branch. stg/prd are promoted from dev by the existing
+  // promote-image workflow, so Renovate must never open PRs against them.
+  baseBranchPatterns: ["dev"],
+
+  timezone: "Asia/Seoul",
+  schedule: ["before 6am on monday"],
+  prConcurrentLimit: 5,
+  prHourlyLimit: 2,
+
+  // jyje/skills git-commit-helper: bot commits are "🤖 ci(deps): <title>".
+  semanticCommits: "disabled",
+  commitMessagePrefix: "🤖 ci(deps):",
+
+  // A dry run without any config proposed 42 PRs at once. Majors wait for a
+  // checkbox on the Dependency Dashboard instead of opening immediately.
+  packageRules: [
+    {
+      matchUpdateTypes: ["major"],
+      dependencyDashboardApproval: true,
+    },
+    {
+      description: "apps/server npm, non-major in one PR",
+      matchManagers: ["npm"],
+      matchFileNames: ["apps/server/**"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "server npm non-major",
+    },
+    {
+      description: "apps/web npm, non-major in one PR",
+      matchManagers: ["npm"],
+      matchFileNames: ["apps/web/**"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "web npm non-major",
+    },
+    {
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["minor", "patch"],
+      groupName: "github actions non-major",
+    },
+  ],
+}
