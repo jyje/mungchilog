@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.28
 # Build context is the repo root (see .github/workflows/build.yml) so this
 # stage can reach apps/web as well as apps/server.
 
