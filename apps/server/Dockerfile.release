@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.28
 # A promotion image is intentionally a thin derivative of a verified source
 # image. It copies only deployment identity into the final filesystem layer.
 
