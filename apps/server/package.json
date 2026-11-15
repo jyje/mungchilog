@@ -13,7 +13,7 @@
     "migrate:spot-time-fields": "scripts/migrate-spot-time-fields.sh"
   },
   "dependencies": {
-    "@hono/node-server": "^1.13.7",
+    "@hono/node-server": "^2.0.0",
     "google-auth-library": "^11.0.2",
     "hono": "^4.13.7",
     "openid-client": "^6.8.7",
