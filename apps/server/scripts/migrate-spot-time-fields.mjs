@@ -21,11 +21,11 @@
 // runtime image alongside dist/, with no dev toolchain available there to
 // compile anything at run time (see apps/server/Dockerfile).
 //
-// Usage (from apps/server, after `npm run build`):
+// Usage (from apps/server, after `pnpm run build`):
 //   node scripts/migrate-spot-time-fields.mjs --dry-run   # report only
 //   node scripts/migrate-spot-time-fields.mjs             # apply
-// or via the npm script:
-//   npm run migrate:spot-time-fields -- --dry-run
+// or via the package script:
+//   pnpm run migrate:spot-time-fields --dry-run
 //
 // Connects using this process's own DB_PROVIDER / DB_SQLITE_PATH /
 // DB_POSTGRES_* environment - the same ones the server itself reads (see

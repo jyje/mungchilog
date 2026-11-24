@@ -34,12 +34,14 @@ Live at `https://mungchilog.app.jyje.online` through OIDC sign-in.
 
 ## Development
 
+Requires Node 26 (see `.nvmrc`) and pnpm 12 (pinned by `packageManager`; run `corepack enable` or install pnpm 12.23.0). Each app is an independent pnpm project with its own `pnpm-lock.yaml`.
+
 ```bash
 cp .env.sample .env
-npm --prefix apps/server install
-npm --prefix apps/web install
-npm --prefix apps/server run dev  # http://localhost:3000
-npm --prefix apps/web run dev     # http://localhost:5173, run in another shell
+pnpm --dir apps/server install
+pnpm --dir apps/web install
+pnpm --dir apps/server run dev  # http://localhost:3000
+pnpm --dir apps/web run dev     # http://localhost:5173, run in another shell
 ```
 
 The copied file is a safe local default: SQLite is enabled, OIDC stays disabled

@@ -12,14 +12,14 @@ Run from each application directory:
 
 ```sh
 # apps/web
-npm test
-npm run build
-npm run lint
+pnpm test
+pnpm run build
+pnpm run lint
 node scripts/check-location-cache.mjs
 
 # apps/server
-npm test
-npm run build
+pnpm test
+pnpm run build
 ```
 
 - Web: 54 passing tests for adaptive states, saved layout preference, unsaved editor preservation, keyboard and pointer input, viewport geometry, location permission/error/stale states, watch cleanup, long-press preview, camera ownership, and no application requests or persistent writes from personal geolocation.

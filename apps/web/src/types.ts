@@ -27,7 +27,7 @@ export const TripCoverSchema = z
   .refine((cover) => cover.spotId || cover.imageDataUrl, { message: "대표 장소 또는 대표 이미지를 선택해주세요." });
 
 // Mirrors apps/server/src/schema.ts. Duplicated for now since the project
-// intentionally skipped a pnpm workspace (see PLAN.md): if this drifts,
+// intentionally skipped a shared pnpm workspace (see PLAN.md): if this drifts,
 // reconcile against the server copy, which is the source of truth.
 
 export const ItemSchema = z.object({

@@ -3,14 +3,14 @@
   "configurations": [
     {
       "name": "mungchilog-web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "apps/web"],
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/web", "run", "dev"],
       "port": 5173
     },
     {
       "name": "mungchilog-server",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "apps/server"],
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "apps/server", "run", "dev"],
       "port": 3000
     }
   ]

@@ -132,7 +132,7 @@ jobs:
           # A public base exercises the release Dockerfile without requiring
           # package-read permission or creating an environment image in a PR.
           build-args: |
-            BASE_IMAGE=node:22-alpine
+            BASE_IMAGE=node:26.13.1-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5
             BUILD_ENV=stg
             BUILD_NUMBER=${{ needs.metadata.outputs.build_number }}
             IMAGE_TAG=r${{ needs.metadata.outputs.build_number }}-${{ needs.metadata.outputs.commit_sha }}

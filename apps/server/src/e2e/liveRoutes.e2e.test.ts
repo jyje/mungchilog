@@ -1,11 +1,11 @@
 // Live, non-mocked coverage against the real Google Routes API - the two
 // example journeys the user asked for, run against src/route-providers/google.ts's
-// actual fetch/parse logic (not a reimplementation). Not part of `npm test` /
+// actual fetch/parse logic (not a reimplementation). Not part of `pnpm test` /
 // CI: this hits a real network endpoint, consumes real quota, and needs a
 // provisioned GOOGLE_MAPS_SERVER_API_KEY.
 //
 // Run manually with:
-//   npm run test:e2e
+//   pnpm run test:e2e
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fetchGoogleRoutes } from "../route-providers/google.js";

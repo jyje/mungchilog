@@ -83,7 +83,7 @@ function rowToUser(row: UserRow): User {
 // Single fixed pseudo-user for local dev when no OIDC provider is
 // configured (mirrors how the Google Maps integration degrades to a
 // placeholder/plain-text-input when its keys aren't set, rather than
-// hard-failing): keeps `npm run dev` usable without standing up an IdP,
+// hard-failing): keeps `pnpm run dev` usable without standing up an IdP,
 // while production (env vars present) always enforces real login.
 const DEV_USER: User = { id: "dev-local", email: "dev@localhost", name: "Local Dev", status: "approved", role: "admin" };
 

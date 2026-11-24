@@ -63,7 +63,7 @@ v0.2.1 작업을 시작하기 전에 이 문서의 "환경별 실행 절차"를 
 ```bash
 apps/server/scripts/migrate-spot-time-fields.sh --dry-run   # 무엇이 바뀔지만 확인
 apps/server/scripts/migrate-spot-time-fields.sh              # 실제 적용
-# 또는 apps/server 안에서: npm run migrate:spot-time-fields -- --dry-run
+# 또는 apps/server 안에서: pnpm run migrate:spot-time-fields --dry-run
 ```
 
 `DB_PROVIDER`/`DB_SQLITE_PATH`/`DB_POSTGRES_*` 등, 서버가 읽는 것과 같은

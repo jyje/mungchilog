@@ -43,7 +43,7 @@ Authentik 관리자 화면 → Applications → Create with Provider (지금 열
 4. 비밀번호: `test1234`
 5. 이 계정은 Google 로그인이 아니라 Authentik 자체 로그인 화면(아이디/비밀번호 입력)으로 로그인하게 됩니다 — mungchilog 로그인 버튼을 누르면 Authentik이 "Google로 계속하기" 버튼과 "사용자명/비밀번호" 입력 폼을 같이 보여줄 텐데, 테스트 계정은 후자로 로그인하시면 됩니다.
 
-이 계정의 이메일은 Authentik에서 검증된 이메일로 취급하지 않습니다. `npm --prefix apps/server run dev:oidc`로 실행한 `http://localhost:3000/auth/callback`에서 전체 로그인 플로우를 시험할 수 있습니다. 운영에서는 미검증 계정도 `pending` 상태로 로그인할 수 있지만, 관리자의 명시적 승인이 전까지 여행 데이터에 접근할 수 없습니다. 기존 계정의 이메일을 주장하거나 관리자 자동 승인을 받으려면 항상 `email_verified: true`가 필요합니다.
+이 계정의 이메일은 Authentik에서 검증된 이메일로 취급하지 않습니다. `pnpm --dir apps/server run dev:oidc`로 실행한 `http://localhost:3000/auth/callback`에서 전체 로그인 플로우를 시험할 수 있습니다. 운영에서는 미검증 계정도 `pending` 상태로 로그인할 수 있지만, 관리자의 명시적 승인이 전까지 여행 데이터에 접근할 수 없습니다. 기존 계정의 이메일을 주장하거나 관리자 자동 승인을 받으려면 항상 `email_verified: true`가 필요합니다.
 
 ## 3. 이메일 검증 클레임
 
@@ -88,13 +88,13 @@ auth:
 실제 OIDC 로그인까지 로컬에서 확인할 때는 `.env`에 위 값을 두고 다음 명령을 실행합니다. 이 모드는 웹을 빌드한 뒤 서버가 함께 제공하므로 callback 후에도 같은 `localhost:3000` 앱으로 돌아옵니다.
 
 ```bash
-npm --prefix apps/server run dev:oidc
+pnpm --dir apps/server run dev:oidc
 ```
 
 Vite의 HMR 화면(`http://localhost:5173`)에서 같은 OIDC 흐름을 확인하려면 `.env`에 아래 값을 추가하고, 서버와 웹을 각각 실행합니다. IdP의 strict callback은 계속 `http://localhost:3000/auth/callback`으로 유지됩니다. 서버는 callback에서 세션을 만든 다음 브라우저만 Vite 화면으로 되돌립니다.
 
 ```bash
 LOCAL_WEB_ORIGIN=http://localhost:5173
-npm --prefix apps/server run dev
-npm --prefix apps/web run dev
+pnpm --dir apps/server run dev
+pnpm --dir apps/web run dev
 ```

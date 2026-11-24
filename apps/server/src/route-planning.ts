@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 // Pure routing helpers shared by the /api/legs/compute handler. Kept out of
-// the handler (and at src/ level, where `npm test` picks up its test file) so
+// the handler (and at src/ level, where `pnpm test` picks up its test file) so
 // endpoint identity, timing rules, and cache keys can be verified without a
 // database, an HTTP server, or a Google API key.
 
