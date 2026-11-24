@@ -3,9 +3,13 @@
   "private": true,
   "version": "0.2.0",
   "type": "module",
+  "packageManager": "pnpm@12.23.0",
+  "engines": {
+    "node": ">=26 <27"
+  },
   "scripts": {
     "dev": "NODE_ENV=development NODE_OPTIONS=--experimental-sqlite tsx watch --env-file-if-exists=../../.env src/index.ts",
-    "dev:oidc": "npm --prefix ../web run build && NODE_ENV=development WEB_PUBLIC_DIR=../web/dist NODE_OPTIONS=--experimental-sqlite tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "dev:oidc": "pnpm --dir ../web run build && NODE_ENV=development WEB_PUBLIC_DIR=../web/dist NODE_OPTIONS=--experimental-sqlite tsx watch --env-file-if-exists=../../.env src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "NODE_OPTIONS=--experimental-sqlite node dist/index.js",
     "test": "NODE_OPTIONS=--experimental-sqlite tsx --test src/*.test.ts src/route-providers/*.test.ts",

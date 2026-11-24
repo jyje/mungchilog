@@ -1,0 +1,4 @@
+# esbuild (via tsx) has a postinstall that only validates/optimizes the binary
+# delivered by its platform-specific optional dependency. Not required.
+allowBuilds:
+  esbuild: false
